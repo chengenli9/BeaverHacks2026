@@ -11,17 +11,19 @@ from backend.app.manifests.models import (
     BlockManifest,
     CriticSuggestions,
     EndCardBlock,
+    Plan,
+    SceneIndex,
     SourceClipBlock,
     TextBlock,
 )
 
 
-def load_scene_index(project_path: str | Path) -> dict:
-    return _load_json(Path(project_path) / "cache" / "scene_index.json")
+def load_scene_index(project_path: str | Path) -> SceneIndex:
+    return SceneIndex.from_file(Path(project_path) / "cache" / "scene_index.json")
 
 
-def load_plan(project_path: str | Path) -> dict:
-    return _load_json(Path(project_path) / "manifests" / "plan.json")
+def load_plan(project_path: str | Path) -> Plan:
+    return Plan.from_file(Path(project_path) / "manifests" / "plan.json")
 
 
 def load_manifest(project_path: str | Path) -> BlockManifest:
@@ -39,8 +41,12 @@ def write_manifest(project_path: str | Path, manifest: BlockManifest) -> Path:
 
 
 def build_manifest(project_path: str | Path) -> BlockManifest:
+    scene_index = load_scene_index(project_path)
+    plan = load_plan(project_path)
+    plan.validate_against_scene_index(scene_index)
     manifest = load_manifest(project_path)
     reconciled = reconcile_durations(manifest)
+    validate_manifest_source_bounds(reconciled, scene_index)
     write_manifest(project_path, reconciled)
     return reconciled
 
@@ -80,6 +86,22 @@ def validate_project_assets(
             _require_file(root, block.source)
             if block.tts_asset:
                 _require_file(root, block.tts_asset)
+
+
+def validate_manifest_source_bounds(manifest: BlockManifest, scene_index: SceneIndex) -> None:
+    for block in manifest.blocks:
+        if not isinstance(block, SourceClipBlock):
+            continue
+        if block.source != scene_index.source:
+            raise ValueError(
+                f"source_clip block {block.block_id} source {block.source} "
+                f"does not match scene index source {scene_index.source}"
+            )
+        if block.source_end > scene_index.source_duration:
+            raise ValueError(
+                f"source_clip block {block.block_id} exceeds source_duration "
+                f"{scene_index.source_duration}"
+            )
 
 
 def validate_critic_suggestions(manifest: BlockManifest, suggestions: CriticSuggestions) -> None:
@@ -170,4 +192,3 @@ def _block_index(blocks: list[Block], block_id: str) -> int:
         if block.block_id == block_id:
             return index
     raise KeyError(f"Unknown block_id: {block_id}")
-

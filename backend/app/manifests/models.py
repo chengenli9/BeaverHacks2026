@@ -17,6 +17,106 @@ class RenderSettings(BaseModel):
     pixel_format: str = "yuv420p"
 
 
+class Scene(BaseModel):
+    scene_id: str
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    summary: str
+    visual_tags: list[str] = Field(default_factory=list)
+    audio_notes: str
+    demo_relevance: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def end_must_follow_start(self) -> Scene:
+        if self.end <= self.start:
+            raise ValueError("scene end must be greater than start")
+        return self
+
+
+class SceneIndex(BaseModel):
+    project_id: str
+    source: str
+    source_duration: float = Field(gt=0)
+    scenes: list[Scene]
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> SceneIndex:
+        return cls.model_validate(json.loads(Path(path).read_text(encoding="utf-8")))
+
+    @field_validator("source")
+    @classmethod
+    def source_must_be_project_relative(cls, value: str) -> str:
+        _validate_project_relative_path(value)
+        return value
+
+    @model_validator(mode="after")
+    def scenes_must_be_unique_and_within_source(self) -> SceneIndex:
+        scene_ids = [scene.scene_id for scene in self.scenes]
+        if len(scene_ids) != len(set(scene_ids)):
+            raise ValueError("scene_id values must be unique")
+        for scene in self.scenes:
+            if scene.end > self.source_duration:
+                raise ValueError("scene ranges must be within source_duration")
+        return self
+
+    def scene_by_id(self, scene_id: str) -> Scene:
+        for scene in self.scenes:
+            if scene.scene_id == scene_id:
+                return scene
+        raise KeyError(f"Unknown scene_id: {scene_id}")
+
+
+class PlanBeat(BaseModel):
+    beat_id: str
+    type: Literal["title", "source_clip", "end_card"]
+    goal: str
+    scene_id: str | None = None
+    duration: float = Field(gt=0)
+    narration: str | None = None
+    onscreen_text: str | None = None
+
+    @model_validator(mode="after")
+    def source_beats_require_scene_id(self) -> PlanBeat:
+        if self.type == "source_clip" and not self.scene_id:
+            raise ValueError("source_clip beats require scene_id")
+        if self.type != "source_clip" and self.scene_id is not None:
+            raise ValueError("non-source beats cannot reference scene_id")
+        return self
+
+
+class Plan(BaseModel):
+    project_id: str
+    title: str
+    target_duration: float = Field(gt=0)
+    story_arc: list[str]
+    beats: list[PlanBeat]
+
+    @classmethod
+    def from_file(cls, path: str | Path) -> Plan:
+        return cls.model_validate(json.loads(Path(path).read_text(encoding="utf-8")))
+
+    @model_validator(mode="after")
+    def beat_ids_must_be_unique(self) -> Plan:
+        beat_ids = [beat.beat_id for beat in self.beats]
+        if len(beat_ids) != len(set(beat_ids)):
+            raise ValueError("beat_id values must be unique")
+        return self
+
+    def beat_by_id(self, beat_id: str) -> PlanBeat:
+        for beat in self.beats:
+            if beat.beat_id == beat_id:
+                return beat
+        raise KeyError(f"Unknown beat_id: {beat_id}")
+
+    def validate_against_scene_index(self, scene_index: SceneIndex) -> None:
+        if self.project_id != scene_index.project_id:
+            raise ValueError("plan project_id must match scene index project_id")
+        scene_ids = {scene.scene_id for scene in scene_index.scenes}
+        for beat in self.beats:
+            if beat.scene_id and beat.scene_id not in scene_ids:
+                raise ValueError(f"Unknown scene_id in plan beat {beat.beat_id}: {beat.scene_id}")
+
+
 class BaseBlock(BaseModel):
     block_id: str
     type: str
@@ -166,4 +266,3 @@ def _validate_project_relative_path(value: str) -> None:
     path = Path(value)
     if path.is_absolute() or ".." in path.parts:
         raise ValueError("paths must be project-relative and cannot contain '..'")
-
