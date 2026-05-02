@@ -1,6 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from uuid import uuid4
-from app.projects.store import create_project, load_project
+from ..projects.store import create_project, load_project
 
 router = APIRouter()
 
@@ -14,4 +14,7 @@ def create():
 
 @router.get("/{project_id}")
 def get(project_id: str):
-    return load_project(project_id)
+    try:
+        return load_project(project_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

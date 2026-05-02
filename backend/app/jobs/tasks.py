@@ -1,33 +1,13 @@
-from time import sleep
+from ..integrations.gemini.service import (
+    analyze_scenes,
+    generate_background_assets,
+    generate_plan,
+    generate_tts_assets,
+    precritique_manifest,
+)
+from ..manifests.service import apply_approved_patches, build_manifest
+from ..rendering.service import render_project
 
 
-def analyze_scenes(project_id):
-    sleep(0.2)
-
-
-def generate_plan(project_id):
-    sleep(0.2)
-
-
-def generate_tts(project_id):
-    sleep(0.2)
-
-
-def generate_background_assets(project_id):
-    sleep(0.2)
-
-
-def build_manifest(project_id):
-    sleep(0.2)
-
-
-def precritique_manifest(project_id):
-    sleep(0.2)
-
-
-def apply_approved_patches(project_id):
-    sleep(0.2)
-
-
-def render_project(project_id):
-    sleep(0.2)
+def generate_tts(project_path):
+    return generate_tts_assets(project_path)

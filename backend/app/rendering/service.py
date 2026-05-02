@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
-from backend.app.manifests.models import Block, BlockManifest, SourceClipBlock, TextBlock
-from backend.app.manifests.service import load_manifest, validate_project_assets
-from backend.app.rendering.commands import (
+from ..manifests.models import Block, BlockManifest, SourceClipBlock, TextBlock
+from ..manifests.service import load_manifest, validate_project_assets
+from .commands import (
     build_concat_command,
     build_source_clip_command,
     build_title_block_command,

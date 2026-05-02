@@ -1,5 +1,5 @@
 from typing import Dict
-from datetime import datetime
+from datetime import UTC, datetime
 from threading import Lock
 from uuid import uuid4
 
@@ -8,7 +8,7 @@ LOCK = Lock()
 
 
 def now():
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 def create_job(project_id: str, stage: str, message: str):
@@ -56,4 +56,6 @@ def update(job_id: str, **fields):
 
 
 def get_job(job_id: str):
-    return JOBS.get(job_id)
+    with LOCK:
+        job = JOBS.get(job_id)
+        return dict(job) if job else None

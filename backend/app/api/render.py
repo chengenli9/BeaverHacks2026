@@ -1,22 +1,28 @@
-from fastapi import APIRouter, BackgroundTasks
-from app.jobs.store import create_job
-from app.jobs.runner import run_job
-from app.jobs import tasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
+from ..jobs.store import create_job
+from ..jobs.runner import run_job
+from ..jobs import tasks
+from ..projects.service import ProjectNotFoundError, get_project_path
 
 router = APIRouter()
 
 
-def _enqueue(bg: BackgroundTasks, job_type: str, fn, project_id: str):
-    job = create_job(job_type, {"project_id": project_id})
+def _enqueue(bg: BackgroundTasks, project_id: str, stage: str, fn):
+    try:
+        get_project_path(project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    job = create_job(project_id, stage, f"{stage} queued")
     bg.add_task(run_job, job["job_id"], fn, project_id)
-    return {"job_id": job["job_id"]}
+    return {"job_id": job["job_id"], "status": job["status"]}
 
 
 @router.post("/blocks")
 def render_blocks(project_id: str, bg: BackgroundTasks):
-    return _enqueue(bg, "render_blocks", tasks.render_blocks_task, project_id)
+    return _enqueue(bg, project_id, "rendering", tasks.render_project)
 
 
 @router.post("/final")
 def render_final(project_id: str, bg: BackgroundTasks):
-    return _enqueue(bg, "render_final", tasks.render_final_task, project_id)
+    return _enqueue(bg, project_id, "rendering", tasks.render_project)

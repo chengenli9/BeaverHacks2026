@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from backend.app.manifests.models import BlockManifest, RenderSettings, SourceClipBlock, TextBlock
+from ..manifests.models import BlockManifest, RenderSettings, SourceClipBlock, TextBlock
 
 
 def build_title_block_command(project_path: str | Path, block: TextBlock, settings: RenderSettings) -> list[str]:

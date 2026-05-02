@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from backend.app.manifests.models import (
+from .models import (
     ApplyPatchesRequest,
     Block,
     BlockManifest,

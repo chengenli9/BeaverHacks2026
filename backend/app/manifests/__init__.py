@@ -1,4 +1,4 @@
-from backend.app.manifests.service import (
+from .service import (
     apply_approved_patches,
     build_manifest,
     build_manifest_from_plan,

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from app.jobs.store import get_job
+from ..jobs.store import get_job
 
 router = APIRouter()
 
