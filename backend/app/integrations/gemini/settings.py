@@ -5,8 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Required
-GEMINI_API_KEY: str = os.environ["GEMINI_API_KEY"]
+# Required for live Gemini calls. Keep import-time loading permissive so
+# offline tests and non-AI app routes can import without a local secret.
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
 # Model defaults (cheap by policy)
 GEMINI_TEXT_MODEL: str = os.getenv("GEMINI_TEXT_MODEL", "gemini-2.5-flash-lite")

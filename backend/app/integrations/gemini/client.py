@@ -29,6 +29,8 @@ def get_client() -> genai.Client:
     """Return the module-level Gemini client, creating it on first call."""
     global _client
     if _client is None:
+        if not GEMINI_API_KEY:
+            raise RuntimeError("GEMINI_API_KEY is required for live Gemini calls")
         _client = genai.Client(api_key=GEMINI_API_KEY)
     return _client
 
