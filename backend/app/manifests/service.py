@@ -44,10 +44,84 @@ def build_manifest(project_path: str | Path) -> BlockManifest:
     scene_index = load_scene_index(project_path)
     plan = load_plan(project_path)
     plan.validate_against_scene_index(scene_index)
-    manifest = load_manifest(project_path)
+    manifest = build_manifest_from_plan(project_path)
     reconciled = reconcile_durations(manifest)
     validate_manifest_source_bounds(reconciled, scene_index)
     write_manifest(project_path, reconciled)
+    return reconciled
+
+
+def build_manifest_from_plan(
+    project_path: str | Path,
+    *,
+    tts_durations: dict[str, float] | None = None,
+) -> BlockManifest:
+    scene_index = load_scene_index(project_path)
+    plan = load_plan(project_path)
+    plan.validate_against_scene_index(scene_index)
+    tts_durations = tts_durations or {}
+    blocks: list[dict] = []
+
+    for index, beat in enumerate(plan.beats, start=1):
+        ordinal = f"{index:03d}"
+        if beat.type == "title":
+            blocks.append(
+                {
+                    "block_id": f"{ordinal}_title",
+                    "type": "title",
+                    "background_asset": f"assets/backgrounds/bg_{ordinal}.png",
+                    "text": beat.onscreen_text or plan.title,
+                    "duration": beat.duration,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "rendered_path": f"blocks/{ordinal}_title.mp4",
+                }
+            )
+        elif beat.type == "end_card":
+            blocks.append(
+                {
+                    "block_id": f"{ordinal}_end",
+                    "type": "end_card",
+                    "background_asset": f"assets/backgrounds/bg_{ordinal}.png",
+                    "text": beat.onscreen_text or plan.title,
+                    "duration": beat.duration,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "rendered_path": f"blocks/{ordinal}_end.mp4",
+                }
+            )
+        elif beat.type == "source_clip":
+            scene = scene_index.scene_by_id(beat.scene_id or "")
+            source_start = scene.start
+            requested_end = source_start + beat.duration
+            source_end = min(requested_end, scene.end, scene_index.source_duration)
+            video_duration = source_end - source_start
+            tts_duration = tts_durations.get(beat.beat_id)
+            tts_asset = _tts_asset_for_beat(index) if beat.narration and tts_duration is not None else None
+            blocks.append(
+                {
+                    "block_id": f"{ordinal}_{beat.beat_id}",
+                    "type": "source_clip",
+                    "source": scene_index.source,
+                    "source_start": source_start,
+                    "source_end": source_end,
+                    "video_duration": video_duration,
+                    "tts_asset": tts_asset,
+                    "tts_duration": tts_duration if tts_asset else None,
+                    "source_audio_volume": 0.15,
+                    "tts_fade_seconds": 0.5,
+                    "rendered_path": f"blocks/{ordinal}_{beat.beat_id}.mp4",
+                }
+            )
+
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": plan.project_id,
+            "version": 1,
+            "render_settings": {},
+            "blocks": blocks,
+        }
+    )
+    reconciled = reconcile_durations(manifest)
+    validate_manifest_source_bounds(reconciled, scene_index)
     return reconciled
 
 
@@ -197,3 +271,7 @@ def _block_index(blocks: list[Block], block_id: str) -> int:
         if block.block_id == block_id:
             return index
     raise KeyError(f"Unknown block_id: {block_id}")
+
+
+def _tts_asset_for_beat(index: int) -> str:
+    return f"assets/tts/tts_{index:03d}.wav"
