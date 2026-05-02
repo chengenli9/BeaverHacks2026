@@ -123,6 +123,11 @@ def apply_suggestions_to_manifest(
 ) -> BlockManifest:
     validate_critic_suggestions(manifest, suggestions)
     approved_ids = set(request.approved_suggestion_ids)
+    known_ids = {suggestion.suggestion_id for suggestion in suggestions.suggestions}
+    unknown_approved_ids = approved_ids - known_ids
+    if unknown_approved_ids:
+        raise KeyError(f"Unknown approved suggestion_id values: {sorted(unknown_approved_ids)}")
+
     updated_blocks: list[Block] = list(manifest.blocks)
     adapter = TypeAdapter(Block)
 
