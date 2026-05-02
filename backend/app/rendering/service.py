@@ -53,7 +53,10 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
     for index, block in enumerate(manifest.blocks, start=1):
         if progress_callback:
             progress_callback((index - 1) / total, f"Rendering block {index} of {total}")
-        render_block(root, block, manifest.render_settings)
+        try:
+            render_block(root, block, manifest.render_settings)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to render block {block.block_id}: {exc}") from exc
 
     write_concat_file(root, manifest)
     command = build_concat_command(root, manifest)

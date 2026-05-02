@@ -254,3 +254,99 @@ def test_probe_render_rejects_video_without_audio(tmp_path):
 
     with pytest.raises(RuntimeError, match="audio stream"):
         probe_render(video_only)
+
+
+def test_render_project_reports_progress_per_block(tmp_path, monkeypatch):
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "progress_project",
+            "version": 1,
+            "render_settings": {},
+            "blocks": [
+                {
+                    "block_id": "001_title",
+                    "type": "title",
+                    "background_asset": "assets/backgrounds/bg_001.png",
+                    "text": "One",
+                    "duration": 1.0,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "rendered_path": "blocks/001_title.mp4",
+                },
+                {
+                    "block_id": "002_end",
+                    "type": "end_card",
+                    "background_asset": "assets/backgrounds/bg_002.png",
+                    "text": "Two",
+                    "duration": 1.0,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "rendered_path": "blocks/002_end.mp4",
+                },
+            ],
+        }
+    )
+    (tmp_path / "manifests").mkdir()
+    (tmp_path / "renders").mkdir()
+    (tmp_path / "manifests" / "block_manifest.json").write_text(
+        manifest.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    import backend.app.rendering.service as service
+
+    monkeypatch.setattr(service, "check_ffmpeg_available", lambda: None)
+    monkeypatch.setattr(service, "validate_project_assets", lambda root, manifest: None)
+    monkeypatch.setattr(service, "render_block", lambda root, block, settings: tmp_path / block.rendered_path)
+    monkeypatch.setattr(service, "_run", lambda command, log_path: None)
+    monkeypatch.setattr(
+        service,
+        "probe_render",
+        lambda path: {"duration": 2.0, "size_bytes": 100, "has_video": True, "has_audio": True, "streams": []},
+    )
+    progress = []
+
+    final_render = render_project(tmp_path, progress_callback=lambda value, message: progress.append((value, message)))
+
+    assert final_render == tmp_path / "renders" / "final_render.mp4"
+    assert progress == [
+        (0.0, "Rendering block 1 of 2"),
+        (0.5, "Rendering block 2 of 2"),
+        (1.0, "Render complete"),
+    ]
+
+
+def test_render_project_wraps_block_failures_with_block_id(tmp_path, monkeypatch):
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "failure_project",
+            "version": 1,
+            "render_settings": {},
+            "blocks": [
+                {
+                    "block_id": "001_title",
+                    "type": "title",
+                    "background_asset": "assets/backgrounds/bg_001.png",
+                    "text": "One",
+                    "duration": 1.0,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "rendered_path": "blocks/001_title.mp4",
+                }
+            ],
+        }
+    )
+    (tmp_path / "manifests").mkdir()
+    (tmp_path / "manifests" / "block_manifest.json").write_text(
+        manifest.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    import backend.app.rendering.service as service
+
+    def fail_render_block(root, block, settings):
+        raise RuntimeError("simulated ffmpeg failure")
+
+    monkeypatch.setattr(service, "check_ffmpeg_available", lambda: None)
+    monkeypatch.setattr(service, "validate_project_assets", lambda root, manifest: None)
+    monkeypatch.setattr(service, "render_block", fail_render_block)
+
+    with pytest.raises(RuntimeError, match="001_title"):
+        render_project(tmp_path)
