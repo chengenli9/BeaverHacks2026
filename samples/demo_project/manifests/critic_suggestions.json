@@ -1,0 +1,26 @@
+{
+  "project_id": "demo_project",
+  "critic_scope": "blind_manifest_only",
+  "suggestions": [
+    {
+      "suggestion_id": "s001",
+      "block_id": "003_pipeline",
+      "action": "trim_end",
+      "amount_seconds": 1.0,
+      "max_allowed_trim_seconds": 2.4,
+      "reason": "The pipeline block has enough duration to stay clear while tightening the middle pacing.",
+      "requires_approval": true
+    },
+    {
+      "suggestion_id": "s002",
+      "block_id": "005_end",
+      "action": "replace_text",
+      "amount_seconds": 0.0,
+      "max_allowed_trim_seconds": 0.9,
+      "reason": "The end card can reinforce the human approval loop more directly.",
+      "replacement_text": "Gemini plans. Humans approve. FFmpeg renders.",
+      "requires_approval": true
+    }
+  ]
+}
+

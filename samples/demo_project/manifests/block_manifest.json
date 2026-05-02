@@ -1,0 +1,73 @@
+{
+  "project_id": "demo_project",
+  "version": 1,
+  "render_settings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "video_codec": "libx264",
+    "audio_codec": "aac",
+    "sample_rate": 48000,
+    "pixel_format": "yuv420p"
+  },
+  "blocks": [
+    {
+      "block_id": "001_title",
+      "type": "title",
+      "background_asset": "assets/backgrounds/bg_001.png",
+      "text": "DirectorLoop",
+      "duration": 3.0,
+      "fontfile": "assets/fonts/Inter-Bold.ttf",
+      "rendered_path": "blocks/001_title.mp4"
+    },
+    {
+      "block_id": "002_problem",
+      "type": "source_clip",
+      "source": "source/demo_footage.mp4",
+      "source_start": 0.0,
+      "source_end": 6.5,
+      "video_duration": 6.5,
+      "tts_asset": "assets/tts/tts_002.wav",
+      "tts_duration": 6.1,
+      "source_audio_volume": 0.15,
+      "tts_fade_seconds": 0.5,
+      "rendered_path": "blocks/002_problem.mp4"
+    },
+    {
+      "block_id": "003_pipeline",
+      "type": "source_clip",
+      "source": "source/demo_footage.mp4",
+      "source_start": 8.0,
+      "source_end": 16.0,
+      "video_duration": 8.0,
+      "tts_asset": "assets/tts/tts_003.wav",
+      "tts_duration": 7.4,
+      "source_audio_volume": 0.12,
+      "tts_fade_seconds": 0.5,
+      "rendered_path": "blocks/003_pipeline.mp4"
+    },
+    {
+      "block_id": "004_approval",
+      "type": "source_clip",
+      "source": "source/demo_footage.mp4",
+      "source_start": 19.0,
+      "source_end": 26.0,
+      "video_duration": 7.0,
+      "tts_asset": "assets/tts/tts_004.wav",
+      "tts_duration": 6.6,
+      "source_audio_volume": 0.12,
+      "tts_fade_seconds": 0.5,
+      "rendered_path": "blocks/004_approval.mp4"
+    },
+    {
+      "block_id": "005_end",
+      "type": "end_card",
+      "background_asset": "assets/backgrounds/bg_005.png",
+      "text": "Gemini plans. FFmpeg renders.",
+      "duration": 3.0,
+      "fontfile": "assets/fonts/Inter-Bold.ttf",
+      "rendered_path": "blocks/005_end.mp4"
+    }
+  ]
+}
+

@@ -1,0 +1,41 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+backend/.venv/
+
+# Node
+node_modules/
+apps/web/node_modules/
+dist/
+build/
+coverage/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated media artifacts
+samples/**/source/*.mp4
+samples/**/blocks/*.mp4
+samples/**/renders/*.mp4
+samples/**/assets/tts/*.wav
+samples/**/assets/backgrounds/*.png
+samples/**/logs/*.log
+samples/**/logs/*.jsonl
+
+# Keep scaffold placeholders
+!samples/**/.gitkeep
+!samples/**/README.md
+

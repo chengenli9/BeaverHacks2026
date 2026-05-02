@@ -1,0 +1,58 @@
+{
+  "project_id": "demo_project",
+  "title": "DirectorLoop Demo Cut",
+  "target_duration": 30.0,
+  "story_arc": [
+    "Show why raw footage is painful.",
+    "Show DirectorLoop turning footage into structured edit artifacts.",
+    "Show human approval and a final rendered MP4."
+  ],
+  "beats": [
+    {
+      "beat_id": "beat_001",
+      "type": "title",
+      "goal": "Brand the demo instantly.",
+      "scene_id": null,
+      "duration": 3.0,
+      "narration": null,
+      "onscreen_text": "DirectorLoop"
+    },
+    {
+      "beat_id": "beat_002",
+      "type": "source_clip",
+      "goal": "Name the editing pain in one clean sentence.",
+      "scene_id": "scene_001",
+      "duration": 6.5,
+      "narration": "Hackathon teams record the right moments, then lose time shaping them into a story.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_003",
+      "type": "source_clip",
+      "goal": "Show the AI pipeline becoming concrete artifacts.",
+      "scene_id": "scene_002",
+      "duration": 8.0,
+      "narration": "DirectorLoop indexes scenes, drafts a structured plan, and turns each beat into a renderable block.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_004",
+      "type": "source_clip",
+      "goal": "Show that the human stays in control.",
+      "scene_id": "scene_003",
+      "duration": 7.0,
+      "narration": "The critic reviews the manifest, suggests safe changes, and waits for approval.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_005",
+      "type": "end_card",
+      "goal": "End with a polished payoff.",
+      "scene_id": null,
+      "duration": 3.0,
+      "narration": null,
+      "onscreen_text": "Gemini plans. FFmpeg renders."
+    }
+  ]
+}
+

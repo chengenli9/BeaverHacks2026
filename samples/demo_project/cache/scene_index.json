@@ -1,0 +1,44 @@
+{
+  "project_id": "demo_project",
+  "source": "source/demo_footage.mp4",
+  "source_duration": 42.0,
+  "scenes": [
+    {
+      "scene_id": "scene_001",
+      "start": 0.0,
+      "end": 8.0,
+      "summary": "A team member introduces the problem: raw hackathon footage is messy and slow to edit.",
+      "visual_tags": ["intro", "talking-head", "problem"],
+      "audio_notes": "Clear speech with mild room noise.",
+      "demo_relevance": 0.82
+    },
+    {
+      "scene_id": "scene_002",
+      "start": 8.0,
+      "end": 19.0,
+      "summary": "Screen recording shows footage being analyzed and converted into an edit plan.",
+      "visual_tags": ["screen-recording", "pipeline", "analysis"],
+      "audio_notes": "Keyboard and room noise under speech.",
+      "demo_relevance": 0.94
+    },
+    {
+      "scene_id": "scene_003",
+      "start": 19.0,
+      "end": 31.0,
+      "summary": "The product shows manifest blocks, critic cards, and approval controls.",
+      "visual_tags": ["ui", "critic", "approval"],
+      "audio_notes": "Presenter explains the approval loop.",
+      "demo_relevance": 0.9
+    },
+    {
+      "scene_id": "scene_004",
+      "start": 31.0,
+      "end": 42.0,
+      "summary": "Final rendered video plays back inside the app.",
+      "visual_tags": ["render", "final-video", "payoff"],
+      "audio_notes": "Short celebratory narration and final UI click.",
+      "demo_relevance": 0.96
+    }
+  ]
+}
+
