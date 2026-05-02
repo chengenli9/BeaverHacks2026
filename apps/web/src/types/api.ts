@@ -1,9 +1,4 @@
-/* ──────────────────────────────────────────────
-   DirectorLoop — Frontend API Types
-   Mirrors docs/API_AND_DATA_CONTRACTS.md
-   ────────────────────────────────────────────── */
-
-// ── Job ──────────────────────────────────────
+// DirectorLoop frontend API types. Mirrors docs/API_AND_DATA_CONTRACTS.md.
 
 export type JobStatusValue = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
@@ -24,25 +19,24 @@ export interface JobStartResponse {
   status: 'queued'
 }
 
-export type JobKind =
+export type PipelineJobKind =
   | 'analyze-scenes'
   | 'generate-plan'
   | 'generate-tts'
   | 'generate-assets'
   | 'build-manifest'
   | 'precritique'
-  | 'apply-approved-patches'
   | 'render'
 
-// ── Project ──────────────────────────────────
+export type PatchJobKind = 'apply-approved-patches'
+export type JobKind = PipelineJobKind | PatchJobKind
+export type PipelineStageKey = JobKind
 
 export interface ProjectSummary {
   project_id: string
   name: string
   source_path: string
 }
-
-// ── Scene Index ──────────────────────────────
 
 export interface Scene {
   scene_id: string
@@ -61,8 +55,6 @@ export interface SceneIndex {
   scenes: Scene[]
 }
 
-// ── Plan ─────────────────────────────────────
-
 export interface Beat {
   beat_id: string
   type: 'title' | 'source_clip' | 'end_card'
@@ -80,8 +72,6 @@ export interface Plan {
   story_arc: string[]
   beats: Beat[]
 }
-
-// ── Block Manifest ───────────────────────────
 
 export interface RenderSettings {
   width: number
@@ -136,8 +126,6 @@ export interface BlockManifest {
   blocks: Block[]
 }
 
-// ── Critic Suggestions ──────────────────────
-
 export type CriticAction =
   | 'trim_end'
   | 'extend_end'
@@ -162,15 +150,11 @@ export interface CriticSuggestions {
   suggestions: Suggestion[]
 }
 
-// ── Apply Patches ────────────────────────────
-
 export interface ApplyPatchesRequest {
   project_id: string
   approved_suggestion_ids: string[]
   rejected_suggestion_ids: string[]
 }
-
-// ── Render ───────────────────────────────────
 
 export interface RenderSummary {
   project_id: string
@@ -179,8 +163,6 @@ export interface RenderSummary {
   duration: number
   bytes: number
 }
-
-// ── Event Log ────────────────────────────────
 
 export interface EventLogEntry {
   id: string

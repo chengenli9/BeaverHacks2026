@@ -1,19 +1,14 @@
-/* ──────────────────────────────────────────────
-   DirectorLoop — API Client
-   All calls target the FastAPI backend
-   ────────────────────────────────────────────── */
-
 import type {
-  ProjectSummary,
-  JobStartResponse,
-  JobStatus,
-  JobKind,
-  SceneIndex,
-  Plan,
+  ApplyPatchesRequest,
   BlockManifest,
   CriticSuggestions,
+  JobStartResponse,
+  JobStatus,
+  PipelineJobKind,
+  Plan,
+  ProjectSummary,
   RenderSummary,
-  ApplyPatchesRequest,
+  SceneIndex,
 } from '../types/api'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
@@ -23,33 +18,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     ...init,
   })
+
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
     throw new Error(`API ${res.status}: ${text}`)
   }
+
   return res.json() as Promise<T>
 }
-
-// ── Project ──────────────────────────────────
 
 export function openDemoProject(): Promise<ProjectSummary> {
   return request<ProjectSummary>('/projects/open-demo', { method: 'POST' })
 }
 
-// ── Jobs ─────────────────────────────────────
-
-export function startJob(kind: JobKind, body?: unknown): Promise<JobStartResponse> {
-  return request<JobStartResponse>(`/jobs/${kind}`, {
+export function startJob(kind: PipelineJobKind, projectId: string): Promise<JobStartResponse> {
+  const query = new URLSearchParams({ project_id: projectId })
+  return request<JobStartResponse>(`/jobs/${kind}?${query.toString()}`, {
     method: 'POST',
-    body: body ? JSON.stringify(body) : undefined,
+    body: undefined,
   })
 }
 
 export function getJob(jobId: string): Promise<JobStatus> {
   return request<JobStatus>(`/jobs/${jobId}`)
 }
-
-// ── Artifacts ────────────────────────────────
 
 export function getSceneIndex(projectId: string): Promise<SceneIndex> {
   return request<SceneIndex>(`/projects/${projectId}/scene-index`)
@@ -70,8 +62,6 @@ export function getCriticSuggestions(projectId: string): Promise<CriticSuggestio
 export function getRender(projectId: string): Promise<RenderSummary> {
   return request<RenderSummary>(`/projects/${projectId}/render`)
 }
-
-// ── Approval ─────────────────────────────────
 
 export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStartResponse> {
   return request<JobStartResponse>('/jobs/apply-approved-patches', {

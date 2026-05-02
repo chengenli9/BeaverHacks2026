@@ -28,7 +28,7 @@ function getBlockDuration(b: Block): number {
 }
 
 export function Timeline() {
-  const { manifest, renderSummary } = usePipeline()
+  const { manifest } = usePipeline()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
   const [playing, setPlaying] = useState(false)

@@ -1,4 +1,4 @@
-import { PipelineProvider } from './state/pipelineStore'
+import { PipelineProvider } from './state/PipelineProvider'
 import { AppShell } from './components/AppShell'
 
 function App() {

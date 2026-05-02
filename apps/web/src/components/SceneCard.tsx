@@ -23,7 +23,7 @@ export function SceneCard({ scene }: Props) {
       <div className="card-meta">
         <span className="card-meta-item">
           <Clock size={10} />
-          {scene.start.toFixed(1)}s — {scene.end.toFixed(1)}s
+          {scene.start.toFixed(1)}s - {scene.end.toFixed(1)}s
         </span>
       </div>
       <div className="tags">

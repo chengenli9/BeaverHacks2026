@@ -35,7 +35,7 @@ export function BlockCard({ block }: Props) {
           <>
             <span className="card-meta-item">
               <Film size={10} />
-              {block.source_start.toFixed(1)}s — {block.source_end.toFixed(1)}s
+              {block.source_start.toFixed(1)}s - {block.source_end.toFixed(1)}s
             </span>
             <span className="card-meta-item">
               <Mic size={10} />

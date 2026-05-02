@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 
@@ -34,12 +34,79 @@ const mockRender = {
   bytes: 1842042,
 }
 
+const mockSceneIndex = {
+  project_id: 'demo_project',
+  source: 'source/demo_footage.mp4',
+  source_duration: 42,
+  scenes: [
+    {
+      scene_id: 'scene_001',
+      start: 0,
+      end: 8,
+      summary: 'Opening shot of the team explaining the project.',
+      visual_tags: ['team', 'intro'],
+      audio_notes: 'Clear speech',
+      demo_relevance: 0.8,
+    },
+  ],
+}
+
+const mockPlan = {
+  project_id: 'demo_project',
+  title: 'DirectorLoop Demo Cut',
+  target_duration: 30,
+  story_arc: ['Name the problem', 'Show the pipeline'],
+  beats: [
+    {
+      beat_id: 'beat_001',
+      type: 'title' as const,
+      goal: 'Brand the demo instantly',
+      scene_id: null,
+      duration: 3,
+      narration: null,
+      onscreen_text: 'DirectorLoop',
+    },
+  ],
+}
+
+const mockManifest = {
+  project_id: 'demo_project',
+  version: 1,
+  render_settings: {
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    video_codec: 'libx264',
+    audio_codec: 'aac',
+    sample_rate: 48000,
+    pixel_format: 'yuv420p',
+  },
+  blocks: [
+    {
+      block_id: '001_title',
+      type: 'title' as const,
+      background_asset: 'assets/backgrounds/bg_001.png',
+      text: 'DirectorLoop',
+      duration: 3,
+      fontfile: 'assets/fonts/Inter-Bold.ttf',
+      rendered_path: 'blocks/001_title.mp4',
+    },
+  ],
+}
+
 function mockApi() {
   const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>
   return m
 }
 
-beforeEach(() => { vi.resetAllMocks() })
+beforeEach(() => {
+  vi.useRealTimers()
+  vi.resetAllMocks()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('Dashboard', () => {
   it('renders empty state with Open Demo Project button', () => {
@@ -50,20 +117,93 @@ describe('Dashboard', () => {
     expect(screen.getByText('No Project')).toBeInTheDocument()
   })
 
-  it('opens demo project and populates panels', async () => {
+  it('opens demo project and populates artifact panels', async () => {
     const user = userEvent.setup()
     const m = mockApi()
     m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/' })
-    m.getSceneIndex.mockRejectedValue(new Error('no'))
-    m.getPlan.mockRejectedValue(new Error('no'))
-    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getSceneIndex.mockResolvedValue(mockSceneIndex)
+    m.getPlan.mockResolvedValue(mockPlan)
+    m.getManifest.mockResolvedValue(mockManifest)
     m.getCriticSuggestions.mockRejectedValue(new Error('no'))
     m.getRender.mockRejectedValue(new Error('no'))
 
     render(<App />)
     await user.click(screen.getByText('Open Demo Project'))
     expect(await screen.findByText('Demo Project')).toBeInTheDocument()
+
+    await user.click(await screen.findByRole('button', { name: /Scenes/i }))
+    expect(screen.getByText('Opening shot of the team explaining the project.')).toBeInTheDocument()
+
+    const centerPanel = document.querySelector('#center-panel') as HTMLElement
+    await user.click(within(centerPanel).getByRole('button', { name: /Plan/i }))
+    expect(screen.getByText('DirectorLoop Demo Cut')).toBeInTheDocument()
+
+    await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
+    expect(screen.getByText('Block Manifest v1')).toBeInTheDocument()
+    expect(within(centerPanel).getByText('001_title')).toBeInTheDocument()
   })
+
+  it('polls a running job and updates progress', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+    m.startJob.mockResolvedValue({ job_id: 'job_analyze_1', status: 'queued' })
+    m.getJob.mockResolvedValue({
+      job_id: 'job_analyze_1',
+      project_id: 'demo_project',
+      status: 'running',
+      stage: 'analyzing_scenes',
+      progress: 0.42,
+      message: 'Analyzing scene 2 of 5',
+      error: null,
+      created_at: '2026-05-02T20:00:00Z',
+      updated_at: '2026-05-02T20:00:01Z',
+    })
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('Demo')
+    await user.click(screen.getByRole('button', { name: /Analyze/i }))
+
+    expect(await screen.findByText('Analyzing scene 2 of 5')).toBeInTheDocument()
+    expect(screen.getByText('42%')).toBeInTheDocument()
+  }, 7000)
+
+  it('renders failed job retry state', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+    m.startJob.mockResolvedValue({ job_id: 'job_analyze_2', status: 'queued' })
+    m.getJob.mockResolvedValue({
+      job_id: 'job_analyze_2',
+      project_id: 'demo_project',
+      status: 'failed',
+      stage: 'analyzing_scenes',
+      progress: 0.18,
+      message: null,
+      error: 'Scene analyzer crashed',
+      created_at: '2026-05-02T20:00:00Z',
+      updated_at: '2026-05-02T20:00:01Z',
+    })
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('Demo')
+    await user.click(screen.getByRole('button', { name: /Analyze/i }))
+
+    expect(await screen.findByText(/Scene analyzer crashed/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Retry Analyze/i })).toBeEnabled()
+  }, 7000)
 
   it('renders critic suggestions with approve/reject controls', async () => {
     const user = userEvent.setup()
@@ -86,6 +226,32 @@ describe('Dashboard', () => {
     const rejectButtons = screen.getAllByText('Reject')
     expect(approveButtons.length).toBe(2)
     expect(rejectButtons.length).toBe(2)
+  })
+
+  it('submits approved and rejected critic suggestion ids', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockResolvedValue(mockCritic)
+    m.getRender.mockRejectedValue(new Error('no'))
+    m.applyApprovedPatches.mockResolvedValue({ job_id: 'job_apply_1', status: 'queued' })
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('Demo')
+    await user.click(screen.getByText('Output'))
+    await user.click(await screen.findByRole('button', { name: /Approve s001/i }))
+    await user.click(screen.getByRole('button', { name: /Reject s002/i }))
+    await user.click(screen.getByRole('button', { name: /Apply Changes/i }))
+
+    expect(m.applyApprovedPatches).toHaveBeenCalledWith({
+      project_id: 'demo_project',
+      approved_suggestion_ids: ['s001'],
+      rejected_suggestion_ids: ['s002'],
+    })
   })
 
   it('renders render preview when render summary exists', async () => {

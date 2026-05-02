@@ -1,4 +1,4 @@
-import { Play, HardDrive, Clock, Maximize } from 'lucide-react'
+import { Play, HardDrive, Clock } from 'lucide-react'
 import { usePipeline } from '../state/pipelineStore'
 
 export function RenderPreview() {

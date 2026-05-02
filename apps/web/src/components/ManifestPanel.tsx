@@ -3,13 +3,14 @@ import { usePipeline } from '../state/pipelineStore'
 import { SceneCard } from './SceneCard'
 import { BlockCard } from './BlockCard'
 import { ProgressBar } from './ProgressBar'
+import { StatusBadge } from './StatusBadge'
 
 export function ManifestPanel() {
-  const { sceneIndex, plan, manifest, activeJobs, pipelineStages, projectId } = usePipeline()
+  const { sceneIndex, plan, manifest, activeJobs, projectId } = usePipeline()
 
   // Find running jobs for center panel stages
   const runningJobs = Object.values(activeJobs).filter(
-    (j) => j.status === 'running' && ['analyze-scenes', 'generate-plan', 'generate-tts', 'generate-assets', 'build-manifest'].includes(j.stage ?? ''),
+    (j) => (j.status === 'queued' || j.status === 'running') && ['analyze-scenes', 'generate-plan', 'generate-tts', 'generate-assets', 'build-manifest'].includes(j.stage ?? ''),
   )
 
   const hasContent = sceneIndex || plan || manifest
@@ -29,7 +30,7 @@ export function ManifestPanel() {
               <span className="card-title" style={{ color: 'var(--blue)' }}>
                 {job.stage ?? job.job_id}
               </span>
-              <span className="status-badge running"><span className="badge-dot" /> running</span>
+              <StatusBadge status={job.status} />
             </div>
             {job.message && <div className="card-body">{job.message}</div>}
             <div style={{ marginTop: 6 }}>
@@ -54,7 +55,7 @@ export function ManifestPanel() {
         {plan && (
           <>
             <div className="section-header">
-              <FileText size={12} /> Plan — {plan.title}
+              <FileText size={12} /> Plan - {plan.title}
             </div>
             <div className="story-arc">
               {plan.story_arc.map((step, i) => (
@@ -85,7 +86,7 @@ export function ManifestPanel() {
                 </div>
                 <div className="card-meta">
                   <span className="card-meta-item">{beat.duration.toFixed(1)}s</span>
-                  {beat.scene_id && <span className="card-meta-item">→ {beat.scene_id}</span>}
+                  {beat.scene_id && <span className="card-meta-item">- {beat.scene_id}</span>}
                 </div>
               </div>
             ))}
@@ -99,7 +100,7 @@ export function ManifestPanel() {
               <Boxes size={12} /> Block Manifest v{manifest.version}
             </div>
             <div className="card-meta" style={{ marginBottom: 8, padding: '0 4px' }}>
-              <span className="card-meta-item">{manifest.render_settings.width}×{manifest.render_settings.height}</span>
+              <span className="card-meta-item">{manifest.render_settings.width}x{manifest.render_settings.height}</span>
               <span className="card-meta-item">{manifest.render_settings.fps}fps</span>
               <span className="card-meta-item">{manifest.render_settings.video_codec}</span>
             </div>

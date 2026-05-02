@@ -3,13 +3,13 @@ import {
   FolderOpen, RefreshCw, Loader,
 } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
-import type { JobKind } from '../types/api'
+import type { PipelineJobKind, PipelineStageKey } from '../types/api'
 
 interface StageConfig {
-  kind: JobKind
+  kind: PipelineJobKind
   label: string
   icon: React.ReactNode
-  prereq?: string // stage key that must be 'succeeded'
+  prereq?: PipelineStageKey
 }
 
 const STAGES: StageConfig[] = [
@@ -49,6 +49,7 @@ export function PipelineControls() {
                 key={kind}
                 className={`stage-btn ${status}`}
                 disabled={disabled}
+                aria-label={status === 'failed' ? `Retry ${label}` : label}
                 onClick={() => runStage(kind)}
                 id={`stage-${kind}`}
               >
