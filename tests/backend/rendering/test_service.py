@@ -9,6 +9,7 @@ from backend.app.rendering.service import (
     probe_render,
     render_project,
     source_has_audio_stream,
+    summarize_render,
     write_concat_file,
 )
 
@@ -30,6 +31,30 @@ def test_write_concat_file_has_one_line_per_block(tmp_path):
         "file 'blocks/004_approval.mp4'",
         "file 'blocks/005_end.mp4'",
     ]
+
+
+def test_write_concat_file_rejects_unsafe_rendered_paths(tmp_path):
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "bad_paths",
+            "version": 1,
+            "render_settings": {},
+            "blocks": [
+                {
+                    "block_id": "001_bad",
+                    "type": "title",
+                    "background_asset": "assets/backgrounds/bg_001.png",
+                    "text": "Bad",
+                    "duration": 1.0,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "rendered_path": "blocks/bad'name.mp4",
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ValueError, match="Unsafe concat path"):
+        write_concat_file(tmp_path, manifest)
 
 
 def test_render_project_creates_probeable_final_mp4(tmp_path):
@@ -114,7 +139,11 @@ def test_render_project_creates_probeable_final_mp4(tmp_path):
     probe = probe_render(final_render)
 
     assert final_render.is_file()
-    assert float(probe["format"]["duration"]) > 0
+    assert probe["duration"] > 0
+    assert probe["size_bytes"] > 0
+    assert probe["has_video"] is True
+    assert probe["has_audio"] is True
+    assert summarize_render("demo_project", final_render)["render_path"].endswith("final_render.mp4")
 
 
 def test_source_clip_without_audio_stream_still_renders_with_audio_output(tmp_path):
@@ -191,4 +220,37 @@ def test_source_clip_without_audio_stream_still_renders_with_audio_output(tmp_pa
     probe = probe_render(final_render)
 
     assert final_render.is_file()
-    assert float(probe["format"]["duration"]) > 0
+    assert probe["duration"] > 0
+    assert probe["has_video"] is True
+    assert probe["has_audio"] is True
+
+
+def test_probe_render_rejects_video_without_audio(tmp_path):
+    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        pytest.skip("ffmpeg and ffprobe are required for probe validation")
+
+    video_only = tmp_path / "video_only.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x180:rate=15",
+            "-t",
+            "0.5",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(video_only),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    with pytest.raises(RuntimeError, match="audio stream"):
+        probe_render(video_only)

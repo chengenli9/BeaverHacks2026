@@ -68,7 +68,7 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
 def write_concat_file(project_path: str | Path, manifest: BlockManifest) -> Path:
     root = Path(project_path)
     concat_path = root / "concat.txt"
-    lines = [f"file '{block.rendered_path}'" for block in manifest.blocks]
+    lines = [f"file '{_safe_concat_path(block.rendered_path)}'" for block in manifest.blocks]
     concat_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return concat_path
 
@@ -81,14 +81,50 @@ def probe_render(path: str | Path) -> dict:
         "ffprobe",
         "-v",
         "error",
-        "-show_entries",
-        "format=duration,size",
+        "-show_streams",
+        "-show_format",
         "-of",
         "json",
         str(render_path),
     ]
     completed = subprocess.run(command, capture_output=True, text=True, check=True)
-    return json.loads(completed.stdout)
+    raw_probe = json.loads(completed.stdout)
+    streams = raw_probe.get("streams", [])
+    has_video = any(stream.get("codec_type") == "video" for stream in streams)
+    has_audio = any(stream.get("codec_type") == "audio" for stream in streams)
+    if not has_video:
+        raise RuntimeError(f"Render is missing a video stream: {render_path}")
+    if not has_audio:
+        raise RuntimeError(f"Render is missing an audio stream: {render_path}")
+
+    format_info = raw_probe.get("format", {})
+    duration = float(format_info.get("duration", 0))
+    size_bytes = int(format_info.get("size", render_path.stat().st_size))
+    if duration <= 0:
+        raise RuntimeError(f"Render has non-positive duration: {render_path}")
+    if size_bytes <= 0:
+        raise RuntimeError(f"Render has non-positive size: {render_path}")
+
+    return {
+        "duration": duration,
+        "size_bytes": size_bytes,
+        "has_video": has_video,
+        "has_audio": has_audio,
+        "streams": streams,
+    }
+
+
+def summarize_render(project_id: str, path: str | Path) -> dict:
+    render_path = Path(path)
+    probe = probe_render(render_path)
+    return {
+        "project_id": project_id,
+        "render_path": str(render_path),
+        "duration": probe["duration"],
+        "bytes": probe["size_bytes"],
+        "has_video": probe["has_video"],
+        "has_audio": probe["has_audio"],
+    }
 
 
 def source_has_audio_stream(path: str | Path) -> bool:
@@ -120,3 +156,10 @@ def _run(command: list[str], log_path: Path) -> None:
             log.write(completed.stderr + "\n")
     if completed.returncode != 0:
         raise RuntimeError(f"FFmpeg command failed; see {log_path}")
+
+
+def _safe_concat_path(path: str) -> str:
+    normalized = path.replace("\\", "/")
+    if normalized.startswith("/") or ":" in normalized or ".." in Path(normalized).parts or "'" in normalized:
+        raise ValueError(f"Unsafe concat path: {path}")
+    return normalized
