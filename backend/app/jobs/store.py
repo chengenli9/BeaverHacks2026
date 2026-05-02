@@ -1,33 +1,58 @@
 from typing import Dict
-from uuid import uuid4
 from datetime import datetime
+from threading import Lock
+from uuid import uuid4
 
 JOBS: Dict[str, dict] = {}
+LOCK = Lock()
 
 
-def create_job(job_type: str, payload: dict) -> dict:
-    job_id = str(uuid4())
+def now():
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def create_job(project_id: str, stage: str, message: str):
+    job_id = f"job_{uuid4().hex[:8]}"
 
     job = {
         "job_id": job_id,
-        "type": job_type,
-        "status": "PENDING",
+        "project_id": project_id,
+        "status": "queued",
+        "stage": stage,
         "progress": 0.0,
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": None,
-        "result": None,
+        "message": message,
         "error": None,
-        "meta": payload,
+        "created_at": now(),
+        "updated_at": now(),
     }
 
-    JOBS[job_id] = job
+    with LOCK:
+        JOBS[job_id] = job
+
     return job
 
 
-def update_job(job_id: str, **updates):
-    job = JOBS[job_id]
-    job.update(updates)
-    job["updated_at"] = datetime.utcnow().isoformat()
+def mark_running(job_id: str, message: str):
+    update(job_id, status="running", message=message)
+
+
+def update_progress(job_id: str, progress: float, message: str):
+    update(job_id, progress=progress, message=message)
+
+
+def mark_succeeded(job_id: str, message: str):
+    update(job_id, status="succeeded", progress=1.0, message=message)
+
+
+def mark_failed(job_id: str, error: str):
+    update(job_id, status="failed", error=error, message="Job failed")
+
+
+def update(job_id: str, **fields):
+    with LOCK:
+        job = JOBS[job_id]
+        job.update(fields)
+        job["updated_at"] = now()
 
 
 def get_job(job_id: str):

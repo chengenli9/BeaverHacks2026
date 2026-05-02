@@ -1,10 +1,21 @@
 from fastapi import FastAPI
-from app.api import jobs, projects, generate, render, critique
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.routes import router
 
 app = FastAPI(title="DirectorLoop Backend")
 
-app.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
-app.include_router(projects.router, prefix="/projects", tags=["projects"])
-app.include_router(generate.router, prefix="/generate", tags=["generate"])
-app.include_router(render.router, prefix="/render", tags=["render"])
-app.include_router(critique.router, prefix="/critique", tags=["critique"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # dev only
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
