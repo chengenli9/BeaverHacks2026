@@ -50,6 +50,8 @@ def build_source_clip_command(
     project_path: str | Path,
     block: SourceClipBlock,
     settings: RenderSettings,
+    *,
+    source_has_audio: bool = True,
 ) -> list[str]:
     root = Path(project_path)
     output = root / block.rendered_path
@@ -63,14 +65,28 @@ def build_source_clip_command(
         "-i",
         str(root / block.source),
     ]
+    source_audio_input_index = 0
 
     if block.tts_asset:
+        if not source_has_audio:
+            command.extend(
+                [
+                    "-f",
+                    "lavfi",
+                    "-t",
+                    _seconds(block.video_duration),
+                    "-i",
+                    f"anullsrc=channel_layout=stereo:sample_rate={settings.sample_rate}",
+                ]
+            )
+            source_audio_input_index = 1
         command.extend(["-i", str(root / block.tts_asset)])
+        tts_input_index = source_audio_input_index + 1
         filter_complex = (
             f"[0:v]scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,"
             f"crop={settings.width}:{settings.height},fps={settings.fps},format={settings.pixel_format}[v];"
-            f"[0:a]volume={block.source_audio_volume}[srca];"
-            f"[1:a]afade=t=in:st=0:d={block.tts_fade_seconds},"
+            f"[{source_audio_input_index}:a]volume={block.source_audio_volume}[srca];"
+            f"[{tts_input_index}:a]afade=t=in:st=0:d={block.tts_fade_seconds},"
             f"afade=t=out:st={max((block.tts_duration or 0) - block.tts_fade_seconds, 0)}:"
             f"d={block.tts_fade_seconds}[ttsa];"
             "[srca][ttsa]amix=inputs=2:duration=longest[a]"
@@ -81,7 +97,25 @@ def build_source_clip_command(
             f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,"
             f"crop={settings.width}:{settings.height},fps={settings.fps},format={settings.pixel_format}"
         )
-        command.extend(["-vf", video_filter, "-af", f"volume={block.source_audio_volume}"])
+        if source_has_audio:
+            command.extend(["-vf", video_filter, "-af", f"volume={block.source_audio_volume}"])
+        else:
+            command.extend(
+                [
+                    "-f",
+                    "lavfi",
+                    "-t",
+                    _seconds(block.video_duration),
+                    "-i",
+                    f"anullsrc=channel_layout=stereo:sample_rate={settings.sample_rate}",
+                    "-filter_complex",
+                    f"[0:v]{video_filter}[v];[1:a]volume={block.source_audio_volume}[a]",
+                    "-map",
+                    "[v]",
+                    "-map",
+                    "[a]",
+                ]
+            )
 
     command.extend(
         [

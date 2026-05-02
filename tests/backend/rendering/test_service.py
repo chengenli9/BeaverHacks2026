@@ -5,7 +5,12 @@ import subprocess
 import pytest
 
 from backend.app.manifests.models import BlockManifest
-from backend.app.rendering.service import probe_render, render_project, write_concat_file
+from backend.app.rendering.service import (
+    probe_render,
+    render_project,
+    source_has_audio_stream,
+    write_concat_file,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -104,6 +109,83 @@ def test_render_project_creates_probeable_final_mp4(tmp_path):
         manifest.model_dump_json(indent=2),
         encoding="utf-8",
     )
+
+    final_render = render_project(project)
+    probe = probe_render(final_render)
+
+    assert final_render.is_file()
+    assert float(probe["format"]["duration"]) > 0
+
+
+def test_source_clip_without_audio_stream_still_renders_with_audio_output(tmp_path):
+    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        pytest.skip("ffmpeg and ffprobe are required for smoke render")
+
+    project = tmp_path
+    (project / "source").mkdir()
+    (project / "manifests").mkdir()
+    (project / "blocks").mkdir()
+    (project / "renders").mkdir()
+    (project / "logs").mkdir()
+
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x180:rate=15",
+            "-t",
+            "0.6",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(project / "source" / "silent_source.mp4"),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "silent_source_project",
+            "version": 1,
+            "render_settings": {
+                "width": 320,
+                "height": 180,
+                "fps": 15,
+                "video_codec": "libx264",
+                "audio_codec": "aac",
+                "sample_rate": 48000,
+                "pixel_format": "yuv420p",
+            },
+            "blocks": [
+                {
+                    "block_id": "001_clip",
+                    "type": "source_clip",
+                    "source": "source/silent_source.mp4",
+                    "source_start": 0.0,
+                    "source_end": 0.5,
+                    "video_duration": 0.5,
+                    "tts_asset": None,
+                    "tts_duration": None,
+                    "source_audio_volume": 0.15,
+                    "tts_fade_seconds": 0.5,
+                    "rendered_path": "blocks/001_clip.mp4",
+                }
+            ],
+        }
+    )
+    (project / "manifests" / "block_manifest.json").write_text(
+        manifest.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    assert source_has_audio_stream(project / "source" / "silent_source.mp4") is False
 
     final_render = render_project(project)
     probe = probe_render(final_render)

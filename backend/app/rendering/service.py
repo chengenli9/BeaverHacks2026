@@ -31,7 +31,12 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
     if isinstance(block, TextBlock):
         command = build_title_block_command(root, block, settings)
     elif isinstance(block, SourceClipBlock):
-        command = build_source_clip_command(root, block, settings)
+        command = build_source_clip_command(
+            root,
+            block,
+            settings,
+            source_has_audio=source_has_audio_stream(root / block.source),
+        )
     else:
         raise ValueError(f"Unsupported block type: {block.type}")
     _run(command, root / "logs" / "ffmpeg.log")
@@ -86,6 +91,24 @@ def probe_render(path: str | Path) -> dict:
     return json.loads(completed.stdout)
 
 
+def source_has_audio_stream(path: str | Path) -> bool:
+    command = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=index",
+        "-of",
+        "json",
+        str(path),
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=True)
+    streams = json.loads(completed.stdout).get("streams", [])
+    return len(streams) > 0
+
+
 def _run(command: list[str], log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     completed = subprocess.run(command, capture_output=True, text=True)
@@ -97,4 +120,3 @@ def _run(command: list[str], log_path: Path) -> None:
             log.write(completed.stderr + "\n")
     if completed.returncode != 0:
         raise RuntimeError(f"FFmpeg command failed; see {log_path}")
-

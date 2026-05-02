@@ -29,10 +29,70 @@ def test_source_command_includes_tts_input_when_present():
     manifest = BlockManifest.from_file(SAMPLE_PROJECT / "manifests" / "block_manifest.json")
     block = manifest.block_by_id("002_problem")
 
-    command = build_source_clip_command(SAMPLE_PROJECT, block, manifest.render_settings)
+    command = build_source_clip_command(
+        SAMPLE_PROJECT,
+        block,
+        manifest.render_settings,
+        source_has_audio=True,
+    )
 
     assert str(SAMPLE_PROJECT / "assets" / "tts" / "tts_002.wav") in command
     assert "-filter_complex" in command
+
+
+def test_source_command_uses_silent_audio_when_source_has_no_audio():
+    manifest = BlockManifest.from_file(SAMPLE_PROJECT / "manifests" / "block_manifest.json")
+    block = manifest.block_by_id("002_problem")
+
+    command = build_source_clip_command(
+        SAMPLE_PROJECT,
+        block,
+        manifest.render_settings,
+        source_has_audio=False,
+    )
+    joined = " ".join(command)
+
+    assert "anullsrc=channel_layout=stereo:sample_rate=48000" in command
+    assert "[2:a]afade" in joined
+    assert "[srca][ttsa]amix=inputs=2:duration=longest[a]" in joined
+
+
+def test_source_command_without_tts_still_outputs_audio_when_source_has_no_audio():
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "demo_project",
+            "version": 1,
+            "render_settings": {},
+            "blocks": [
+                {
+                    "block_id": "001_no_tts",
+                    "type": "source_clip",
+                    "source": "source/demo_footage.mp4",
+                    "source_start": 0.0,
+                    "source_end": 1.0,
+                    "video_duration": 1.0,
+                    "tts_asset": None,
+                    "tts_duration": None,
+                    "source_audio_volume": 0.15,
+                    "tts_fade_seconds": 0.5,
+                    "rendered_path": "blocks/001_no_tts.mp4",
+                }
+            ],
+        }
+    )
+    block = manifest.block_by_id("001_no_tts")
+
+    command = build_source_clip_command(
+        SAMPLE_PROJECT,
+        block,
+        manifest.render_settings,
+        source_has_audio=False,
+    )
+    joined = " ".join(command)
+
+    assert "anullsrc=channel_layout=stereo:sample_rate=48000" in command
+    assert "-filter_complex" in command
+    assert "-map [a]" in joined
 
 
 def test_concat_command_targets_final_render():
