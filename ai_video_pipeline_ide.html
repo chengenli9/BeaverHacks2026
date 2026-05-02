@@ -1,0 +1,523 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+.mono{font-family:var(--font-mono);}
+.app{display:grid;grid-template-rows:1fr auto;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;background:var(--color-background-primary);min-height:580px;}
+.workspace{display:grid;grid-template-columns:168px 1fr 168px;min-height:0;}
+.panel{background:var(--color-background-secondary);border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;overflow:hidden;}
+.panel.right{border-right:none;border-left:0.5px solid var(--color-border-tertiary);}
+.panel-head{padding:8px 10px 6px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.panel-head-label{font-size:10px;font-weight:500;letter-spacing:0.06em;text-transform:uppercase;color:var(--color-text-secondary);}
+.tree{padding:6px 0;overflow-y:auto;flex:1;}
+.tree-node{display:flex;align-items:center;gap:5px;padding:3px 8px;font-size:11px;font-family:var(--font-mono);color:var(--color-text-secondary);cursor:default;user-select:none;line-height:1.4;}
+.tree-node.dir{color:var(--color-text-primary);font-weight:500;}
+.tree-node.new{animation:fadeIn 0.4s ease;}
+.tree-node.active-file{color:#BA7517;background:#FAEEDA44;}
+.tree-node.done-file{color:#0F6E56;}
+.tree-indent{padding-left:14px;}
+.tree-icon{font-size:10px;flex-shrink:0;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.main{display:flex;flex-direction:column;padding:18px 20px;gap:14px;overflow-y:auto;}
+.screen-title{font-size:13px;font-weight:500;color:var(--color-text-primary);}
+.screen-sub{font-size:11px;color:var(--color-text-secondary);font-family:var(--font-mono);}
+.dropzone{border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-md);padding:28px 16px;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;}
+.dropzone:hover{border-color:#BA7517;background:#FAEEDA18;}
+.dz-icon{font-size:22px;margin-bottom:8px;}
+.dz-main{font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px;}
+.dz-sub{font-size:11px;color:var(--color-text-secondary);}
+.btn{padding:6px 14px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);font-size:12px;cursor:pointer;font-family:var(--font-sans);transition:background 0.1s;}
+.btn:hover{background:var(--color-background-secondary);}
+.btn-primary{background:#BA7517;color:#fff;border-color:#BA7517;font-weight:500;}
+.btn-primary:hover{background:#854F0B;border-color:#854F0B;}
+.btn-sm-ok{background:transparent;border:0.5px solid #1D9E75;color:#0F6E56;font-size:11px;padding:4px 10px;border-radius:var(--border-radius-md);cursor:pointer;font-family:var(--font-sans);}
+.btn-sm-ok:hover{background:#E1F5EE;}
+.btn-sm-no{background:transparent;border:0.5px solid #A32D2D;color:#A32D2D;font-size:11px;padding:4px 10px;border-radius:var(--border-radius-md);cursor:pointer;font-family:var(--font-sans);}
+.btn-sm-no:hover{background:#FCEBEB;}
+.btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.prog-track{background:var(--color-background-secondary);border-radius:4px;height:5px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:4px;background:#BA7517;transition:width 0.5s;}
+.prog-fill.teal{background:#1D9E75;}
+.proc-list{display:flex;flex-direction:column;gap:6px;}
+.proc-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);}
+.proc-status{font-size:10px;font-weight:500;min-width:42px;font-family:var(--font-mono);}
+.st-done{color:#0F6E56;}.st-run{color:#BA7517;}.st-wait{color:var(--color-text-tertiary);}
+.proc-name{font-size:11px;color:var(--color-text-primary);flex:1;}
+.proc-detail{font-size:10px;color:var(--color-text-secondary);font-family:var(--font-mono);}
+.code-block{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 12px;font-family:var(--font-mono);font-size:10px;color:var(--color-text-secondary);line-height:1.6;max-height:130px;overflow-y:auto;}
+.k{color:#854F0B;}.s{color:#0F6E56;}.n{color:#BA7517;}
+.goal-input{width:100%;padding:8px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:12px;font-family:var(--font-sans);background:var(--color-background-primary);color:var(--color-text-primary);resize:vertical;min-height:72px;}
+.goal-input:focus{outline:none;border-color:#BA7517;}
+.player-mock{background:#0d0d0d;border-radius:var(--border-radius-md);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;min-height:120px;}
+.player-time{font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.4);}
+.scrub{height:3px;background:rgba(255,255,255,0.15);border-radius:2px;width:140px;}
+.scrub-fill{height:100%;width:33%;background:#FAC775;border-radius:2px;}
+.pctrl{display:flex;gap:10px;align-items:center;}
+.pbtn{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.12);border:none;cursor:pointer;color:white;font-size:10px;display:flex;align-items:center;justify-content:center;}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.stat{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 10px;}
+.stat-lbl{font-size:10px;color:var(--color-text-secondary);margin-bottom:3px;}
+.stat-val{font-size:16px;font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono);}
+.patch-card{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 12px;display:flex;flex-direction:column;gap:7px;}
+.patch-card.app{border-color:#1D9E75;background:#E1F5EE18;}
+.patch-card.rej{opacity:0.4;}
+.ph{display:flex;align-items:center;gap:7px;}
+.pbadge{font-size:10px;font-weight:500;padding:2px 7px;border-radius:20px;}
+.pb-t{background:#FAEEDA;color:#854F0B;}.pb-n{background:#E1F5EE;color:#085041;}.pb-c{background:#FAECE7;color:#993C1D;}
+.patch-desc{font-size:11px;color:var(--color-text-secondary);line-height:1.5;}
+.patch-btns{display:flex;gap:6px;}
+.tag-a{display:inline-flex;align-items:center;font-size:10px;font-weight:500;background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:20px;}
+.tag-t{display:inline-flex;align-items:center;font-size:10px;font-weight:500;background:#E1F5EE;color:#085041;padding:2px 8px;border-radius:20px;}
+.spinner{display:inline-block;width:10px;height:10px;border:1.5px solid #FAC775;border-top-color:#BA7517;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.final-box{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:20px;text-align:center;}
+.final-name{font-size:15px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px;}
+.final-meta{font-size:10px;color:var(--color-text-secondary);font-family:var(--font-mono);margin-bottom:14px;}
+
+/* BOTTOM PROGRESS */
+.bottom-progress{border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);padding:10px 12px;display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
+.progress-steps{display:flex;align-items:center;gap:0;}
+.ps-group{display:flex;align-items:center;gap:0;}
+.ps-step{width:36px;height:28px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;}
+.ps-step:hover .ps-dot{transform:scale(1.2);}
+.ps-connector{flex:1;height:1.5px;background:var(--color-border-tertiary);min-width:2px;}
+.ps-connector.done{background:#1D9E75;}
+.ps-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;transition:transform 0.15s;border:1.5px solid var(--color-border-tertiary);background:var(--color-background-primary);color:var(--color-text-tertiary);}
+.ps-dot.done{border-color:#1D9E75;background:#E1F5EE;color:#0F6E56;}
+.ps-dot.active{border-color:#BA7517;background:#FAEEDA;color:#BA7517;}
+.ps-label{font-size:9px;color:var(--color-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;}
+.ps-current{font-size:11px;color:var(--color-text-primary);font-weight:500;}
+.progress-bar-row{display:flex;align-items:center;gap:8px;}
+.prog-overall{flex:1;background:var(--color-background-primary);border-radius:4px;height:4px;border:0.5px solid var(--color-border-tertiary);overflow:hidden;}
+.prog-overall-fill{height:100%;background:#BA7517;border-radius:4px;transition:width 0.5s;}
+.phase-labels{display:flex;gap:0;font-size:9px;color:var(--color-text-tertiary);letter-spacing:0.04em;padding:0 2px;}
+.phase-seg{flex:1;text-align:center;text-transform:uppercase;}
+</style>
+
+<h2 class="sr-only">AI video pipeline IDE — file trees on each side, progress tracker at bottom</h2>
+
+<div class="app">
+  <div class="workspace">
+    <div class="panel" id="left-panel">
+      <div class="panel-head">
+        <span style="font-size:12px">📁</span>
+        <span class="panel-head-label">Source</span>
+      </div>
+      <div class="tree" id="left-tree"></div>
+    </div>
+
+    <div class="main" id="main-area"></div>
+
+    <div class="panel right" id="right-panel">
+      <div class="panel-head">
+        <span style="font-size:12px">📂</span>
+        <span class="panel-head-label">Output</span>
+      </div>
+      <div class="tree" id="right-tree"></div>
+    </div>
+  </div>
+
+  <div class="bottom-progress">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="ps-current" id="step-cur-label">Step 1 — Select footage</div>
+      <div style="font-size:10px;color:var(--color-text-secondary)" id="step-fraction">1 / 15</div>
+    </div>
+    <div class="progress-steps" id="progress-steps"></div>
+    <div class="phase-labels">
+      <div class="phase-seg" style="flex:3">Ingest</div>
+      <div class="phase-seg" style="flex:2">Plan</div>
+      <div class="phase-seg" style="flex:4">Build</div>
+      <div class="phase-seg" style="flex:1">Draft</div>
+      <div class="phase-seg" style="flex:3">Review</div>
+      <div class="phase-seg" style="flex:2">Export</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STEPS = [
+  {n:1,label:"Select footage",phase:"Ingest"},
+  {n:2,label:"FFmpeg extraction",phase:"Ingest"},
+  {n:3,label:"Scene analysis",phase:"Ingest"},
+  {n:4,label:"Edit goal",phase:"Plan"},
+  {n:5,label:"Plan generation",phase:"Plan"},
+  {n:6,label:"TTS + title assets",phase:"Build"},
+  {n:7,label:"Asset durations",phase:"Build"},
+  {n:8,label:"Block manifest",phase:"Build"},
+  {n:9,label:"Block render",phase:"Build"},
+  {n:10,label:"Draft assembly",phase:"Draft"},
+  {n:11,label:"Critic review",phase:"Review"},
+  {n:12,label:"Patch generation",phase:"Review"},
+  {n:13,label:"Patch approval",phase:"Review"},
+  {n:14,label:"Block re-render",phase:"Export"},
+  {n:15,label:"Final export",phase:"Export"},
+];
+
+let cur = 0;
+let patches = {p1:null,p2:null,p3:null};
+
+const LEFT_TREE_STATES = {
+  0: [
+    {type:'dir',label:'/project',indent:0},
+    {type:'file',label:'(no footage selected)',indent:1,cls:''},
+  ],
+  1: [
+    {type:'dir',label:'/project',indent:0},
+    {type:'file',label:'b_roll_4k.mov',indent:1,cls:'active-file',icon:'🎬'},
+  ],
+  2: [
+    {type:'dir',label:'/project',indent:0},
+    {type:'file',label:'b_roll_4k.mov',indent:1,cls:'done-file',icon:'🎬'},
+    {type:'dir',label:'/frames/',indent:1},
+    {type:'file',label:'frame_0001.jpg … _0252.jpg',indent:2,cls:'new',icon:'🖼'},
+    {type:'dir',label:'/audio/',indent:1},
+    {type:'file',label:'audio_stereo.wav',indent:2,cls:'new',icon:'🔊'},
+  ],
+  3: [
+    {type:'dir',label:'/project',indent:0},
+    {type:'file',label:'b_roll_4k.mov',indent:1,cls:'done-file',icon:'🎬'},
+    {type:'dir',label:'/frames/',indent:1},
+    {type:'file',label:'frame_0001.jpg … _0252.jpg',indent:2,cls:'done-file',icon:'🖼'},
+    {type:'dir',label:'/audio/',indent:1},
+    {type:'file',label:'audio_stereo.wav',indent:2,cls:'done-file',icon:'🔊'},
+    {type:'file',label:'scene_index.json',indent:1,cls:'new active-file',icon:'📋'},
+  ],
+};
+for (let i=4;i<15;i++) LEFT_TREE_STATES[i] = LEFT_TREE_STATES[3];
+LEFT_TREE_STATES[3] = {
+  ...LEFT_TREE_STATES[3],
+  render: [
+    {type:'dir',label:'/project',indent:0},
+    {type:'file',label:'b_roll_4k.mov',indent:1,cls:'done-file',icon:'🎬'},
+    {type:'dir',label:'/frames/',indent:1},
+    {type:'file',label:'frame_0001.jpg … _0252.jpg',indent:2,cls:'done-file',icon:'🖼'},
+    {type:'dir',label:'/audio/',indent:1},
+    {type:'file',label:'audio_stereo.wav',indent:2,cls:'done-file',icon:'🔊'},
+    {type:'file',label:'scene_index.json',indent:1,cls:'new active-file',icon:'📋'},
+  ]
+};
+const LEFT = {
+  0:[{t:'d',l:'/project',i:0},{t:'f',l:'(no footage selected)',i:1,c:''}],
+  1:[{t:'d',l:'/project',i:0},{t:'f',l:'b_roll_4k.mov',i:1,c:'active-file',ic:'🎬'}],
+  2:[{t:'d',l:'/project',i:0},{t:'f',l:'b_roll_4k.mov',i:1,c:'done-file',ic:'🎬'},{t:'d',l:'/frames/',i:1},{t:'f',l:'frame_001…252.jpg',i:2,c:'new',ic:'🖼'},{t:'d',l:'/audio/',i:1},{t:'f',l:'audio_stereo.wav',i:2,c:'new',ic:'🔊'}],
+  3:[{t:'d',l:'/project',i:0},{t:'f',l:'b_roll_4k.mov',i:1,c:'done-file',ic:'🎬'},{t:'d',l:'/frames/',i:1},{t:'f',l:'frame_001…252.jpg',i:2,c:'done-file',ic:'🖼'},{t:'d',l:'/audio/',i:1},{t:'f',l:'audio_stereo.wav',i:2,c:'done-file',ic:'🔊'},{t:'f',l:'scene_index.json',i:1,c:'new active-file',ic:'📋'}],
+};
+for(let i=4;i<=14;i++) LEFT[i]=LEFT[3];
+
+const RIGHT = {
+  0:[{t:'d',l:'/output',i:0},{t:'f',l:'(empty)',i:1,c:''}],
+  1:[{t:'d',l:'/output',i:0},{t:'f',l:'(empty)',i:1,c:''}],
+  2:[{t:'d',l:'/output',i:0},{t:'f',l:'(empty)',i:1,c:''}],
+  3:[{t:'d',l:'/output',i:0},{t:'f',l:'(empty)',i:1,c:''}],
+  4:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'new active-file',ic:'📋'}],
+  5:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'}],
+  6:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/assets/',i:1},{t:'f',l:'narr_blk01.mp3',i:2,c:'new',ic:'🔉'},{t:'f',l:'narr_blk03.mp3',i:2,c:'new',ic:'🔉'},{t:'f',l:'narr_blk04.mp3',i:2,c:'new',ic:'🔉'},{t:'f',l:'title_blk02.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'title_blk05.mp4',i:2,c:'new',ic:'🎞'}],
+  7:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/assets/',i:1},{t:'f',l:'narr_blk01.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk03.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk04.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'title_blk02.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'title_blk05.mp4',i:2,c:'done-file',ic:'🎞'}],
+  8:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'new active-file',ic:'📋'},{t:'d',l:'/assets/',i:1},{t:'f',l:'narr_blk01.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk03.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk04.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'title_blk02.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'title_blk05.mp4',i:2,c:'done-file',ic:'🎞'}],
+  9:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/assets/',i:1},{t:'f',l:'narr_blk01.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk03.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk04.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'title_blk02.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'title_blk05.mp4',i:2,c:'done-file',ic:'🎞'},{t:'d',l:'/blocks/',i:1},{t:'f',l:'blk_01.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'blk_02.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'blk_03.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'blk_04.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'blk_05.mp4',i:2,c:'new',ic:'🎞'}],
+  10:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/assets/',i:1},{t:'f',l:'narr_blk01.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk03.mp3',i:2,c:'done-file',ic:'🔉'},{t:'f',l:'narr_blk04.mp3',i:2,c:'done-file',ic:'🔉'},{t:'d',l:'/blocks/',i:1},{t:'f',l:'blk_01.mp4 … blk_05.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'draft_1.mp4',i:1,c:'new active-file',ic:'🎬'}],
+  11:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/blocks/',i:1},{t:'f',l:'blk_01.mp4 … blk_05.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'draft_1.mp4',i:1,c:'done-file',ic:'🎬'}],
+  12:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/blocks/',i:1},{t:'f',l:'blk_01.mp4 … blk_05.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'draft_1.mp4',i:1,c:'done-file',ic:'🎬'},{t:'d',l:'/patches/',i:1},{t:'f',l:'patches.json',i:2,c:'new active-file',ic:'📋'}],
+  13:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/blocks/',i:1},{t:'f',l:'blk_01.mp4 … blk_05.mp4',i:2,c:'done-file',ic:'🎞'},{t:'f',l:'draft_1.mp4',i:1,c:'done-file',ic:'🎬'},{t:'d',l:'/patches/',i:1},{t:'f',l:'patches.json',i:2,c:'done-file',ic:'📋'}],
+  14:[{t:'d',l:'/output',i:0},{t:'f',l:'plan.json',i:1,c:'done-file',ic:'📋'},{t:'f',l:'block_manifest.json',i:1,c:'done-file',ic:'📋'},{t:'d',l:'/blocks/',i:1},{t:'f',l:'blk_01_v2.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'blk_02_v2.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'blk_04_v2.mp4',i:2,c:'new',ic:'🎞'},{t:'f',l:'draft_1.mp4',i:1,c:'done-file',ic:'🎬'},{t:'f',l:'final_render.mp4',i:1,c:'new active-file',ic:'🎬'}],
+};
+
+function renderTree(id, nodes) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '';
+  (nodes||[]).forEach(n => {
+    const row = document.createElement('div');
+    row.className = 'tree-node ' + (n.t==='d'?'dir ':'') + (n.c||'');
+    row.style.paddingLeft = (8 + n.i*12) + 'px';
+    const ic = document.createElement('span');
+    ic.className = 'tree-icon';
+    ic.textContent = n.t==='d' ? '▾' : (n.ic||'·');
+    const lbl = document.createElement('span');
+    lbl.textContent = n.l;
+    row.appendChild(ic); row.appendChild(lbl);
+    el.appendChild(row);
+  });
+}
+
+function renderProgressBar() {
+  const container = document.getElementById('progress-steps');
+  if (!container) return;
+  container.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    if (i > 0) {
+      const conn = document.createElement('div');
+      conn.className = 'ps-connector' + (i <= cur ? ' done' : '');
+      conn.style.flex = '1';
+      container.appendChild(conn);
+    }
+    const step = document.createElement('div');
+    step.className = 'ps-step';
+    step.title = s.label;
+    const state = i < cur ? 'done' : i === cur ? 'active' : '';
+    const dot = document.createElement('div');
+    dot.className = 'ps-dot ' + state;
+    dot.textContent = state === 'done' ? '✓' : s.n;
+    if (state !== '' || i === 0) {
+      step.style.cursor = 'pointer';
+      step.onclick = () => { if (i <= cur) { cur = i; render(); } };
+    }
+    step.appendChild(dot);
+    container.appendChild(step);
+  });
+  const curStep = STEPS[cur];
+  const cl = document.getElementById('step-cur-label');
+  const sf = document.getElementById('step-fraction');
+  if (cl) cl.textContent = 'Step ' + curStep.n + ' — ' + curStep.label;
+  if (sf) sf.textContent = (cur+1) + ' / 15';
+}
+
+function animBar(id, from, to, ms, cb) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const s = Date.now();
+  const t = () => { const p=Math.min((Date.now()-s)/ms,1); el.style.width=(from+(to-from)*p)+'%'; if(p<1)requestAnimationFrame(t); else cb&&cb(); };
+  requestAnimationFrame(t);
+}
+
+const SCREENS = {
+  0: () => `
+    <div class="screen-title">Select source footage</div>
+    <div class="screen-sub">MP4 · MOV · MKV · AVI — up to 10 GB</div>
+    <div class="dropzone" onclick="adv()">
+      <div class="dz-icon">🎬</div>
+      <div class="dz-main">Drop footage here or click to browse</div>
+      <div class="dz-sub">FFmpeg will extract frames, audio and metadata</div>
+    </div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="adv()">Select file</button></div>`,
+
+  1: () => `
+    <div class="screen-title">FFmpeg extraction</div>
+    <div class="screen-sub mono">b_roll_4k.mov · 2.3 GB · 00:04:12</div>
+    <div class="proc-list">
+      <div class="proc-row"><span class="proc-status st-done">done</span><span class="proc-name">Frame extraction (1 fps)</span><span class="proc-detail">252 frames</span></div>
+      <div class="proc-row"><span class="proc-status st-done">done</span><span class="proc-name">Audio extraction</span><span class="proc-detail">stereo / 48 kHz</span></div>
+      <div class="proc-row" id="pr-meta"><span class="proc-status st-run"><span class="spinner"></span></span><span class="proc-name">Metadata probe</span><span class="proc-detail" id="meta-d">—</span></div>
+    </div>
+    <div><div class="prog-track" style="margin-top:4px"><div class="prog-fill" id="ff-bar" style="width:55%"></div></div></div>`,
+
+  2: () => `
+    <div class="screen-title">Scene analysis</div>
+    <div class="screen-sub">Gemini reviewing 252 frames + audio transcript</div>
+    <div><div class="prog-track" style="margin-bottom:6px"><div class="prog-fill" id="sc-bar" style="width:15%"></div></div>
+    <div class="screen-sub mono" id="sc-status">Analyzing scene boundaries…</div></div>
+    <div class="code-block" id="sc-json" style="display:none">
+<span class="k">"scenes"</span>: [
+  { <span class="k">"id"</span>: <span class="s">"sc_01"</span>, <span class="k">"start"</span>: <span class="n">0.0</span>, <span class="k">"end"</span>: <span class="n">18.4</span>, <span class="k">"label"</span>: <span class="s">"wide exterior — golden hour"</span> },
+  { <span class="k">"id"</span>: <span class="s">"sc_02"</span>, <span class="k">"start"</span>: <span class="n">18.4</span>, <span class="k">"end"</span>: <span class="n">41.1</span>, <span class="k">"label"</span>: <span class="s">"interview — subject A"</span> },
+  { <span class="k">"id"</span>: <span class="s">"sc_03"</span>, <span class="k">"start"</span>: <span class="n">41.1</span>, <span class="k">"end"</span>: <span class="n">77.9</span>, <span class="k">"label"</span>: <span class="s">"handheld b-roll — city"</span> },
+  <span class="k">… 12 more scenes</span>
+]</div>
+    <div class="btn-row" id="sc-next" style="display:none"><span class="tag-t">15 scenes indexed</span><button class="btn btn-primary" onclick="adv()">Continue →</button></div>`,
+
+  3: () => `
+    <div class="screen-title">Edit goal</div>
+    <div class="screen-sub">Describe the video — tone, pacing, structure, audience</div>
+    <textarea class="goal-input" id="goal-txt" placeholder="e.g. 90-second product launch reel, punchy cuts, open on city b-roll, end on close-up with bold title. Target: social media."></textarea>
+    <div class="btn-row"><button class="btn btn-primary" onclick="submitGoal()">Generate plan →</button></div>`,
+
+  4: () => `
+    <div class="screen-title">Plan generation</div>
+    <div class="screen-sub">Gemini mapping scene index → edit blocks + narration</div>
+    <div><div class="prog-track" style="margin-bottom:6px"><div class="prog-fill" id="pl-bar" style="width:8%"></div></div>
+    <div class="screen-sub mono" id="pl-status">Reasoning over scene index…</div></div>
+    <div class="code-block" id="pl-json" style="display:none">
+<span class="k">"blocks"</span>: [
+  { <span class="k">"id"</span>:<span class="s">"blk_01"</span>, <span class="k">"scene"</span>:<span class="s">"sc_03"</span>, <span class="k">"dur"</span>:<span class="n">6.0</span>, <span class="k">"narration"</span>:<span class="s">""</span> },
+  { <span class="k">"id"</span>:<span class="s">"blk_02"</span>, <span class="k">"type"</span>:<span class="s">"title"</span>, <span class="k">"text"</span>:<span class="s">"Something New Is Here"</span>, <span class="k">"dur"</span>:<span class="n">3.5</span> },
+  { <span class="k">"id"</span>:<span class="s">"blk_03"</span>, <span class="k">"scene"</span>:<span class="s">"sc_02"</span>, <span class="k">"dur"</span>:<span class="n">12.0</span>, <span class="k">"narration"</span>:<span class="s">"Built for the way you work."</span> },
+  { <span class="k">"id"</span>:<span class="s">"blk_04"</span>, <span class="k">"scene"</span>:<span class="s">"sc_04"</span>, <span class="k">"dur"</span>:<span class="n">8.0</span>, <span class="k">"narration"</span>:<span class="s">"Every detail. Considered."</span> },
+  { <span class="k">"id"</span>:<span class="s">"blk_05"</span>, <span class="k">"type"</span>:<span class="s">"title"</span>, <span class="k">"text"</span>:<span class="s">"Available Now"</span>, <span class="k">"dur"</span>:<span class="n">4.0</span> },
+]</div>
+    <div class="btn-row" id="pl-next" style="display:none"><span class="tag-a">5 blocks · 33.5 s</span><button class="btn btn-primary" onclick="adv()">Build assets →</button></div>`,
+
+  5: () => `
+    <div class="screen-title">TTS + asset generation</div>
+    <div class="screen-sub">Steps 6 – 9: synthesize, probe, manifest, render</div>
+    <div class="proc-list">
+      <div class="proc-row"><span class="proc-status st-done">done</span><span class="proc-name">TTS synthesis (3 lines)</span><span class="proc-detail">ElevenLabs</span></div>
+      <div class="proc-row"><span class="proc-status st-done">done</span><span class="proc-name">Title card render (2 cards)</span><span class="proc-detail">Remotion</span></div>
+      <div class="proc-row" id="pr-dur"><span class="proc-status st-run"><span class="spinner"></span></span><span class="proc-name">Asset duration probe</span><span class="proc-detail" id="dur-d">—</span></div>
+      <div class="proc-row" id="pr-man" style="opacity:0.35"><span class="proc-status st-wait">wait</span><span class="proc-name">block_manifest.json</span><span class="proc-detail">—</span></div>
+      <div class="proc-row" id="pr-rnd" style="opacity:0.35"><span class="proc-status st-wait">wait</span><span class="proc-name">Block render (5 blocks)</span><span class="proc-detail" id="rnd-d">—</span></div>
+    </div>
+    <div id="build-next" style="display:none" class="btn-row"><span class="tag-t">All blocks rendered</span><button class="btn btn-primary" onclick="adv(9)">Assemble draft →</button></div>`,
+
+  9: () => `
+    <div class="screen-title">Draft assembly</div>
+    <div class="screen-sub mono">draft_1.mp4 · 33.5 s · 1920×1080 · H.264</div>
+    <div class="player-mock">
+      <div class="player-time">00:00:11 / 00:00:33</div>
+      <div class="scrub"><div class="scrub-fill"></div></div>
+      <div class="pctrl"><button class="pbtn">◀◀</button><button class="pbtn">▶</button><button class="pbtn">▶▶</button></div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-lbl">Duration</div><div class="stat-val">33.5 s</div></div>
+      <div class="stat"><div class="stat-lbl">Blocks</div><div class="stat-val">5</div></div>
+      <div class="stat"><div class="stat-lbl">File size</div><div class="stat-val">48 MB</div></div>
+    </div>
+    <div class="btn-row"><button class="btn" onclick="adv(4)">← Revise plan</button><button class="btn btn-primary" onclick="adv()">Send to critic →</button></div>`,
+
+  10: () => `
+    <div class="screen-title">Critic review</div>
+    <div class="screen-sub">Fresh Gemini instance analyzing draft_1.mp4 + block_manifest.json</div>
+    <div><div class="prog-track" style="margin-bottom:6px"><div class="prog-fill" id="cr-bar" style="width:5%"></div></div>
+    <div class="screen-sub mono" id="cr-status">Ingesting draft frames…</div></div>
+    <div class="proc-list" id="cr-checks" style="display:none">
+      <div class="proc-row"><span class="proc-status st-done">pass</span><span class="proc-name">Pacing coherence</span><span class="proc-detail">avg cut 6.7 s</span></div>
+      <div class="proc-row"><span class="proc-status st-done">pass</span><span class="proc-name">Narration sync</span><span class="proc-detail">blk_03 ✓ blk_04 ✓</span></div>
+      <div class="proc-row"><span class="proc-status st-run">flag</span><span class="proc-name">Timing mismatch — blk_02</span><span class="proc-detail">title too short</span></div>
+      <div class="proc-row"><span class="proc-status st-run">flag</span><span class="proc-name">Narration gap — blk_01</span><span class="proc-detail">silence ≥ 1 s</span></div>
+      <div class="proc-row"><span class="proc-status st-run">flag</span><span class="proc-name">Abrupt cut blk_04→05</span><span class="proc-detail">hard cut on beat</span></div>
+    </div>
+    <div id="cr-next" style="display:none" class="btn-row"><span class="tag-a">3 patches generated</span><button class="btn btn-primary" onclick="adv()">Review patches →</button></div>`,
+
+  11: () => `
+    <div class="screen-title">Patch approval</div>
+    <div class="screen-sub">Approve patches to queue for re-render</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="patch-card" id="p1">
+        <div class="ph"><span class="pbadge pb-t">timing</span><span style="font-size:11px;font-weight:500">blk_02 — extend title to 5.0 s</span></div>
+        <div class="patch-desc">Title reads in 3.5 s but social viewing pace needs 5 s.</div>
+        <div class="patch-btns"><button class="btn-sm-ok" onclick="appPatch('p1')">Approve</button><button class="btn-sm-no" onclick="rejPatch('p1')">Reject</button></div>
+      </div>
+      <div class="patch-card" id="p2">
+        <div class="ph"><span class="pbadge pb-n">narration</span><span style="font-size:11px;font-weight:500">blk_01 — add opening line</span></div>
+        <div class="patch-desc">"The world moves fast. So do we." — 2.4 s TTS over silent b-roll.</div>
+        <div class="patch-btns"><button class="btn-sm-ok" onclick="appPatch('p2')">Approve</button><button class="btn-sm-no" onclick="rejPatch('p2')">Reject</button></div>
+      </div>
+      <div class="patch-card" id="p3">
+        <div class="ph"><span class="pbadge pb-c">cut</span><span style="font-size:11px;font-weight:500">blk_04 → blk_05 — 12-frame dissolve</span></div>
+        <div class="patch-desc">Hard cut is jarring. 0.5 s dissolve smooths the handoff to title.</div>
+        <div class="patch-btns"><button class="btn-sm-ok" onclick="appPatch('p3')">Approve</button><button class="btn-sm-no" onclick="rejPatch('p3')">Reject</button></div>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:2px"><span id="app-count" style="font-size:11px;color:var(--color-text-secondary)">0 of 3 approved</span><button class="btn btn-primary" id="apply-btn" disabled style="opacity:0.4" onclick="adv(13)">Apply patches →</button></div>`,
+
+  13: () => `
+    <div class="screen-title">Final export</div>
+    <div class="screen-sub">Re-rendering approved patches and concatenating output</div>
+    <div class="proc-list">
+      <div class="proc-row" id="re1"><span class="proc-status st-run"><span class="spinner"></span></span><span class="proc-name">Re-render blk_01 with narration</span><span class="proc-detail" id="re1d">—</span></div>
+      <div class="proc-row" id="re2" style="opacity:0.35"><span class="proc-status st-wait">wait</span><span class="proc-name">Re-render blk_02 (5.0 s title)</span><span class="proc-detail">—</span></div>
+      <div class="proc-row" id="re3" style="opacity:0.35"><span class="proc-status st-wait">wait</span><span class="proc-name">blk_04→05 dissolve</span><span class="proc-detail">—</span></div>
+      <div class="proc-row" id="rcat" style="opacity:0.35"><span class="proc-status st-wait">wait</span><span class="proc-name">Concatenate final_render.mp4</span><span class="proc-detail">—</span></div>
+    </div>
+    <div id="final-done" style="display:none" class="final-box">
+      <div class="final-name">final_render.mp4</div>
+      <div class="final-meta">35.9 s · 1920×1080 · H.264 · 51 MB</div>
+      <div class="btn-row" style="justify-content:center;gap:8px"><button class="btn btn-primary">Download</button><button class="btn">Share link</button><button class="btn" onclick="cur=0;render()">New project</button></div>
+    </div>`,
+};
+
+const SCREEN_MAP = [0,1,2,3,4,5,5,5,5,9,10,10,11,13,13];
+
+window.adv = function(to) { cur = to!==undefined ? to : Math.min(cur+1,14); render(); };
+
+window.submitGoal = function() {
+  const t=document.getElementById('goal-txt');
+  if(!t||!t.value.trim()){if(t)t.style.borderColor='#A32D2D';return;}
+  adv();
+};
+
+window.appPatch = function(id) {
+  patches[id]=true;
+  const c=document.getElementById(id);
+  if(c){c.classList.add('app');c.classList.remove('rej');c.querySelectorAll('button').forEach(b=>b.disabled=true);}
+  updatePatchCount();
+};
+window.rejPatch = function(id) {
+  patches[id]=false;
+  const c=document.getElementById(id);
+  if(c){c.classList.add('rej');c.classList.remove('app');c.querySelectorAll('button').forEach(b=>b.disabled=true);}
+  updatePatchCount();
+};
+function updatePatchCount() {
+  const n=Object.values(patches).filter(v=>v===true).length;
+  const el=document.getElementById('app-count');const btn=document.getElementById('apply-btn');
+  if(el)el.textContent=n+' of 3 approved';
+  if(btn){btn.disabled=n===0;btn.style.opacity=n>0?'1':'0.4';}
+}
+
+function setupScreen(si) {
+  const screenId = SCREEN_MAP[si];
+  if (si===1) {
+    setTimeout(()=>{
+      const r=document.getElementById('pr-meta');const d=document.getElementById('meta-d');
+      if(r)r.querySelector('.proc-status').innerHTML='<span class="st-done" style="font-size:10px;font-weight:500">done</span>';
+      if(d)d.textContent='H.264 / AAC';
+      animBar('ff-bar',55,100,700,()=>setTimeout(()=>adv(),400));
+    },1000);
+  }
+  if (si===2) {
+    const msgs=['Analyzing scene boundaries…','Detecting speaker changes…','Generating semantic labels…','Writing scene_index.json…'];
+    let i=0; const iv=setInterval(()=>{const e=document.getElementById('sc-status');if(!e){clearInterval(iv);return;}i=Math.min(i+1,msgs.length-1);e.textContent=msgs[i];if(i===msgs.length-1)clearInterval(iv);},600);
+    animBar('sc-bar',15,100,2200,()=>{const j=document.getElementById('sc-json');const n=document.getElementById('sc-next');if(j)j.style.display='block';if(n)n.style.display='flex';});
+  }
+  if (si===4) {
+    const msgs=['Reasoning over scene index…','Mapping scenes to blocks…','Writing narration text…','Finalizing plan.json…'];
+    let i=0; const iv=setInterval(()=>{const e=document.getElementById('pl-status');if(!e){clearInterval(iv);return;}i=Math.min(i+1,msgs.length-1);e.textContent=msgs[i];if(i===msgs.length-1)clearInterval(iv);},550);
+    animBar('pl-bar',8,100,2000,()=>{const j=document.getElementById('pl-json');const n=document.getElementById('pl-next');if(j)j.style.display='block';if(n)n.style.display='flex';});
+  }
+  if (si===5) {
+    setTimeout(()=>{
+      const dr=document.getElementById('pr-dur');const dd=document.getElementById('dur-d');
+      if(dr){dr.querySelector('.proc-status').innerHTML='<span class="st-done" style="font-size:10px;font-weight:500">done</span>';dr.style.opacity='1';}
+      if(dd)dd.textContent='5 assets probed';
+      const mr=document.getElementById('pr-man');
+      if(mr){mr.style.opacity='1';mr.querySelector('.proc-status').innerHTML='<span class="spinner"></span>';}
+      setTimeout(()=>{
+        if(mr)mr.querySelector('.proc-status').innerHTML='<span class="st-done" style="font-size:10px;font-weight:500">done</span>';
+        const rr=document.getElementById('pr-rnd');
+        if(rr){rr.style.opacity='1';rr.querySelector('.proc-status').innerHTML='<span class="spinner"></span>';}
+        setTimeout(()=>{
+          const rr2=document.getElementById('pr-rnd');const rd=document.getElementById('rnd-d');
+          if(rr2)rr2.querySelector('.proc-status').innerHTML='<span class="st-done" style="font-size:10px;font-weight:500">done</span>';
+          if(rd)rd.textContent='5 × MP4 normalized';
+          const bn=document.getElementById('build-next');if(bn)bn.style.display='flex';
+        },1200);
+      },800);
+    },900);
+  }
+  if (si===10) {
+    const msgs=['Ingesting draft frames…','Analyzing narration sync…','Evaluating pacing…','Generating patches…'];
+    let i=0; const iv=setInterval(()=>{const e=document.getElementById('cr-status');if(!e){clearInterval(iv);return;}i=Math.min(i+1,msgs.length-1);e.textContent=msgs[i];if(i===msgs.length-1)clearInterval(iv);},650);
+    animBar('cr-bar',5,100,2400,()=>{const c=document.getElementById('cr-checks');const n=document.getElementById('cr-next');if(c)c.style.display='flex';if(n)n.style.display='flex';});
+  }
+  if (si===13) {
+    patches={p1:null,p2:null,p3:null};
+    const seq=[
+      {id:'re1',dt:'blk_01_v2.mp4',ms:900},{id:'re2',dt:'blk_02_v2.mp4',ms:700},
+      {id:'re3',dt:'blk_04_v2.mp4',ms:900},{id:'rcat',dt:'final_render.mp4',ms:1000,final:true}
+    ];
+    let elapsed=0;
+    seq.forEach((s,idx)=>{
+      setTimeout(()=>{
+        if(idx>0){const prev=document.getElementById(seq[idx-1].id);if(prev){prev.style.opacity='1';prev.querySelector('.proc-status').innerHTML='<span class="st-done" style="font-size:10px;font-weight:500">done</span>';prev.querySelector('.proc-detail').textContent=seq[idx-1].dt;}}
+        const el=document.getElementById(s.id);if(el){el.style.opacity='1';el.querySelector('.proc-status').innerHTML='<span class="spinner"></span>';}
+        if(s.final)setTimeout(()=>{
+          const el2=document.getElementById(s.id);if(el2){el2.querySelector('.proc-status').innerHTML='<span class="st-done" style="font-size:10px;font-weight:500">done</span>';el2.querySelector('.proc-detail').textContent=s.dt;}
+          const fd=document.getElementById('final-done');if(fd)fd.style.display='block';
+        },s.ms);
+      },elapsed);
+      elapsed+=s.ms;
+    });
+  }
+}
+
+function render() {
+  renderTree('left-tree', LEFT[cur] || LEFT[3]);
+  renderTree('right-tree', RIGHT[cur] || RIGHT[13]);
+  renderProgressBar();
+  const screenKey = SCREEN_MAP[cur];
+  const area = document.getElementById('main-area');
+  area.innerHTML = SCREENS[screenKey] ? SCREENS[screenKey]() : '<p style="font-size:12px;color:var(--color-text-secondary)">Screen not defined</p>';
+  setupScreen(cur);
+}
+
+render();
+</script>

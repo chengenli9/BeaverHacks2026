@@ -1,0 +1,543 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --amber: #BA7517; --amber-light: #FAC775; --amber-dim: #633806;
+  --teal: #0F6E56; --teal-light: #9FE1CB; --teal-dim: #04342C;
+  --gray-text: var(--color-text-secondary);
+}
+body { font-family: var(--font-sans); }
+.mono { font-family: var(--font-mono); }
+.shell { display: grid; grid-template-columns: 220px 1fr; min-height: 580px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; background: var(--color-background-primary); }
+.rail { background: var(--color-background-secondary); border-right: 0.5px solid var(--color-border-tertiary); padding: 16px 0; display: flex; flex-direction: column; gap: 2px; }
+.phase-label { font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-tertiary); padding: 10px 16px 4px; }
+.step-row { display: flex; align-items: center; gap: 10px; padding: 6px 16px; cursor: pointer; border-left: 2px solid transparent; transition: background 0.15s; }
+.step-row:hover { background: var(--color-background-primary); }
+.step-row.done { border-left-color: #1D9E75; }
+.step-row.active { border-left-color: #BA7517; background: var(--color-background-primary); }
+.step-row.pending { opacity: 0.45; cursor: default; }
+.step-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; flex-shrink: 0; }
+.dot-done { background: #E1F5EE; color: #0F6E56; }
+.dot-active { background: #FAEEDA; color: #BA7517; }
+.dot-pending { background: var(--color-background-tertiary); color: var(--color-text-tertiary); }
+.step-label { font-size: 12px; color: var(--color-text-primary); line-height: 1.3; }
+.step-row.pending .step-label { color: var(--color-text-secondary); }
+.main { padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+.screen { display: none; flex-direction: column; gap: 16px; }
+.screen.visible { display: flex; }
+.screen-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.screen-sub { font-size: 12px; color: var(--color-text-secondary); }
+.dropzone { border: 1.5px dashed var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 40px 24px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.dropzone:hover { border-color: #BA7517; background: #FAEEDA22; }
+.dropzone-icon { font-size: 28px; margin-bottom: 10px; }
+.dropzone-main { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 4px; }
+.dropzone-sub { font-size: 12px; color: var(--color-text-secondary); }
+.btn { padding: 8px 18px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-primary); font-size: 13px; cursor: pointer; font-family: var(--font-sans); transition: background 0.1s; }
+.btn:hover { background: var(--color-background-secondary); }
+.btn-primary { background: #BA7517; color: #fff; border-color: #BA7517; font-weight: 500; }
+.btn-primary:hover { background: #854F0B; border-color: #854F0B; }
+.btn-danger { background: transparent; border-color: #A32D2D; color: #A32D2D; }
+.btn-danger:hover { background: #FCEBEB; }
+.btn-success { background: transparent; border-color: #0F6E56; color: #0F6E56; }
+.btn-success:hover { background: #E1F5EE; }
+.progress-track { background: var(--color-background-secondary); border-radius: 4px; height: 6px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 4px; background: #BA7517; transition: width 0.4s; }
+.progress-fill.teal { background: #1D9E75; }
+.code-block { background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px 14px; font-family: var(--font-mono); font-size: 11px; color: var(--color-text-secondary); line-height: 1.6; max-height: 160px; overflow-y: auto; }
+.code-block .k { color: #854F0B; } .code-block .s { color: #0F6E56; } .code-block .n { color: #BA7517; }
+.goal-input { width: 100%; padding: 10px 14px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 13px; font-family: var(--font-sans); background: var(--color-background-primary); color: var(--color-text-primary); resize: vertical; min-height: 80px; }
+.goal-input:focus { outline: none; border-color: #BA7517; }
+.row-btns { display: flex; gap: 10px; align-items: center; }
+.proc-list { display: flex; flex-direction: column; gap: 8px; }
+.proc-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); }
+.proc-status { font-size: 11px; font-weight: 500; min-width: 64px; }
+.proc-status.done { color: #0F6E56; }
+.proc-status.running { color: #BA7517; }
+.proc-status.wait { color: var(--color-text-tertiary); }
+.proc-name { font-size: 12px; color: var(--color-text-primary); }
+.proc-detail { font-size: 11px; color: var(--color-text-secondary); margin-left: auto; font-family: var(--font-mono); }
+.player-mock { background: #111; border-radius: var(--border-radius-md); aspect-ratio: 16/9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; max-height: 180px; }
+.player-time { font-family: var(--font-mono); font-size: 11px; color: rgba(255,255,255,0.5); }
+.player-controls { display: flex; gap: 12px; align-items: center; }
+.play-btn { width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.15); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; }
+.scrub { height: 3px; background: rgba(255,255,255,0.2); border-radius: 2px; width: 140px; position: relative; }
+.scrub-fill { height: 100%; width: 35%; background: #FAC775; border-radius: 2px; }
+.block-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.block-chip { padding: 8px 10px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); font-size: 11px; }
+.block-chip-label { color: var(--color-text-secondary); margin-bottom: 2px; }
+.block-chip-val { font-family: var(--font-mono); font-size: 10px; color: var(--color-text-primary); }
+.patch-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.patch-card.approved { border-color: #1D9E75; background: #E1F5EE22; }
+.patch-card.rejected { border-color: var(--color-border-tertiary); opacity: 0.5; }
+.patch-header { display: flex; align-items: center; gap: 8px; }
+.patch-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; }
+.pb-timing { background: #FAEEDA; color: #854F0B; }
+.pb-narr { background: #E1F5EE; color: #085041; }
+.pb-cut { background: #FAECE7; color: #993C1D; }
+.patch-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }
+.patch-btns { display: flex; gap: 8px; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; }
+.stat-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+.stat-val { font-size: 18px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-mono); }
+.tag-amber { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; background: #FAEEDA; color: #854F0B; padding: 2px 8px; border-radius: 20px; }
+.tag-teal { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; background: #E1F5EE; color: #085041; padding: 2px 8px; border-radius: 20px; }
+.spinner { display: inline-block; width: 12px; height: 12px; border: 1.5px solid #FAC775; border-top-color: #BA7517; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.final-hero { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 28px; text-align: center; }
+.final-title { font-size: 20px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 6px; }
+.final-sub { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 20px; }
+.divider { height: 0.5px; background: var(--color-border-tertiary); }
+</style>
+
+<h2 class="sr-only">AI video editing pipeline — interactive frontend prototype with 15-step workflow</h2>
+
+<div class="shell">
+  <div class="rail" id="rail"></div>
+  <div class="main" id="main-area"></div>
+</div>
+
+<script>
+const PHASES = [
+  { label: "Ingest", steps: [
+    { n: 1, label: "Select footage", screen: "s1" },
+    { n: 2, label: "FFmpeg extraction", screen: "s2" },
+    { n: 3, label: "Scene analysis", screen: "s3" },
+  ]},
+  { label: "Plan", steps: [
+    { n: 4, label: "Edit goal", screen: "s4" },
+    { n: 5, label: "Plan generation", screen: "s5" },
+  ]},
+  { label: "Build", steps: [
+    { n: 6, label: "TTS + title assets", screen: "s6" },
+    { n: 7, label: "Asset durations", screen: "s6" },
+    { n: 8, label: "Block manifest", screen: "s6" },
+    { n: 9, label: "Block render", screen: "s6" },
+  ]},
+  { label: "Draft", steps: [
+    { n: 10, label: "Draft assembly", screen: "s10" },
+  ]},
+  { label: "Review", steps: [
+    { n: 11, label: "Critic review", screen: "s11" },
+    { n: 12, label: "Patch generation", screen: "s11" },
+    { n: 13, label: "Patch approval", screen: "s13" },
+  ]},
+  { label: "Export", steps: [
+    { n: 14, label: "Block re-render", screen: "s14" },
+    { n: 15, label: "Final export", screen: "s14" },
+  ]},
+];
+
+const ALL_STEPS = PHASES.flatMap(p => p.steps);
+let currentStep = 0;
+
+function getStepIndex(n) { return ALL_STEPS.findIndex(s => s.n === n); }
+
+function renderRail() {
+  const rail = document.getElementById('rail');
+  rail.innerHTML = '';
+  PHASES.forEach(phase => {
+    const pl = document.createElement('div');
+    pl.className = 'phase-label';
+    pl.textContent = phase.label;
+    rail.appendChild(pl);
+    phase.steps.forEach(step => {
+      const si = getStepIndex(step.n);
+      const state = si < currentStep ? 'done' : si === currentStep ? 'active' : 'pending';
+      const row = document.createElement('div');
+      row.className = 'step-row ' + state;
+      if (state !== 'pending') { row.onclick = () => { currentStep = si; render(); }; }
+      const dot = document.createElement('div');
+      dot.className = 'step-dot dot-' + state;
+      dot.textContent = state === 'done' ? '✓' : step.n;
+      const lbl = document.createElement('div');
+      lbl.className = 'step-label';
+      lbl.textContent = step.label;
+      row.appendChild(dot); row.appendChild(lbl);
+      rail.appendChild(row);
+    });
+  });
+}
+
+function advance(to) {
+  currentStep = to !== undefined ? to : Math.min(currentStep + 1, ALL_STEPS.length - 1);
+  render();
+}
+
+const SCREENS = {
+  s1: `
+    <div class="screen-title">Select source footage</div>
+    <div class="screen-sub">Supported: MP4, MOV, MKV, AVI — up to 10 GB</div>
+    <div class="dropzone" onclick="handleDrop()">
+      <div class="dropzone-icon">🎬</div>
+      <div class="dropzone-main">Drop footage here or click to browse</div>
+      <div class="dropzone-sub">FFmpeg will extract frames, audio, and metadata</div>
+    </div>
+    <div class="row-btns">
+      <button class="btn btn-primary" onclick="handleDrop()">Select file</button>
+    </div>`,
+
+  s2: `
+    <div class="screen-title">FFmpeg extraction</div>
+    <div class="screen-sub mono" style="font-size:11px">project_b_roll_4k.mov — 2.3 GB — 00:04:12</div>
+    <div class="proc-list">
+      <div class="proc-item"><span class="proc-status done">Done</span><span class="proc-name">Frame extraction (1 fps)</span><span class="proc-detail">252 frames</span></div>
+      <div class="proc-item"><span class="proc-status done">Done</span><span class="proc-name">Audio extraction</span><span class="proc-detail">stereo / 48 kHz</span></div>
+      <div class="proc-item" id="meta-row"><span class="proc-status running"><span class="spinner"></span></span><span class="proc-name">Metadata probe</span><span class="proc-detail" id="meta-detail">—</span></div>
+    </div>
+    <div>
+      <div class="screen-sub" style="margin-bottom:6px">Overall progress</div>
+      <div class="progress-track"><div class="progress-fill" id="ffmpeg-bar" style="width:60%"></div></div>
+    </div>`,
+
+  s3: `
+    <div class="screen-title">Scene analysis</div>
+    <div class="screen-sub">Gemini reviewing 252 frames + audio transcript</div>
+    <div id="scene-progress">
+      <div class="progress-track" style="margin-bottom:8px"><div class="progress-fill" id="scene-bar" style="width:20%"></div></div>
+      <div class="screen-sub mono" id="scene-status" style="font-size:11px">Analyzing scene boundaries…</div>
+    </div>
+    <div class="code-block" id="scene-json" style="display:none">
+<span class="k">"scenes"</span>: [
+  { <span class="k">"id"</span>: <span class="s">"sc_01"</span>, <span class="k">"start"</span>: <span class="n">0.0</span>, <span class="k">"end"</span>: <span class="n">18.4</span>, <span class="k">"label"</span>: <span class="s">"wide exterior — golden hour"</span> },
+  { <span class="k">"id"</span>: <span class="s">"sc_02"</span>, <span class="k">"start"</span>: <span class="n">18.4</span>, <span class="k">"end"</span>: <span class="n">41.1</span>, <span class="k">"label"</span>: <span class="s">"interview — subject A"</span> },
+  { <span class="k">"id"</span>: <span class="s">"sc_03"</span>, <span class="k">"start"</span>: <span class="n">41.1</span>, <span class="k">"end"</span>: <span class="n">77.9</span>, <span class="k">"label"</span>: <span class="s">"handheld b-roll — city street"</span> },
+  { <span class="k">"id"</span>: <span class="s">"sc_04"</span>, <span class="k">"start"</span>: <span class="n">77.9</span>, <span class="k">"end"</span>: <span class="n">112.3</span>, <span class="k">"label"</span>: <span class="s">"close-up — product detail"</span> },
+  <span class="k">... 11 more scenes</span>
+]</div>
+    <div class="row-btns" id="scene-next" style="display:none">
+      <span class="tag-teal">15 scenes indexed</span>
+      <button class="btn btn-primary" onclick="advance()">Continue →</button>
+    </div>`,
+
+  s4: `
+    <div class="screen-title">Edit goal</div>
+    <div class="screen-sub">Describe the video you want. Be specific about tone, pacing, and audience.</div>
+    <textarea class="goal-input" id="goal-text" placeholder="e.g. Create a 90-second product launch reel — punchy cuts, upbeat energy, open with the city b-roll, end on the close-up with a bold title card. Target: social media."></textarea>
+    <div class="row-btns">
+      <button class="btn btn-primary" onclick="submitGoal()">Generate plan →</button>
+    </div>`,
+
+  s5: `
+    <div class="screen-title">Plan generation</div>
+    <div class="screen-sub">Gemini mapping scene index to edit blocks</div>
+    <div id="plan-loading">
+      <div class="progress-track" style="margin-bottom:8px"><div class="progress-fill" id="plan-bar" style="width:10%"></div></div>
+      <div class="screen-sub mono" style="font-size:11px" id="plan-status">Reasoning over scene index…</div>
+    </div>
+    <div class="code-block" id="plan-json" style="display:none">
+<span class="k">"blocks"</span>: [
+  { <span class="k">"id"</span>: <span class="s">"blk_01"</span>, <span class="k">"type"</span>: <span class="s">"footage"</span>, <span class="k">"scene"</span>: <span class="s">"sc_03"</span>, <span class="k">"dur"</span>: <span class="n">6.0</span>, <span class="k">"narration"</span>: <span class="s">""</span> },
+  { <span class="k">"id"</span>: <span class="s">"blk_02"</span>, <span class="k">"type"</span>: <span class="s">"title"</span>, <span class="k">"text"</span>: <span class="s">"Something New Is Here"</span>, <span class="k">"dur"</span>: <span class="n">3.5</span> },
+  { <span class="k">"id"</span>: <span class="s">"blk_03"</span>, <span class="k">"type"</span>: <span class="s">"footage"</span>, <span class="k">"scene"</span>: <span class="s">"sc_02"</span>, <span class="k">"dur"</span>: <span class="n">12.0</span>, <span class="k">"narration"</span>: <span class="s">"Built for the way you work today."</span> },
+  { <span class="k">"id"</span>: <span class="s">"blk_04"</span>, <span class="k">"type"</span>: <span class="s">"footage"</span>, <span class="k">"scene"</span>: <span class="s">"sc_04"</span>, <span class="k">"dur"</span>: <span class="n">8.0</span>, <span class="k">"narration"</span>: <span class="s">"Every detail. Considered."</span> },
+  { <span class="k">"id"</span>: <span class="s">"blk_05"</span>, <span class="k">"type"</span>: <span class="s">"title"</span>, <span class="k">"text"</span>: <span class="s">"Available Now"</span>, <span class="k">"dur"</span>: <span class="n">4.0</span> },
+]</div>
+    <div class="row-btns" id="plan-next" style="display:none">
+      <span class="tag-amber">5 blocks · 33.5 s planned</span>
+      <button class="btn btn-primary" onclick="advance()">Build assets →</button>
+    </div>`,
+
+  s6: `
+    <div class="screen-title">Backend build pipeline</div>
+    <div class="screen-sub">Steps 6 – 9: generating assets, measuring durations, rendering blocks</div>
+    <div class="proc-list" id="build-list">
+      <div class="proc-item"><span class="proc-status done">Done</span><span class="proc-name">TTS synthesis (3 narration lines)</span><span class="proc-detail">ElevenLabs · 2.1s</span></div>
+      <div class="proc-item"><span class="proc-status done">Done</span><span class="proc-name">Title card render (2 cards)</span><span class="proc-detail">Remotion · 0.8s</span></div>
+      <div class="proc-item" id="dur-row"><span class="proc-status running"><span class="spinner"></span></span><span class="proc-name">Asset duration probe</span><span class="proc-detail" id="dur-detail">—</span></div>
+      <div class="proc-item" id="mani-row" style="opacity:0.4"><span class="proc-status wait">Wait</span><span class="proc-name">block_manifest.json</span><span class="proc-detail">—</span></div>
+      <div class="proc-item" id="render-row" style="opacity:0.4"><span class="proc-status wait">Wait</span><span class="proc-name">Block render (5 blocks)</span><span class="proc-detail">—</span></div>
+    </div>
+    <div style="display:none" id="build-next">
+      <div class="block-grid">
+        <div class="block-chip"><div class="block-chip-label">blk_01</div><div class="block-chip-val">6.0 s</div></div>
+        <div class="block-chip"><div class="block-chip-label">blk_02</div><div class="block-chip-val">3.5 s</div></div>
+        <div class="block-chip"><div class="block-chip-label">blk_03</div><div class="block-chip-val">12.0 s</div></div>
+        <div class="block-chip"><div class="block-chip-label">blk_04</div><div class="block-chip-val">8.0 s</div></div>
+        <div class="block-chip"><div class="block-chip-label">blk_05</div><div class="block-chip-val">4.0 s</div></div>
+      </div>
+      <div class="row-btns" style="margin-top:12px">
+        <span class="tag-teal">All blocks rendered</span>
+        <button class="btn btn-primary" onclick="advance(9)">Assemble draft →</button>
+      </div>
+    </div>`,
+
+  s10: `
+    <div class="screen-title">Draft assembly</div>
+    <div class="screen-sub mono" style="font-size:11px">draft_1.mp4 · 33.5 s · 1920×1080 · H.264</div>
+    <div class="player-mock">
+      <div class="player-time">00:00:11 / 00:00:33</div>
+      <div class="scrub"><div class="scrub-fill"></div></div>
+      <div class="player-controls">
+        <button class="play-btn" style="font-size:10px">◀◀</button>
+        <button class="play-btn">▶</button>
+        <button class="play-btn" style="font-size:10px">▶▶</button>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-label">Total duration</div><div class="stat-val">33.5 s</div></div>
+      <div class="stat"><div class="stat-label">Blocks</div><div class="stat-val">5</div></div>
+      <div class="stat"><div class="stat-label">File size</div><div class="stat-val">48 MB</div></div>
+    </div>
+    <div class="row-btns">
+      <button class="btn" onclick="advance(9)">← Revise plan</button>
+      <button class="btn btn-primary" onclick="advance()">Send to Gemini critic →</button>
+    </div>`,
+
+  s11: `
+    <div class="screen-title">Critic review</div>
+    <div class="screen-sub">Fresh Gemini instance analyzing draft_1.mp4 + block_manifest.json</div>
+    <div id="critic-loading">
+      <div class="progress-track" style="margin-bottom:8px"><div class="progress-fill" id="critic-bar" style="width:5%"></div></div>
+      <div class="screen-sub mono" style="font-size:11px" id="critic-status">Ingesting draft frames…</div>
+    </div>
+    <div class="proc-list" id="critic-checks" style="display:none">
+      <div class="proc-item"><span class="proc-status done">Pass</span><span class="proc-name">Pacing coherence</span><span class="proc-detail">avg cut = 6.7 s</span></div>
+      <div class="proc-item"><span class="proc-status done">Pass</span><span class="proc-name">Narration sync</span><span class="proc-detail">blk_03 ✓ blk_04 ✓</span></div>
+      <div class="proc-item"><span class="proc-status running">Flag</span><span class="proc-name">Timing mismatch — blk_02</span><span class="proc-detail">title too short</span></div>
+      <div class="proc-item"><span class="proc-status running">Flag</span><span class="proc-name">Narration gap — blk_01</span><span class="proc-detail">silence ≥ 1 s</span></div>
+      <div class="proc-item"><span class="proc-status running">Flag</span><span class="proc-name">Abrupt cut — blk_04 → blk_05</span><span class="proc-detail">hard cut on beat</span></div>
+    </div>
+    <div id="critic-next" style="display:none" class="row-btns">
+      <span class="tag-amber">3 patches generated</span>
+      <button class="btn btn-primary" onclick="advance()">Review patches →</button>
+    </div>`,
+
+  s13: `
+    <div class="screen-title">Patch approval</div>
+    <div class="screen-sub">Review critic suggestions — approve to queue for re-render</div>
+    <div style="display:flex; flex-direction:column; gap:10px;" id="patch-list">
+      <div class="patch-card" id="p1">
+        <div class="patch-header"><span class="patch-badge pb-timing">timing</span><span style="font-size:12px;font-weight:500">blk_02 — extend title duration</span></div>
+        <div class="patch-desc">Title card "Something New Is Here" reads in 3.5 s but audience needs 5 s at social viewing pace. Extend to 5.0 s.</div>
+        <div class="patch-btns">
+          <button class="btn btn-success" onclick="approvePatch('p1',this)">Approve</button>
+          <button class="btn btn-danger" onclick="rejectPatch('p1',this)">Reject</button>
+        </div>
+      </div>
+      <div class="patch-card" id="p2">
+        <div class="patch-header"><span class="patch-badge pb-narr">narration</span><span style="font-size:12px;font-weight:500">blk_01 — add opening narration</span></div>
+        <div class="patch-desc">First 6 s of b-roll has no narration. Suggested line: "The world moves fast. So do we." — 2.4 s TTS.</div>
+        <div class="patch-btns">
+          <button class="btn btn-success" onclick="approvePatch('p2',this)">Approve</button>
+          <button class="btn btn-danger" onclick="rejectPatch('p2',this)">Reject</button>
+        </div>
+      </div>
+      <div class="patch-card" id="p3">
+        <div class="patch-header"><span class="patch-badge pb-cut">cut</span><span style="font-size:12px;font-weight:500">blk_04 → blk_05 — add 12-frame dissolve</span></div>
+        <div class="patch-desc">Hard cut between product detail and title card is jarring. A 12-frame (0.5 s) dissolve transition smooths the visual handoff.</div>
+        <div class="patch-btns">
+          <button class="btn btn-success" onclick="approvePatch('p3',this)">Approve</button>
+          <button class="btn btn-danger" onclick="rejectPatch('p3',this)">Reject</button>
+        </div>
+      </div>
+    </div>
+    <div id="approve-all-row" class="row-btns" style="margin-top:4px">
+      <span id="approved-count" style="font-size:12px;color:var(--color-text-secondary)">0 of 3 approved</span>
+      <button class="btn btn-primary" id="apply-patches-btn" disabled onclick="advance(13)" style="opacity:0.4">Apply patches →</button>
+    </div>`,
+
+  s14: `
+    <div class="screen-title">Final export</div>
+    <div class="screen-sub">Re-rendering approved patches and concatenating final output</div>
+    <div class="proc-list">
+      <div class="proc-item" id="re1"><span class="proc-status running"><span class="spinner"></span></span><span class="proc-name">Re-render blk_01 with narration</span><span class="proc-detail" id="re1d">—</span></div>
+      <div class="proc-item" id="re2" style="opacity:0.4"><span class="proc-status wait">Wait</span><span class="proc-name">Re-render blk_02 (5.0 s title)</span><span class="proc-detail">—</span></div>
+      <div class="proc-item" id="re3" style="opacity:0.4"><span class="proc-status wait">Wait</span><span class="proc-name">Re-render blk_04→05 dissolve</span><span class="proc-detail">—</span></div>
+      <div class="proc-item" id="concat" style="opacity:0.4"><span class="proc-status wait">Wait</span><span class="proc-name">Concatenate final_render.mp4</span><span class="proc-detail">—</span></div>
+    </div>
+    <div id="final-done" style="display:none" class="final-hero">
+      <div class="final-title">final_render.mp4</div>
+      <div class="final-sub mono">35.9 s · 1920×1080 · H.264 · 51 MB</div>
+      <div class="row-btns" style="justify-content:center; flex-wrap:wrap; gap:10px">
+        <button class="btn btn-primary">Download</button>
+        <button class="btn">Share link</button>
+        <button class="btn" onclick="currentStep=0;render()">New project</button>
+      </div>
+    </div>`,
+};
+
+let patchApproved = { p1: null, p2: null, p3: null };
+
+function updateApprovedCount() {
+  const approved = Object.values(patchApproved).filter(v => v === true).length;
+  const el = document.getElementById('approved-count');
+  const btn = document.getElementById('apply-patches-btn');
+  if (el) el.textContent = approved + ' of 3 approved';
+  if (btn) { btn.disabled = approved === 0; btn.style.opacity = approved > 0 ? '1' : '0.4'; }
+}
+
+window.approvePatch = function(id, btn) {
+  patchApproved[id] = true;
+  const card = document.getElementById(id);
+  card.classList.add('approved');
+  card.classList.remove('rejected');
+  card.querySelectorAll('.patch-btns button').forEach(b => b.disabled = true);
+  updateApprovedCount();
+};
+
+window.rejectPatch = function(id, btn) {
+  patchApproved[id] = false;
+  const card = document.getElementById(id);
+  card.classList.add('rejected');
+  card.classList.remove('approved');
+  card.querySelectorAll('.patch-btns button').forEach(b => b.disabled = true);
+  updateApprovedCount();
+};
+
+window.handleDrop = function() { advance(); };
+
+window.submitGoal = function() {
+  const t = document.getElementById('goal-text');
+  if (!t || !t.value.trim()) { t && (t.style.borderColor = '#A32D2D'); return; }
+  advance();
+};
+
+function animateBar(id, from, to, duration, cb) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const start = Date.now();
+  const tick = () => {
+    const p = Math.min((Date.now() - start) / duration, 1);
+    el.style.width = (from + (to - from) * p) + '%';
+    if (p < 1) requestAnimationFrame(tick); else cb && cb();
+  };
+  requestAnimationFrame(tick);
+}
+
+function screenSetup(screen) {
+  if (screen === 's2') {
+    setTimeout(() => {
+      const mr = document.getElementById('meta-row');
+      const md = document.getElementById('meta-detail');
+      const fb = document.getElementById('ffmpeg-bar');
+      if (mr) mr.querySelector('.proc-status').innerHTML = '<span style="color:#0F6E56;font-weight:500">Done</span>';
+      if (md) md.textContent = 'H.264 / AAC';
+      animateBar('ffmpeg-bar', 60, 100, 800, () => {
+        setTimeout(() => advance(), 500);
+      });
+    }, 1200);
+  }
+  if (screen === 's3') {
+    animateBar('scene-bar', 20, 100, 2200, () => {
+      const sj = document.getElementById('scene-json');
+      const ss = document.getElementById('scene-status');
+      const sn = document.getElementById('scene-next');
+      if (sj) sj.style.display = 'block';
+      if (ss) ss.textContent = 'scene_index.json written.';
+      if (sn) sn.style.display = 'flex';
+    });
+    let steps = ['Analyzing scene boundaries…','Detecting speaker changes…','Generating semantic labels…','Writing scene_index.json…'];
+    let i = 0;
+    const si = setInterval(() => {
+      const el = document.getElementById('scene-status');
+      if (!el) { clearInterval(si); return; }
+      i = Math.min(i + 1, steps.length - 1);
+      el.textContent = steps[i];
+      if (i === steps.length - 1) clearInterval(si);
+    }, 600);
+  }
+  if (screen === 's5') {
+    const msgs = ['Reasoning over scene index…','Mapping scenes to blocks…','Writing narration text…','Finalizing plan.json…'];
+    let i = 0;
+    animateBar('plan-bar', 10, 100, 2000, () => {
+      const pj = document.getElementById('plan-json');
+      const pn = document.getElementById('plan-next');
+      if (pj) pj.style.display = 'block';
+      if (pn) pn.style.display = 'flex';
+    });
+    const si = setInterval(() => {
+      const el = document.getElementById('plan-status');
+      if (!el) { clearInterval(si); return; }
+      i = Math.min(i+1, msgs.length-1);
+      el.textContent = msgs[i];
+      if (i === msgs.length-1) clearInterval(si);
+    }, 500);
+  }
+  if (screen === 's6') {
+    setTimeout(() => {
+      const dr = document.getElementById('dur-row');
+      const dd = document.getElementById('dur-detail');
+      if (dr) { dr.querySelector('.proc-status').innerHTML = '<span style="color:#0F6E56;font-weight:500;font-size:11px">Done</span>'; dr.style.opacity='1'; }
+      if (dd) dd.textContent = '5 assets probed';
+      const mr = document.getElementById('mani-row');
+      if (mr) { mr.style.opacity='1'; mr.querySelector('.proc-status').innerHTML='<span class="spinner"></span>'; }
+      setTimeout(() => {
+        if (mr) mr.querySelector('.proc-status').innerHTML='<span style="color:#0F6E56;font-weight:500;font-size:11px">Done</span>';
+        const rr = document.getElementById('render-row');
+        if (rr) { rr.style.opacity='1'; rr.querySelector('.proc-status').innerHTML='<span class="spinner"></span>'; }
+        setTimeout(() => {
+          if (rr) { rr.querySelector('.proc-status').innerHTML='<span style="color:#0F6E56;font-weight:500;font-size:11px">Done</span>'; rr.querySelector('.proc-detail').textContent='5 × MP4 normalized'; }
+          const bn = document.getElementById('build-next');
+          if (bn) bn.style.display = 'block';
+        }, 1200);
+      }, 800);
+    }, 900);
+  }
+  if (screen === 's11') {
+    const msgs = ['Ingesting draft frames…','Analyzing narration sync…','Evaluating pacing…','Generating patches…'];
+    let i = 0;
+    animateBar('critic-bar', 5, 100, 2400, () => {
+      const cc = document.getElementById('critic-checks');
+      const cn = document.getElementById('critic-next');
+      if (cc) cc.style.display = 'flex';
+      if (cn) cn.style.display = 'flex';
+    });
+    const si = setInterval(() => {
+      const el = document.getElementById('critic-status');
+      if (!el) { clearInterval(si); return; }
+      i = Math.min(i+1, msgs.length-1);
+      el.textContent = msgs[i];
+      if (i === msgs.length-1) clearInterval(si);
+    }, 600);
+  }
+  if (screen === 's14') {
+    const seq = [
+      { row:'re1', detail:'re1d', detailText:'blk_01_v2.mp4', delay:900 },
+      { row:'re2', detailText:'blk_02_v2.mp4', delay:700 },
+      { row:'re3', detailText:'blk_04_05_dissolve.mp4', delay:900 },
+      { row:'concat', detailText:'final_render.mp4', delay:1100, final:true },
+    ];
+    let elapsed = 0;
+    seq.forEach((s, idx) => {
+      setTimeout(() => {
+        if (idx > 0) {
+          const prev = document.getElementById(seq[idx-1].row);
+          if (prev) { prev.style.opacity='1'; prev.querySelector('.proc-status').innerHTML='<span style="color:#0F6E56;font-weight:500;font-size:11px">Done</span>'; if(seq[idx-1].detailText) prev.querySelector('.proc-detail').textContent = seq[idx-1].detailText; }
+        }
+        const cur = document.getElementById(s.row);
+        if (cur) { cur.style.opacity='1'; cur.querySelector('.proc-status').innerHTML='<span class="spinner"></span>'; }
+        if (s.final) {
+          setTimeout(() => {
+            if (cur) { cur.querySelector('.proc-status').innerHTML='<span style="color:#0F6E56;font-weight:500;font-size:11px">Done</span>'; cur.querySelector('.proc-detail').textContent = s.detailText; }
+            const fd = document.getElementById('final-done');
+            if (fd) fd.style.display = 'block';
+          }, s.delay);
+        }
+      }, elapsed);
+      elapsed += s.delay;
+    });
+  }
+}
+
+function render() {
+  renderRail();
+  const step = ALL_STEPS[currentStep];
+  const area = document.getElementById('main-area');
+  area.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'screen visible';
+  div.innerHTML = SCREENS[step.screen] || '<p style="color:var(--color-text-secondary);font-size:13px">Screen: ' + step.screen + '</p>';
+  area.appendChild(div);
+  patchApproved = { p1: null, p2: null, p3: null };
+  screenSetup(step.screen);
+}
+
+window.advance = function(toStep) {
+  if (toStep !== undefined) { currentStep = toStep; } 
+  else { currentStep = Math.min(currentStep + 1, ALL_STEPS.length - 1); }
+  render();
+};
+
+render();
+</script>
