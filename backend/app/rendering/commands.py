@@ -127,5 +127,5 @@ def _escape_drawtext(value: str) -> str:
 
 
 def _ffmpeg_path(path: Path) -> str:
-    return str(path).replace("\\", "/")
-
+    normalized = str(path).replace("\\", "/")
+    return normalized.replace(":", "\\:")

@@ -22,6 +22,7 @@ def test_title_command_includes_explicit_fontfile():
     assert "drawtext" in joined
     assert "fontfile=" in joined
     assert "assets/fonts/Inter-Bold.ttf" in joined
+    assert "C\\:" in joined
 
 
 def test_source_command_includes_tts_input_when_present():
@@ -41,4 +42,3 @@ def test_concat_command_targets_final_render():
 
     assert command[:4] == ["ffmpeg", "-y", "-f", "concat"]
     assert str(SAMPLE_PROJECT / "renders" / "final_render.mp4") == command[-1]
-
