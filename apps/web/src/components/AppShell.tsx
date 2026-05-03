@@ -4,7 +4,6 @@ import { PipelineControls } from './PipelineControls'
 import { MediaBrowser } from './MediaBrowser'
 import { CenterPanel } from './CenterPanel'
 import { OutputPanel } from './OutputPanel'
-import { Timeline } from './Timeline'
 
 export function AppShell() {
   const { projectId, projectName } = usePipeline()
@@ -33,14 +32,13 @@ export function AppShell() {
         </div>
       </header>
 
-      {/* Main area: 3-panel top + timeline bottom */}
+      {/* Main area */}
       <div className="main-area">
         <div className="panels">
           <MediaBrowser />
           <CenterPanel />
           <OutputPanel />
         </div>
-        <Timeline />
       </div>
     </div>
   )

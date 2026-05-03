@@ -13,6 +13,8 @@ import type {
   EventLogEntry,
   JobKind,
   JobStatus,
+  MediaNode,
+  MediaTree,
   PipelineJobKind,
   PipelineStageKey,
   Plan,
@@ -33,6 +35,8 @@ export interface PipelineState {
   manifest: BlockManifest | null
   criticSuggestions: CriticSuggestions | null
   renderSummary: RenderSummary | null
+  mediaTree: MediaTree | null
+  selectedMedia: MediaNode | null
   eventLog: EventLogEntry[]
   approvalState: Record<string, ApprovalValue>
   pipelineStages: Record<PipelineStageKey, StageRunStatus>
@@ -47,6 +51,8 @@ export type PipelineAction =
   | { type: 'SET_MANIFEST'; payload: BlockManifest }
   | { type: 'SET_CRITIC_SUGGESTIONS'; payload: CriticSuggestions }
   | { type: 'SET_RENDER_SUMMARY'; payload: RenderSummary }
+  | { type: 'SET_MEDIA_TREE'; payload: MediaTree }
+  | { type: 'SET_SELECTED_MEDIA'; payload: MediaNode | null }
   | { type: 'ADD_EVENT'; payload: EventLogEntry }
   | { type: 'SET_APPROVAL'; payload: { id: string; value: ApprovalValue } }
   | { type: 'SET_STAGE'; payload: { stage: PipelineStageKey; status: StageRunStatus } }
@@ -61,6 +67,8 @@ export const initialState: PipelineState = {
   manifest: null,
   criticSuggestions: null,
   renderSummary: null,
+  mediaTree: null,
+  selectedMedia: null,
   eventLog: [],
   approvalState: {},
   pipelineStages: {
@@ -84,7 +92,8 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
       return {
         ...state,
         projectId: action.payload.project_id,
-        projectName: action.payload.name ?? action.payload.project_id,
+        projectName: action.payload.display_name ?? action.payload.name ?? action.payload.project_id,
+        selectedMedia: null,
       }
     case 'SET_JOB':
       return { ...state, activeJobs: { ...state.activeJobs, [action.payload.job_id]: action.payload } }
@@ -108,6 +117,10 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
     }
     case 'SET_RENDER_SUMMARY':
       return { ...state, renderSummary: action.payload }
+    case 'SET_MEDIA_TREE':
+      return { ...state, mediaTree: action.payload }
+    case 'SET_SELECTED_MEDIA':
+      return { ...state, selectedMedia: action.payload }
     case 'ADD_EVENT':
       return { ...state, eventLog: [...state.eventLog, action.payload] }
     case 'SET_APPROVAL':
@@ -224,8 +237,45 @@ async function loadIfAvailable(load: () => Promise<void>) {
   try {
     await load()
   } catch {
+    // Missing artifacts are expected for new or partially run projects.
     return
   }
+}
+
+async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: ProjectSummary) {
+  const projectId = project.project_id
+  dispatch({ type: 'SET_PROJECT', payload: project })
+  dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Project: ${project.display_name ?? project.name ?? projectId}`) })
+
+  await loadIfAvailable(async () => {
+    const data = await api.getProjectMedia(projectId)
+    dispatch({ type: 'SET_MEDIA_TREE', payload: data })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getSceneIndex(projectId)
+    dispatch({ type: 'SET_SCENE_INDEX', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'analyze-scenes', status: 'succeeded' } })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getPlan(projectId)
+    dispatch({ type: 'SET_PLAN', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'generate-plan', status: 'succeeded' } })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getManifest(projectId)
+    dispatch({ type: 'SET_MANIFEST', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'build-manifest', status: 'succeeded' } })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getCriticSuggestions(projectId)
+    dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'precritique', status: 'succeeded' } })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getRender(projectId)
+    dispatch({ type: 'SET_RENDER_SUMMARY', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'render', status: 'succeeded' } })
+  })
 }
 
 export function useJobPoller() {
@@ -244,7 +294,7 @@ export function useJobPoller() {
     dispatch({ type: 'SET_STAGE', payload: { stage, status: 'running' } })
     dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Job started: ${stage}`, { jobId, stage }) })
 
-    pollTimers.current[jobId] = setInterval(async () => {
+    const pollJob = async () => {
       try {
         const job = await api.getJob(jobId)
         const frontendStage = normalizeStage(job.stage, stage)
@@ -270,7 +320,10 @@ export function useJobPoller() {
           payload: makeEvent('warning', `Poll error: ${error instanceof Error ? error.message : 'Unknown'}`),
         })
       }
-    }, 1000)
+    }
+
+    void pollJob()
+    pollTimers.current[jobId] = setInterval(pollJob, 1000)
   }, [dispatch, stopPolling])
 
   useEffect(() => {
@@ -292,35 +345,7 @@ export function usePipelineActions() {
     try {
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', 'Opening demo project...') })
       const project = await api.openDemoProject()
-      const projectId = project.project_id
-      dispatch({ type: 'SET_PROJECT', payload: project })
-      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Project: ${projectId}`) })
-
-      await loadIfAvailable(async () => {
-        const data = await api.getSceneIndex(projectId)
-        dispatch({ type: 'SET_SCENE_INDEX', payload: data })
-        dispatch({ type: 'SET_STAGE', payload: { stage: 'analyze-scenes', status: 'succeeded' } })
-      })
-      await loadIfAvailable(async () => {
-        const data = await api.getPlan(projectId)
-        dispatch({ type: 'SET_PLAN', payload: data })
-        dispatch({ type: 'SET_STAGE', payload: { stage: 'generate-plan', status: 'succeeded' } })
-      })
-      await loadIfAvailable(async () => {
-        const data = await api.getManifest(projectId)
-        dispatch({ type: 'SET_MANIFEST', payload: data })
-        dispatch({ type: 'SET_STAGE', payload: { stage: 'build-manifest', status: 'succeeded' } })
-      })
-      await loadIfAvailable(async () => {
-        const data = await api.getCriticSuggestions(projectId)
-        dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
-        dispatch({ type: 'SET_STAGE', payload: { stage: 'precritique', status: 'succeeded' } })
-      })
-      await loadIfAvailable(async () => {
-        const data = await api.getRender(projectId)
-        dispatch({ type: 'SET_RENDER_SUMMARY', payload: data })
-        dispatch({ type: 'SET_STAGE', payload: { stage: 'render', status: 'succeeded' } })
-      })
+      await hydrateProject(dispatch, project)
     } catch (error) {
       dispatch({
         type: 'ADD_EVENT',
@@ -328,6 +353,40 @@ export function usePipelineActions() {
       })
     }
   }, [dispatch])
+
+  const createNewProject = useCallback(async (name = 'New Project') => {
+    try {
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Creating ${name}...`) })
+      const project = await api.createProject(name)
+      await hydrateProject(dispatch, project)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Create project failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch])
+
+  const selectMedia = useCallback((media: MediaNode | null) => {
+    dispatch({ type: 'SET_SELECTED_MEDIA', payload: media })
+  }, [dispatch])
+
+  const importMedia = useCallback(async (files: File[]) => {
+    if (!state.projectId || files.length === 0) return
+
+    try {
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Importing ${files.length} file${files.length === 1 ? '' : 's'}...`) })
+      await api.importProjectMedia(state.projectId, files)
+      const mediaTree = await api.getProjectMedia(state.projectId)
+      dispatch({ type: 'SET_MEDIA_TREE', payload: mediaTree })
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Imported ${files.length} file${files.length === 1 ? '' : 's'}`) })
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Import failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch, state.projectId])
 
   const runStage = useCallback(async (kind: PipelineJobKind) => {
     if (!state.projectId) return
@@ -376,7 +435,7 @@ export function usePipelineActions() {
     dispatch({ type: 'SET_APPROVAL', payload: { id, value } })
   }, [dispatch])
 
-  return { openDemo, runStage, submitApprovals, setApproval }
+  return { openDemo, createNewProject, runStage, submitApprovals, setApproval, selectMedia, importMedia }
 }
 
 export type { ApprovalValue, JobKind, PipelineJobKind, PipelineStageKey, StageRunStatus }

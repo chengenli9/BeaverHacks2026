@@ -1,94 +1,84 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
-  FolderOpen, Film, Image, Music, FileText, Upload, ChevronRight, ChevronDown, Plus
+  ChevronDown, ChevronRight, FileText, Film, FolderOpen, Image, Music, Plus, Upload,
 } from 'lucide-react'
-import { usePipeline } from '../state/pipelineStore'
-
-interface FileNode {
-  name: string
-  type: 'folder' | 'video' | 'image' | 'audio' | 'json' | 'file'
-  children?: FileNode[]
-  size?: string
-  duration?: string
-}
-
-const DEMO_TREE: FileNode[] = [
-  {
-    name: 'source', type: 'folder', children: [
-      { name: 'demo_footage.mp4', type: 'video', size: '24.3 MB', duration: '00:42' },
-    ]
-  },
-  {
-    name: 'assets', type: 'folder', children: [
-      { name: 'backgrounds', type: 'folder', children: [
-        { name: 'bg_001.png', type: 'image', size: '340 KB' },
-        { name: 'bg_005.png', type: 'image', size: '285 KB' },
-      ]},
-      { name: 'tts', type: 'folder', children: [
-        { name: 'tts_002.wav', type: 'audio', size: '1.2 MB', duration: '00:06' },
-        { name: 'tts_003.wav', type: 'audio', size: '1.4 MB', duration: '00:07' },
-        { name: 'tts_004.wav', type: 'audio', size: '1.3 MB', duration: '00:06' },
-      ]},
-      { name: 'fonts', type: 'folder', children: [
-        { name: 'Inter-Bold.ttf', type: 'file', size: '312 KB' },
-      ]},
-    ]
-  },
-  {
-    name: 'manifests', type: 'folder', children: [
-      { name: 'plan.json', type: 'json', size: '1.7 KB' },
-      { name: 'block_manifest.json', type: 'json', size: '2.0 KB' },
-      { name: 'critic_suggestions.json', type: 'json', size: '779 B' },
-    ]
-  },
-  {
-    name: 'blocks', type: 'folder', children: [
-      { name: '001_title.mp4', type: 'video', size: '1.1 MB', duration: '00:03' },
-      { name: '002_problem.mp4', type: 'video', size: '4.2 MB', duration: '00:06' },
-      { name: '003_pipeline.mp4', type: 'video', size: '5.8 MB', duration: '00:08' },
-      { name: '004_approval.mp4', type: 'video', size: '4.9 MB', duration: '00:07' },
-      { name: '005_end.mp4', type: 'video', size: '1.0 MB', duration: '00:03' },
-    ]
-  },
-  {
-    name: 'renders', type: 'folder', children: [
-      { name: 'final_render.mp4', type: 'video', size: '1.8 MB', duration: '00:29' },
-    ]
-  },
-]
+import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import type { MediaNode } from '../types/api'
 
 const FILE_ICONS: Record<string, typeof Film> = {
-  video: Film, image: Image, audio: Music, json: FileText, file: FileText, folder: FolderOpen
+  video: Film,
+  image: Image,
+  audio: Music,
+  json: FileText,
+  file: FileText,
+  folder: FolderOpen,
 }
 
-function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
+function formatSize(bytes?: number): string | null {
+  if (!bytes) return null
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatDuration(seconds?: number): string | null {
+  if (seconds == null) return null
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+function FileTreeNode({ node, depth = 0 }: { node: MediaNode; depth?: number }) {
+  const { selectedMedia } = usePipeline()
+  const { selectMedia } = usePipelineActions()
   const [open, setOpen] = useState(depth < 1)
   const Icon = FILE_ICONS[node.type] ?? FileText
   const isFolder = node.type === 'folder'
+  const duration = formatDuration(node.duration)
+  const size = formatSize(node.size)
+
+  const handleClick = () => {
+    if (isFolder) {
+      setOpen(!open)
+      return
+    }
+    selectMedia(node)
+  }
 
   return (
     <div>
-      <div
-        className={`file-node ${isFolder ? 'folder' : 'leaf'}`}
+      <button
+        type="button"
+        className={`file-node ${isFolder ? 'folder' : 'leaf'} ${selectedMedia?.path === node.path ? 'selected' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() => isFolder && setOpen(!open)}
+        onClick={handleClick}
       >
         {isFolder && (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
         <Icon size={13} className={`file-icon file-icon-${node.type}`} />
         <span className="file-name">{node.name}</span>
-        {node.duration && <span className="file-meta">{node.duration}</span>}
-        {!node.duration && node.size && <span className="file-meta">{node.size}</span>}
-      </div>
+        {duration && <span className="file-meta">{duration}</span>}
+        {!duration && size && <span className="file-meta">{size}</span>}
+      </button>
       {isFolder && open && node.children?.map((child) => (
-        <FileTreeNode key={child.name} node={child} depth={depth + 1} />
+        <FileTreeNode key={child.path} node={child} depth={depth + 1} />
       ))}
     </div>
   )
 }
 
 export function MediaBrowser() {
-  const { projectId } = usePipeline()
+  const { projectId, mediaTree } = usePipeline()
+  const { importMedia } = usePipelineActions()
   const [tab, setTab] = useState<'import' | 'media'>('media')
+  const [dragging, setDragging] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleFiles = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? [])
+    await importMedia(files)
+    if (files.length > 0) setTab('media')
+    if (inputRef.current) inputRef.current.value = ''
+  }
 
   return (
     <div className="panel media-browser" id="media-browser">
@@ -104,11 +94,34 @@ export function MediaBrowser() {
       </div>
       <div className="panel-content">
         {tab === 'import' && (
-          <div className="import-zone" id="import-zone">
+          <div
+            className={`import-zone ${dragging ? 'dragging' : ''}`}
+            id="import-zone"
+            onClick={() => inputRef.current?.click()}
+            onDragEnter={(event) => {
+              event.preventDefault()
+              setDragging(true)
+            }}
+            onDragOver={(event) => event.preventDefault()}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault()
+              setDragging(false)
+              void handleFiles(event.dataTransfer.files)
+            }}
+          >
             <Upload size={28} />
             <span>Drop files here</span>
             <span className="import-hint">or click to browse</span>
-            <button className="stage-btn stage-btn-primary" style={{ marginTop: 12 }}>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              aria-label="Add media files"
+              className="visually-hidden"
+              onChange={(event) => void handleFiles(event.currentTarget.files)}
+            />
+            <button className="stage-btn stage-btn-primary" style={{ marginTop: 12 }} type="button">
               <Plus size={12} /> Add Media
             </button>
           </div>
@@ -116,13 +129,21 @@ export function MediaBrowser() {
         {tab === 'media' && (
           projectId ? (
             <div className="file-tree">
-              {DEMO_TREE.map((node) => <FileTreeNode key={node.name} node={node} />)}
+              {mediaTree?.files.length ? (
+                mediaTree.files.map((node) => <FileTreeNode key={node.path} node={node} />)
+              ) : (
+                <div className="empty-state" style={{ padding: '30px 16px' }}>
+                  <FolderOpen size={28} />
+                  <h3>No Media</h3>
+                  <p>Import footage to start building this project</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="empty-state" style={{ padding: '30px 16px' }}>
               <FolderOpen size={28} />
               <h3>No Project</h3>
-              <p>Open a project to browse files</p>
+              <p>Open or create a project to browse files</p>
             </div>
           )
         )}

@@ -34,8 +34,31 @@ export type PipelineStageKey = JobKind
 
 export interface ProjectSummary {
   project_id: string
+  name?: string
+  display_name?: string
+  source_path?: string
+  artifacts?: Record<string, boolean>
+}
+
+export type MediaFileType = 'folder' | 'video' | 'image' | 'audio' | 'json' | 'file'
+
+export interface MediaNode {
   name: string
-  source_path: string
+  path: string
+  type: MediaFileType
+  children?: MediaNode[]
+  size?: number
+  duration?: number
+}
+
+export interface MediaTree {
+  project_id: string
+  files: MediaNode[]
+}
+
+export interface ImportMediaResponse {
+  project_id: string
+  files: MediaNode[]
 }
 
 export interface Scene {

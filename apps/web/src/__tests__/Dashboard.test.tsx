@@ -4,9 +4,13 @@ import userEvent from '@testing-library/user-event'
 import App from '../App'
 
 vi.mock('../api/directorloopApi', () => ({
+  createProject: vi.fn(),
   openDemoProject: vi.fn(),
   startJob: vi.fn(),
   getJob: vi.fn(),
+  getProjectMedia: vi.fn(),
+  getProjectFileUrl: vi.fn((projectId: string, path: string) => `http://localhost:8000/projects/${projectId}/media/file?path=${encodeURIComponent(path)}`),
+  importProjectMedia: vi.fn(),
   getSceneIndex: vi.fn(),
   getPlan: vi.fn(),
   getManifest: vi.fn(),
@@ -94,6 +98,26 @@ const mockManifest = {
   ],
 }
 
+const mockMedia = {
+  project_id: 'demo_project',
+  files: [
+    {
+      name: 'source',
+      path: 'source',
+      type: 'folder' as const,
+      children: [
+        {
+          name: 'demo_footage.mp4',
+          path: 'source/demo_footage.mp4',
+          type: 'video' as const,
+          size: 1024,
+          duration: 42,
+        },
+      ],
+    },
+  ],
+}
+
 function mockApi() {
   const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>
   return m
@@ -121,6 +145,7 @@ describe('Dashboard', () => {
     const user = userEvent.setup()
     const m = mockApi()
     m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/' })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockResolvedValue(mockSceneIndex)
     m.getPlan.mockResolvedValue(mockPlan)
     m.getManifest.mockResolvedValue(mockManifest)
@@ -140,13 +165,14 @@ describe('Dashboard', () => {
 
     await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
     expect(screen.getByText('Block Manifest v1')).toBeInTheDocument()
-    expect(within(centerPanel).getByText('001_title')).toBeInTheDocument()
+    expect(within(centerPanel).getAllByText('001_title').length).toBeGreaterThan(0)
   })
 
   it('polls a running job and updates progress', async () => {
     const user = userEvent.setup()
     const m = mockApi()
     m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -278,5 +304,100 @@ describe('Dashboard', () => {
     render(<App />)
     await user.click(screen.getByText('Open Demo Project'))
     expect(await screen.findByText(/Connection refused/)).toBeInTheDocument()
+  })
+
+  it('creates and loads a new empty project', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.createProject.mockResolvedValue({ project_id: 'new-project', display_name: 'New Project', artifacts: {} })
+    m.getProjectMedia.mockResolvedValue({ project_id: 'new-project', files: [] })
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('New Project'))
+
+    expect(await screen.findByText('New Project')).toBeInTheDocument()
+    expect(m.createProject).toHaveBeenCalledWith('New Project')
+  })
+
+  it('renders backend media files and previews a selected video', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await user.click(await screen.findByText('demo_footage.mp4'))
+
+    const video = document.querySelector('#selected-video') as HTMLVideoElement
+    expect(video).toBeInTheDocument()
+    expect(video.src).toContain('/projects/demo_project/media/file')
+
+    await user.click(screen.getByRole('button', { name: /Timeline Preview/i }))
+    expect(document.querySelector('#selected-video')).not.toBeInTheDocument()
+  })
+
+  it('imports selected media and refreshes the media tree', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    const file = new File(['fake'], 'dropped.mp4', { type: 'video/mp4' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getProjectMedia
+      .mockResolvedValueOnce({ project_id: 'demo_project', files: [] })
+      .mockResolvedValueOnce({
+        project_id: 'demo_project',
+        files: [{ name: 'dropped.mp4', path: 'source/dropped.mp4', type: 'video', size: 4 }],
+      })
+    m.importProjectMedia.mockResolvedValue({
+      project_id: 'demo_project',
+      files: [{ name: 'dropped.mp4', path: 'source/dropped.mp4', type: 'video', size: 4 }],
+    })
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('Demo')
+    await user.click(screen.getByText('Import'))
+    await user.upload(screen.getByLabelText('Add media files'), file)
+
+    expect(m.importProjectMedia).toHaveBeenCalledWith('demo_project', [file])
+    expect(await screen.findByText('Imported 1 file')).toBeInTheDocument()
+  })
+
+  it('renders the timeline inside the center panel', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockResolvedValue(mockManifest)
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+
+    const centerPanel = document.querySelector('#center-panel') as HTMLElement
+    const timeline = await within(centerPanel).findByTestId('timeline')
+    expect(timeline).toBeInTheDocument()
+    expect(document.querySelector('.main-area > #timeline')).not.toBeInTheDocument()
+
+    await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
+    expect(within(centerPanel).getByTestId('timeline')).toBeInTheDocument()
   })
 })

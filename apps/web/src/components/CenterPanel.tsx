@@ -1,18 +1,24 @@
 import { useState } from 'react'
 import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
-import { usePipeline } from '../state/pipelineStore'
+import { getProjectFileUrl } from '../api/directorloopApi'
+import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 import { BlockCard } from './BlockCard'
 import { ProgressBar } from './ProgressBar'
 import { SceneCard } from './SceneCard'
 import { StatusBadge } from './StatusBadge'
+import { Timeline } from './Timeline'
 
 type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 
 export function CenterPanel() {
-  const { sceneIndex, plan, manifest, renderSummary, activeJobs, projectId } = usePipeline()
+  const { sceneIndex, plan, manifest, renderSummary, activeJobs, projectId, selectedMedia } = usePipeline()
+  const { selectMedia } = usePipelineActions()
   const [tab, setTab] = useState<CenterTab>('player')
 
   const visibleJobs = Object.values(activeJobs).filter((job) => job.status === 'queued' || job.status === 'running')
+  const selectedVideoUrl = projectId && selectedMedia?.type === 'video'
+    ? getProjectFileUrl(projectId, selectedMedia.path)
+    : null
 
   return (
     <div className="panel center-panel" id="center-panel">
@@ -43,7 +49,21 @@ export function CenterPanel() {
       <div className="panel-content center-content">
         {tab === 'player' && (
           <div className="player-area">
-            {renderSummary ? (
+            {selectedVideoUrl ? (
+              <>
+                <div className="video-viewport">
+                  <video src={selectedVideoUrl} controls preload="metadata" id="selected-video" />
+                </div>
+                <div className="player-info">
+                  <span>{selectedMedia?.name}</span>
+                  {selectedMedia?.size && <span>{(selectedMedia.size / (1024 * 1024)).toFixed(1)} MB</span>}
+                  <span>Source preview</span>
+                  <button className="inline-link-btn" type="button" onClick={() => selectMedia(null)}>
+                    Timeline Preview
+                  </button>
+                </div>
+              </>
+            ) : renderSummary ? (
               <>
                 <div className="video-viewport">
                   <video src={renderSummary.url} controls preload="metadata" id="final-video" />
@@ -54,10 +74,15 @@ export function CenterPanel() {
                   <span>1920x1080</span>
                 </div>
               </>
+            ) : selectedMedia ? (
+              <div className="video-viewport video-placeholder">
+                <FileText size={40} />
+                <span>{selectedMedia.name}</span>
+              </div>
             ) : (
               <div className="video-viewport video-placeholder">
                 <Play size={40} />
-                <span>{projectId ? 'Run the pipeline and render to preview' : 'Open a project to begin'}</span>
+                <span>{projectId ? 'Select footage or render to preview' : 'Open a project to begin'}</span>
               </div>
             )}
 
@@ -133,6 +158,8 @@ export function CenterPanel() {
             <p>Open a project and run pipeline stages</p>
           </div>
         )}
+
+        <Timeline />
       </div>
     </div>
   )

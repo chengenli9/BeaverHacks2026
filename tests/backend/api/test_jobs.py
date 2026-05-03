@@ -115,10 +115,12 @@ def test_committed_demo_json_artifacts_are_served():
         assert res.json()["project_id"] == "demo_project"
 
 
-def test_missing_demo_render_returns_404():
+def test_demo_render_returns_loadable_metadata():
     res = client.get("/projects/demo_project/render")
 
-    assert res.status_code == 404
+    assert res.status_code == 200
+    assert res.json()["project_id"] == "demo_project"
+    assert res.json()["render_path"] == "renders/final_render.mp4"
 
 
 def test_render_endpoint_returns_loadable_metadata_when_render_exists(tmp_path, monkeypatch):

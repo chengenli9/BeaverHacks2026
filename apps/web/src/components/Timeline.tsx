@@ -78,7 +78,7 @@ export function Timeline() {
   for (let t = 0; t <= totalDuration + step; t += step) rulerMarks.push(t)
 
   return (
-    <div className="timeline-container" id="timeline">
+    <div className="timeline-container" id="timeline" data-testid="timeline">
       {/* Toolbar */}
       <div className="timeline-toolbar">
         <div className="timeline-tools">

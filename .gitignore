@@ -25,11 +25,15 @@ coverage/
 Thumbs.db
 .idea/
 .vscode/
+.playwright-mcp/
+dashboard-media-smoke.png
 
 # Generated media artifacts
 samples/**/source/*.mp4
 samples/**/blocks/*.mp4
 samples/**/renders/*.mp4
+!samples/demo_project/source/demo_footage.mp4
+!samples/demo_project/renders/final_render.mp4
 samples/**/assets/tts/*.wav
 samples/**/assets/backgrounds/*.png
 samples/**/logs/*.log
@@ -38,4 +42,3 @@ samples/**/logs/*.jsonl
 # Keep scaffold placeholders
 !samples/**/.gitkeep
 !samples/**/README.md
-

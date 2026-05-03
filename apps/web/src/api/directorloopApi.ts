@@ -2,8 +2,10 @@ import type {
   ApplyPatchesRequest,
   BlockManifest,
   CriticSuggestions,
+  ImportMediaResponse,
   JobStartResponse,
   JobStatus,
+  MediaTree,
   PipelineJobKind,
   Plan,
   ProjectSummary,
@@ -14,8 +16,9 @@ import type {
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = init?.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' }
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...init,
   })
 
@@ -29,6 +32,33 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function openDemoProject(): Promise<ProjectSummary> {
   return request<ProjectSummary>('/projects/open-demo', { method: 'POST' })
+}
+
+export function createProject(name: string): Promise<ProjectSummary> {
+  return request<ProjectSummary>('/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function getProjectMedia(projectId: string): Promise<MediaTree> {
+  return request<MediaTree>(`/projects/${projectId}/media`)
+}
+
+export function importProjectMedia(projectId: string, files: File[]): Promise<ImportMediaResponse> {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  return request<ImportMediaResponse>(`/projects/${projectId}/media/import`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
+export function getProjectFileUrl(projectId: string, path: string): string {
+  const query = new URLSearchParams({ path })
+  return `${BASE}/projects/${projectId}/media/file?${query.toString()}`
 }
 
 export function startJob(kind: PipelineJobKind, projectId: string): Promise<JobStartResponse> {

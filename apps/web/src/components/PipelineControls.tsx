@@ -1,6 +1,6 @@
 import {
   Search, FileText, Mic, Image, Boxes, ShieldCheck, Film,
-  FolderOpen, RefreshCw, Loader,
+  FolderOpen, RefreshCw, Loader, Plus,
 } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 import type { PipelineJobKind, PipelineStageKey } from '../types/api'
@@ -24,18 +24,27 @@ const STAGES: StageConfig[] = [
 
 export function PipelineControls() {
   const { projectId, pipelineStages } = usePipeline()
-  const { openDemo, runStage } = usePipelineActions()
+  const { openDemo, createNewProject, runStage } = usePipelineActions()
 
   return (
     <>
       {!projectId ? (
-        <button
-          className="stage-btn stage-btn-primary"
-          onClick={openDemo}
-          id="open-demo-btn"
-        >
-          <FolderOpen size={14} /> Open Demo Project
-        </button>
+        <>
+          <button
+            className="stage-btn stage-btn-primary"
+            onClick={() => createNewProject('New Project')}
+            id="new-project-btn"
+          >
+            <Plus size={14} /> New Project
+          </button>
+          <button
+            className="stage-btn stage-btn-primary"
+            onClick={openDemo}
+            id="open-demo-btn"
+          >
+            <FolderOpen size={14} /> Open Demo Project
+          </button>
+        </>
       ) : (
         <>
           {STAGES.map(({ kind, label, icon, prereq }) => {

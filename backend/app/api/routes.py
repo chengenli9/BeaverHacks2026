@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pathlib import Path
 import json
@@ -6,7 +6,15 @@ import json
 from ..jobs.store import create_job, get_job
 from ..jobs.runner import run_job
 from ..manifests.models import ApplyPatchesRequest
-from ..projects.service import ProjectNotFoundError, get_project_path, open_demo_project
+from ..projects.service import (
+    ProjectNotFoundError,
+    create_local_project,
+    get_project_path,
+    import_project_media,
+    list_project_media,
+    open_demo_project,
+    resolve_project_file,
+)
 from ..rendering.service import summarize_render
 
 from ..jobs import tasks as svc
@@ -23,6 +31,39 @@ def open_demo():
         return open_demo_project()
     except ProjectNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/projects")
+def create_project(payload: dict = Body(...)):
+    try:
+        return create_local_project(str(payload.get("name") or "New Project"))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/projects/{project_id}/media")
+def get_project_media(project_id: str):
+    try:
+        return list_project_media(project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/projects/{project_id}/media/import")
+def import_media(project_id: str, files: list[UploadFile] = File(...)):
+    try:
+        return import_project_media(project_id, files)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/projects/{project_id}/media/file")
+def get_project_media_file(project_id: str, path: str = Query(...)):
+    try:
+        return FileResponse(resolve_project_file(project_id, path))
+    except ProjectNotFoundError as exc:
+        status_code = 400 if ".." in Path(path).parts or Path(path).is_absolute() else 404
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
 # ------------------------
