@@ -1,16 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { Panel, Group, Separator } from 'react-resizable-panels'
-import { Eye, MessageSquare, ScrollText } from 'lucide-react'
+import { MessageSquare, ScrollText, ShieldCheck } from 'lucide-react'
 import { usePipeline } from '../state/pipelineStore'
 import { ChatPanel } from './ChatPanel'
 import { CriticPanel } from './CriticPanel'
 import { EventLog } from './EventLog'
 import { ProgressBar } from './ProgressBar'
-import { RenderPreview } from './RenderPreview'
 import { StatusBadge } from './StatusBadge'
 import type { JobStatus } from '../types/api'
 
-type RightTab = 'events' | 'output' | 'chat'
+type RightTab = 'events' | 'review' | 'chat'
 
 interface VisibleJob {
   job: JobStatus
@@ -59,24 +57,19 @@ function useVisibleJobs(activeJobs: Record<string, JobStatus>) {
 }
 
 export function OutputPanel() {
-  const { activeJobs, criticSuggestions, mediaProbe, projectId, renderQa, renderSummary } = usePipeline()
+  const { activeJobs, criticSuggestions, projectId, renderQa } = usePipeline()
   const [tab, setTab] = useState<RightTab>('events')
 
   const visibleJobs = useVisibleJobs(activeJobs)
-  const runningJobs = Object.values(activeJobs).filter(
-    (job) => job.status === 'queued' || job.status === 'running',
-  )
 
-  const hasOutput = Boolean(
-    criticSuggestions ||
-    renderSummary ||
-    mediaProbe ||
-    renderQa ||
-    runningJobs.length > 0
-  )
-  const primarySource = mediaProbe?.sources?.[0] ?? null
-  const sourceCount = mediaProbe?.sources?.length ?? 0
-  const hasAnySourceAudio = mediaProbe?.sources?.some((source) => source.has_audio) ?? false
+  const hasReview = Boolean(criticSuggestions || renderQa)
+
+  // Auto-switch to review tab when suggestions arrive
+  useEffect(() => {
+    if (criticSuggestions && criticSuggestions.suggestions.length > 0) {
+      setTab('review')
+    }
+  }, [criticSuggestions])
 
   return (
     <div className="panel" id="output-panel">
@@ -85,13 +78,13 @@ export function OutputPanel() {
           <button className={`media-tab ${tab === 'events' ? 'active' : ''}`} onClick={() => setTab('events')}>
             <ScrollText size={11} /> Events
           </button>
-          <button 
-            className={`media-tab ${tab === 'output' ? 'active' : ''}`} 
-            onClick={() => setTab('output')}
-            disabled={!hasOutput}
-            title={!hasOutput ? "Run the pipeline to generate output" : undefined}
+          <button
+            className={`media-tab ${tab === 'review' ? 'active' : ''}`}
+            onClick={() => setTab('review')}
+            disabled={!hasReview}
+            title={!hasReview ? "Run Review Render to get suggestions" : undefined}
           >
-            <Eye size={11} /> Output
+            <ShieldCheck size={11} /> Review
           </button>
           <button className={`media-tab ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')}>
             <MessageSquare size={11} /> Chat
@@ -123,66 +116,37 @@ export function OutputPanel() {
         {tab === 'chat' && <ChatPanel />}
         {tab === 'events' && <EventLog embedded />}
 
-        {tab === 'output' && (
-          <Group orientation="vertical" id="output-vertical" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
-            <Panel id="render-preview" defaultSize={40} minSize={20} maxSize={70} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <RenderPreview />
-            </Panel>
-
-            <Separator className="resize-handle-y" />
-
-            <Panel id="output-details" defaultSize={60} minSize={20} maxSize={80} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
-{(mediaProbe || renderQa) && (
-  <div className="card">
-    <div className="card-header">
-      <span className="card-title">Media QA</span>
-    </div>
-    <div className="card-meta">
-      {mediaProbe && (
-        <>
-          <span className="card-meta-item">
-            {sourceCount} source{sourceCount === 1 ? '' : 's'}
-          </span>
-          <span className="card-meta-item">{mediaProbe.total_duration_seconds.toFixed(1)}s total</span>
-          {primarySource && (
-            <>
-              <span className="card-meta-item">
-                {primarySource.video_stream.width}x{primarySource.video_stream.height}
-              </span>
-              <span className="card-meta-item">{primarySource.video_stream.fps.toFixed(1)}fps</span>
-            </>
-          )}
-          <span className="card-meta-item">{hasAnySourceAudio ? 'Source audio' : 'No source audio'}</span>
-        </>
-      )}
-      {renderQa && (
-        <>
-          <span className="card-meta-item">{renderQa.summary.duration_seconds.toFixed(1)}s review</span>
-          <span className="card-meta-item">{renderQa.issues.length} issues</span>
-        </>
-      )}
-    </div>
-    {renderQa && renderQa.issues.length > 0 && (
-      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-        {renderQa.issues.slice(0, 3).map((issue) => (
-          <div key={`${issue.code}-${issue.message}`} className="card-meta-item">
-            {issue.severity}: {issue.message}
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-)}
-              <CriticPanel />
-              {!hasOutput && (
-                <div className="empty-state">
-                  <Eye size={28} />
-                  <h3>Output</h3>
-                  <p>{projectId ? 'Run pipeline stages' : 'Open a project to begin'}</p>
+        {tab === 'review' && (
+          <div style={{ overflow: 'auto', flex: 1 }}>
+            {renderQa && (
+              <div className="card">
+                <div className="card-header">
+                  <span className="card-title">Render QA</span>
                 </div>
-              )}
-            </Panel>
-          </Group>
+                <div className="card-meta">
+                  <span className="card-meta-item">{renderQa.summary.duration_seconds.toFixed(1)}s reviewed</span>
+                  <span className="card-meta-item">{renderQa.issues.length} issue{renderQa.issues.length === 1 ? '' : 's'}</span>
+                </div>
+                {renderQa.issues.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                    {renderQa.issues.slice(0, 5).map((issue) => (
+                      <div key={`${issue.code}-${issue.message}`} className="card-meta-item">
+                        {issue.severity}: {issue.message}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <CriticPanel />
+            {!hasReview && (
+              <div className="empty-state">
+                <ShieldCheck size={28} />
+                <h3>Review</h3>
+                <p>{projectId ? 'Run the pipeline to get AI suggestions' : 'Open a project to begin'}</p>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -78,6 +78,7 @@ export function ChatPanel() {
     const history = buildHistory(messages)
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setInput('')
+    if (inputRef.current) inputRef.current.style.height = 'auto'
 
     try {
       await editPlanPrompt(msg, history)
@@ -88,6 +89,11 @@ export function ChatPanel() {
         )
       )
     }
+  }
+
+  const autoResize = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -158,7 +164,10 @@ export function ChatPanel() {
           className="chat-input"
           placeholder={disabled ? 'Generate a plan first...' : 'Describe a change...'}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value)
+            autoResize(e.target)
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           rows={1}

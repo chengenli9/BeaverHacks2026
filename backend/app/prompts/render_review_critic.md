@@ -17,23 +17,22 @@ Do NOT suggest changes just to have something to say. If the video is fine, retu
 
 ## What to flag
 
-- A block that drags on with dead air or repetitive footage (compare actual duration to the beat's intended goal)
-- A text card too short to read its content (check the plan's `onscreen_text`)
-- Source audio so loud it drowns out the narration
-- Two blocks clearly in the wrong order that break the story arc (check the plan's `story_arc` for intended flow)
-- A narration segment that doesn't match what's shown on screen
-- A source clip that shows the wrong scene relative to the narration playing over it
-- An abrupt cut that disorients the viewer (jump between unrelated content without a transition)
-- A beat whose rendered version doesn't achieve its stated `goal` at all
+- **Pacing**: A block that drags on with dead air or repetitive footage, or is too short to register
+- **Readability**: A title or text card with too much text to read in its duration, or text so long it overflows the card
+- **Color consistency**: Backgrounds or accent colors that clash or feel inconsistent across adjacent cards (e.g. a blue title followed by a jarring orange card)
+- **Audio quality**: Source audio too loud drowning narration, missing narration, audio pops/clicks, TTS that sounds unnatural or rushed
+- **Narration mismatch**: Narration that doesn't match what's being shown on screen
+- **Wrong scene**: A source clip that shows the wrong content relative to the narration or stated goal
+- **Ordering**: Two blocks clearly in the wrong order that break the story arc
+- **Abrupt transitions**: Jump cuts between unrelated content without a transition
+- **Goal failure**: A beat whose rendered version doesn't achieve its stated `goal` at all
+- **Title length**: Onscreen text that is too wordy for a title card (should be punchy, not a paragraph)
 
 ## What NOT to flag
 
-- Subtle pacing preferences — if it's not obviously wrong, leave it
-- Style suggestions (font, color, layout)
 - Hypothetical improvements ("could be slightly better if...")
 - Anything with low confidence — if you're not sure, don't suggest it
 - Blocks that are within 1-2 seconds of a reasonable duration
-- Minor narration wording choices — unless factually wrong
 - Things already flagged in the Render QA (don't duplicate automated findings)
 
 ## Quality bar
@@ -57,7 +56,7 @@ Return a single JSON object:
     {
       "suggestion_id": "s001",
       "block_id": "<block_id>",
-      "action": "<trim_end | extend_end | reorder_after | replace_text | lower_source_audio>",
+      "action": "<trim_end | extend_end | reorder_after | replace_text | lower_source_audio | shorten_text | change_color>",
       "amount_seconds": 2.0,
       "max_allowed_trim_seconds": 3.0,
       "reason": "<one sentence: what's wrong and what the fix does>",
@@ -65,7 +64,7 @@ Return a single JSON object:
       "target_block_id": null,
       "replacement_text": null,
       "source_audio_volume": null,
-      "category": "<pacing | ordering | clarity | audio>",
+      "category": "<pacing | ordering | clarity | audio | color | readability>",
       "severity": "<low | medium | high>",
       "confidence": 0.85,
       "viewer_problem": "<what the viewer experiences>",
@@ -77,5 +76,5 @@ Return a single JSON object:
 }
 ```
 
-Return an empty `suggestions` array if no meaningful edit is needed.
+Always return at least 1 suggestion. Even if the video is solid, find the single weakest moment and suggest how to improve it. A completely empty suggestions array is not acceptable.
 Respond with JSON only. No markdown fences, no explanation text.

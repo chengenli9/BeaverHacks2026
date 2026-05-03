@@ -2666,7 +2666,8 @@ body,
   padding: 8px 10px;
   line-height: 1.4;
   min-height: 34px;
-  max-height: 80px;
+  max-height: 120px;
+  overflow-y: auto;
   outline: none;
   transition: border-color var(--transition-fast);
 }

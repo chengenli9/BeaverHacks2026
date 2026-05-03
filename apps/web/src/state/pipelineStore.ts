@@ -507,8 +507,8 @@ export function useJobPoller() {
           dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Completed: ${frontendStage}`, { jobId }) })
           await fetchArtifact(dispatch, frontendStage, projectId)
 
-          // Auto-render preview after manifest is built OR patches applied
-          if (frontendStage === 'build-manifest' || frontendStage === 'apply-approved-patches') {
+          // Auto-render preview after manifest is built, patches applied, or plan edited
+          if (frontendStage === 'build-manifest' || frontendStage === 'apply-approved-patches' || frontendStage === 'edit-plan' || frontendStage === 'reorder-plan' || frontendStage === 'delete-beat' || frontendStage === 'create-beat') {
             try {
               const { job_id: renderJobId } = await api.startJob('render', projectId)
               dispatch({ type: 'SET_JOB', payload: makeQueuedJob(renderJobId, projectId, 'render') })
