@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Panel, Group, Separator } from 'react-resizable-panels'
 import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
 import { getProjectFileUrl } from '../api/directorloopApi'
 import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
@@ -74,93 +75,76 @@ export function CenterPanel() {
                   <span>{(renderSummary.bytes / (1024 * 1024)).toFixed(1)} MB</span>
                   <span>1920x1080</span>
                 </div>
-              </>
-            ) : selectedMedia ? (
-              <div className="video-viewport video-placeholder">
-                <FileText size={40} />
-                <span>{selectedMedia.name}</span>
-              </div>
-            ) : (
-              <div className="video-viewport video-placeholder">
-                <Play size={40} />
-                <span>{projectId ? 'Select footage or render to preview' : 'Open a project to begin'}</span>
               </div>
             )}
 
-            {visibleJobs.map((job) => (
-              <div key={job.job_id} className="card" style={{ borderColor: 'var(--blue)', margin: '8px 0' }}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--blue)' }}>{job.stage}</span>
-                  <StatusBadge status={job.status} />
-                </div>
-                {job.message && <div className="card-body">{job.message}</div>}
-                <div style={{ marginTop: 6 }}><ProgressBar progress={job.progress} /></div>
+            {tab === 'scenes' && sceneIndex && (
+              <div className="artifact-scroll">
+                <div className="section-header"><Map size={12} /> Scenes ({sceneIndex.scenes.length})</div>
+                {sceneIndex.scenes.map((scene) => <SceneCard key={scene.scene_id} scene={scene} />)}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {tab === 'scenes' && sceneIndex && (
-          <div className="artifact-scroll">
-            <div className="section-header"><Map size={12} /> Scenes ({sceneIndex.scenes.length})</div>
-            {sceneIndex.scenes.map((scene) => <SceneCard key={scene.scene_id} scene={scene} />)}
-          </div>
-        )}
-
-        {tab === 'plan' && plan && (
-          <div className="artifact-scroll">
-            <div className="section-header"><FileText size={12} /> {plan.title}</div>
-            <div className="story-arc">
-              {plan.story_arc.map((step, index) => (
-                <div key={step} className="arc-step"><span className="arc-number">{index + 1}</span>{step}</div>
-              ))}
-            </div>
-            {plan.beats.map((beat) => (
-              <div key={beat.beat_id} className="card">
-                <div className="card-header">
-                  <span className="card-title">{beat.beat_id}</span>
-                  <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
+            {tab === 'plan' && plan && (
+              <div className="artifact-scroll">
+                <div className="section-header"><FileText size={12} /> {plan.title}</div>
+                <div className="story-arc">
+                  {plan.story_arc.map((step, index) => (
+                    <div key={step} className="arc-step"><span className="arc-number">{index + 1}</span>{step}</div>
+                  ))}
                 </div>
-                <div className="card-body">
-                  <strong>{beat.goal}</strong>
-                  {beat.narration && (
-                    <div style={{ marginTop: 4, fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                      "{beat.narration}"
+                {plan.beats.map((beat) => (
+                  <div key={beat.beat_id} className="card">
+                    <div className="card-header">
+                      <span className="card-title">{beat.beat_id}</span>
+                      <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
                     </div>
-                  )}
-                  {beat.onscreen_text && (
-                    <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
-                  )}
-                </div>
-                <div className="card-meta">
-                  <span className="card-meta-item">{beat.duration.toFixed(1)}s</span>
-                  {beat.scene_id && <span className="card-meta-item">- {beat.scene_id}</span>}
-                </div>
+                    <div className="card-body">
+                      <strong>{beat.goal}</strong>
+                      {beat.narration && (
+                        <div style={{ marginTop: 4, fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                          "{beat.narration}"
+                        </div>
+                      )}
+                      {beat.onscreen_text && (
+                        <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
+                      )}
+                    </div>
+                    <div className="card-meta">
+                      <span className="card-meta-item">{beat.duration.toFixed(1)}s</span>
+                      {beat.scene_id && <span className="card-meta-item">- {beat.scene_id}</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {tab === 'manifest' && manifest && (
-          <div className="artifact-scroll">
-            <div className="section-header"><Boxes size={12} /> Block Manifest v{manifest.version}</div>
-            <div className="card-meta" style={{ marginBottom: 8, padding: '0 4px' }}>
-              <span className="card-meta-item">{manifest.render_settings.width}x{manifest.render_settings.height}</span>
-              <span className="card-meta-item">{manifest.render_settings.fps}fps</span>
-            </div>
-            {manifest.blocks.map((block) => <BlockCard key={block.block_id} block={block} />)}
-          </div>
-        )}
+            {tab === 'manifest' && manifest && (
+              <div className="artifact-scroll">
+                <div className="section-header"><Boxes size={12} /> Block Manifest v{manifest.version}</div>
+                <div className="card-meta" style={{ marginBottom: 8, padding: '0 4px' }}>
+                  <span className="card-meta-item">{manifest.render_settings.width}x{manifest.render_settings.height}</span>
+                  <span className="card-meta-item">{manifest.render_settings.fps}fps</span>
+                </div>
+                {manifest.blocks.map((block) => <BlockCard key={block.block_id} block={block} />)}
+              </div>
+            )}
 
-        {!projectId && tab !== 'player' && (
-          <div className="empty-state">
-            <Layers size={36} />
-            <h3>No Data</h3>
-            <p>Open a project and run pipeline stages</p>
-          </div>
-        )}
-
-        <Timeline />
+            {!projectId && tab !== 'player' && (
+              <div className="empty-state">
+                <Layers size={36} />
+                <h3>No Data</h3>
+                <p>Open a project and run pipeline stages</p>
+              </div>
+            )}
+          </Panel>
+          
+          <Separator className="resize-handle-y" />
+          
+          <Panel id="timeline" defaultSize={30} minSize={15} maxSize={60}>
+            <Timeline />
+          </Panel>
+        </Group>
       </div>
     </div>
   )

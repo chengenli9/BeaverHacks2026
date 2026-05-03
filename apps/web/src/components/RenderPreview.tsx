@@ -9,7 +9,7 @@ export function RenderPreview() {
   const sizeMB = (renderSummary.bytes / (1024 * 1024)).toFixed(1)
 
   return (
-    <div id="render-preview-section">
+    <div id="render-preview-section" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <div className="section-header">
         <Play size={12} /> Final Render
       </div>

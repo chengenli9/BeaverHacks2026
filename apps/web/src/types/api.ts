@@ -32,10 +32,7 @@ export type PatchJobKind = 'apply-approved-patches'
 export type JobKind = PipelineJobKind | PatchJobKind
 export type PipelineStageKey = JobKind
 
-export interface ProjectSummary {
-  project_id: string
-  name?: string
-  display_name?: string
+export interface ProjectSummary extends ProjectListItem {
   source_path?: string
   artifacts?: Record<string, boolean>
 }
