@@ -6,6 +6,7 @@ import { navigate } from '../router'
 import { HomeHeader } from './HomeHeader'
 import { HomeSidebar } from './HomeSidebar'
 import { ProjectCard, NewProjectCard } from './ProjectCard'
+import { ProjectModal, type ModalMode } from './ProjectModal'
 import { usePipelineActions } from '../state/pipelineStore'
 
 const FILTER_CHIPS = ['All', 'Video', 'Draft', 'Active', 'Shared'] as const
@@ -18,6 +19,10 @@ export function HomePage() {
   const [sidebarFilter, setSidebarFilter] = useState('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const { createNewProject } = usePipelineActions()
+
+  // Modal state
+  const [modalMode, setModalMode] = useState<ModalMode | null>(null)
+  const [modalProject, setModalProject] = useState<ProjectListItem | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -32,14 +37,70 @@ export function HomePage() {
     return () => { cancelled = true }
   }, [])
 
-  const handleNewProject = useCallback(async () => {
-    await createNewProject('New Project')
-    navigate('/project/new-project')
-  }, [createNewProject])
+  // ── Modal handlers ──────────────────────────────
 
-  // Filter projects
+  const openCreateModal = useCallback(() => {
+    setModalProject(null)
+    setModalMode('create')
+  }, [])
+
+  const openEditModal = useCallback((project: ProjectListItem) => {
+    setModalProject(project)
+    setModalMode('edit')
+  }, [])
+
+  const openDeleteModal = useCallback((project: ProjectListItem) => {
+    setModalProject(project)
+    setModalMode('delete')
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModalMode(null)
+    setModalProject(null)
+  }, [])
+
+  const handleCreate = useCallback(async (name: string, description: string) => {
+    closeModal()
+    const projectId = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    await createNewProject(name)
+    // Add to local list for instant feedback
+    setProjects((prev) => [
+      {
+        project_id: projectId,
+        name,
+        description,
+        status: 'empty' as const,
+        progress: 0,
+        updated_at: new Date().toISOString(),
+        thumbnail_type: 'empty',
+        starred: false,
+      },
+      ...prev,
+    ])
+    navigate(`/project/${projectId}`)
+  }, [closeModal, createNewProject])
+
+  const handleEdit = useCallback((projectId: string, name: string, description: string) => {
+    closeModal()
+    // Update the project in the local list
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.project_id === projectId
+          ? { ...p, name, display_name: name, description }
+          : p
+      )
+    )
+  }, [closeModal])
+
+  const handleDelete = useCallback((projectId: string) => {
+    closeModal()
+    // Remove from local list
+    setProjects((prev) => prev.filter((p) => p.project_id !== projectId))
+  }, [closeModal])
+
+  // ── Filtering ───────────────────────────────────
+
   const filtered = projects.filter((p) => {
-    // Search
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       const match =
@@ -49,11 +110,9 @@ export function HomePage() {
       if (!match) return false
     }
 
-    // Chip filter
     if (activeChip === 'Draft' && p.status !== 'draft') return false
     if (activeChip === 'Active' && p.status !== 'active') return false
 
-    // Sidebar filter
     if (sidebarFilter === 'starred' && !p.starred) return false
 
     return true
@@ -94,7 +153,7 @@ export function HomePage() {
               </button>
               <button
                 className="home-new-project-btn"
-                onClick={handleNewProject}
+                onClick={openCreateModal}
                 id="home-new-project-btn"
               >
                 <Plus size={16} />
@@ -140,16 +199,21 @@ export function HomePage() {
             <div className="home-empty">
               <h3>No projects yet</h3>
               <p>Create your first project to get started with DirectorLoop.</p>
-              <button className="home-new-project-btn" onClick={handleNewProject}>
+              <button className="home-new-project-btn" onClick={openCreateModal}>
                 <Plus size={16} /> New Project
               </button>
             </div>
           ) : (
             <div className={`project-grid${viewMode === 'list' ? ' project-grid-list' : ''}`}>
               {filtered.map((project) => (
-                <ProjectCard key={project.project_id} project={project} />
+                <ProjectCard
+                  key={project.project_id}
+                  project={project}
+                  onEdit={openEditModal}
+                  onDelete={openDeleteModal}
+                />
               ))}
-              <NewProjectCard onClick={handleNewProject} />
+              <NewProjectCard onClick={openCreateModal} />
             </div>
           )}
 
@@ -161,6 +225,18 @@ export function HomePage() {
           )}
         </main>
       </div>
+
+      {/* Project Modal */}
+      {modalMode && (
+        <ProjectModal
+          mode={modalMode}
+          project={modalProject}
+          onClose={closeModal}
+          onCreate={handleCreate}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   )
 }

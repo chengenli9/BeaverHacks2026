@@ -1,4 +1,5 @@
-import { Star, Play, AlertCircle, Circle } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Star, Play, AlertCircle, Circle, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import type { ProjectListItem } from '../types/api'
 import { navigate } from '../router'
 
@@ -119,48 +120,108 @@ function Thumbnail({ type }: { type?: string }) {
 
 interface Props {
   project: ProjectListItem
+  onEdit?: (project: ProjectListItem) => void
+  onDelete?: (project: ProjectListItem) => void
 }
 
-export function ProjectCard({ project }: Props) {
+export function ProjectCard({ project, onEdit, onDelete }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
   const handleClick = () => {
     navigate(`/project/${project.project_id}`)
   }
 
-  return (
-    <button
-      className="project-card"
-      onClick={handleClick}
-      id={`project-card-${project.project_id}`}
-    >
-      {/* Thumbnail */}
-      <div className="project-card-thumb">
-        <Thumbnail type={project.thumbnail_type} />
-        <span className={`project-status-badge ${statusBadgeClass(project)}`}>
-          {statusBadgeLabel(project)}
-        </span>
-      </div>
+  const handleMenuToggle = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setMenuOpen((prev) => !prev)
+  }
 
-      {/* Info */}
-      <div className="project-card-info">
-        <div className="project-card-title-row">
-          <h3 className="project-card-name">{project.display_name ?? project.name}</h3>
-          <span className="project-card-status-icon">
-            {project.starred && <Star size={14} fill="var(--amber)" color="var(--amber)" />}
-            {project.status === 'active' && !project.starred && <Play size={14} fill="var(--lime)" color="var(--lime)" />}
-            {project.status === 'empty' && <Circle size={14} color="var(--blue)" />}
-            {project.status === 'draft' && !project.starred && project.thumbnail_type !== 'empty' && (
-              <AlertCircle size={14} color="var(--teal)" />
-            )}
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setMenuOpen(false)
+    onEdit?.(project)
+  }
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setMenuOpen(false)
+    onDelete?.(project)
+  }
+
+  return (
+    <div className="project-card-wrapper">
+      <button
+        className="project-card"
+        onClick={handleClick}
+        id={`project-card-${project.project_id}`}
+      >
+        {/* Thumbnail */}
+        <div className="project-card-thumb">
+          <Thumbnail type={project.thumbnail_type} />
+          <span className={`project-status-badge ${statusBadgeClass(project)}`}>
+            {statusBadgeLabel(project)}
           </span>
         </div>
-        <p className="project-card-desc">{project.description}</p>
-        <div className="project-card-footer">
-          <span>Edited {timeAgo(project.updated_at)}</span>
-          <span className="project-card-footer-sep">•</span>
-          <span>{statusLabel(project)}</span>
+
+        {/* Info */}
+        <div className="project-card-info">
+          <div className="project-card-title-row">
+            <h3 className="project-card-name">{project.display_name ?? project.name}</h3>
+            <span className="project-card-status-icon">
+              {project.starred && <Star size={14} fill="var(--amber)" color="var(--amber)" />}
+              {project.status === 'active' && !project.starred && <Play size={14} fill="var(--lime)" color="var(--lime)" />}
+              {project.status === 'empty' && <Circle size={14} color="var(--blue)" />}
+              {project.status === 'draft' && !project.starred && project.thumbnail_type !== 'empty' && (
+                <AlertCircle size={14} color="var(--teal)" />
+              )}
+            </span>
+          </div>
+          <p className="project-card-desc">{project.description}</p>
+          <div className="project-card-footer">
+            <span>Edited {timeAgo(project.updated_at)}</span>
+            <span className="project-card-footer-sep">•</span>
+            <span>{statusLabel(project)}</span>
+          </div>
         </div>
+      </button>
+
+      {/* Context menu button */}
+      <div className="project-card-menu-area" ref={menuRef}>
+        <button
+          className="project-card-menu-btn"
+          onClick={handleMenuToggle}
+          aria-label={`Options for ${project.name}`}
+          id={`project-menu-${project.project_id}`}
+        >
+          <MoreVertical size={16} />
+        </button>
+        {menuOpen && (
+          <div className="project-card-dropdown" id={`project-dropdown-${project.project_id}`}>
+            <button className="dropdown-item" onClick={handleEdit} id={`edit-${project.project_id}`}>
+              <Pencil size={13} />
+              Rename / Edit
+            </button>
+            <button className="dropdown-item dropdown-item-danger" onClick={handleDelete} id={`delete-${project.project_id}`}>
+              <Trash2 size={13} />
+              Delete
+            </button>
+          </div>
+        )}
       </div>
-    </button>
+    </div>
   )
 }
 
