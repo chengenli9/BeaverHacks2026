@@ -445,18 +445,21 @@ def build_audio_overlay_command(
         music_path = resolve_music_path(track.music_file)
         command.extend(["-i", str(music_path)])
 
-        # Build filter: trim, delay to start_offset, apply volume + fades
         delay_ms = int(track.start_offset * 1000)
-        fade_in = f"afade=t=in:st=0:d={track.fade_in}"
-        fade_out = f"afade=t=out:st={track.duration - track.fade_out}:d={track.fade_out}"
+        dur = track.duration
+        # Clamp fades so they don't exceed the track duration
+        fi = min(track.fade_in, dur / 2)
+        fo = min(track.fade_out, dur / 2)
+        fade_out_start = max(dur - fo, 0)
 
-        # Trim the track to the requested duration, then pad with delay
+        # Order matters: trim → reset PTS → volume → fades → THEN delay
         filter_parts.append(
-            f"[{i}:a]atrim=0:{_seconds(track.duration)},"
+            f"[{i}:a]atrim=0:{_seconds(dur)},"
             f"asetpts=PTS-STARTPTS,"
-            f"adelay={delay_ms}|{delay_ms},"
             f"volume={track.volume},"
-            f"{fade_in},{fade_out}"
+            f"afade=t=in:st=0:d={_seconds(fi)},"
+            f"afade=t=out:st={_seconds(fade_out_start)}:d={_seconds(fo)},"
+            f"adelay={delay_ms}|{delay_ms}"
             f"[m{i}]"
         )
 

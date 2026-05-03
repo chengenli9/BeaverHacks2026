@@ -93,6 +93,7 @@ Rules for audio tracks:
 - Default `volume` is 0.08 — low enough to sit behind narration without competing.
 - Use `fade_in` and `fade_out` (default 0.5s) for smooth transitions.
 - One track can cover an entire section of the video (e.g. intro through first demo).
+- `start_offset + duration` must not exceed the total video duration. Never place a track past the end of the video.
 - Avoid overlapping tracks unless they are complementary moods.
 - Track ids follow the pattern `audio_001`, `audio_002`, etc.
 

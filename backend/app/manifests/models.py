@@ -248,6 +248,16 @@ class Plan(BaseModel):
         track_ids = [t.track_id for t in self.audio_tracks]
         if len(track_ids) != len(set(track_ids)):
             raise ValueError("audio track_id values must be unique")
+        # Clamp audio tracks to video duration
+        total_dur = sum(b.duration for b in self.beats)
+        clamped: list[AudioTrack] = []
+        for t in self.audio_tracks:
+            start = min(t.start_offset, max(total_dur - 0.5, 0))
+            remaining = max(total_dur - start, 0)
+            dur = min(t.duration, remaining) if remaining > 0 else 0
+            if dur > 0:
+                clamped.append(t.model_copy(update={"start_offset": round(start, 3), "duration": round(dur, 3)}))
+        self.audio_tracks = clamped
         return self
 
     def beat_by_id(self, beat_id: str) -> PlanBeat:

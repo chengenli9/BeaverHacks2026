@@ -37,7 +37,7 @@ function getTtsDuration(block: Block): number {
 
 export function Timeline() {
   const { manifest, highlightedBlockId, selectedBlockId, plan, undoStack, redoStack } = usePipeline()
-  const audioTracks: AudioTrack[] = plan?.audio_tracks ?? manifest?.audio_tracks ?? []
+  const audioTracks: AudioTrack[] = manifest?.audio_tracks ?? plan?.audio_tracks ?? []
   const { reorderPlanBeats, deleteBeat, selectBlock, undo, redo } = usePipelineActions()
   const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
@@ -321,7 +321,7 @@ export function Timeline() {
                       <div
                         key={track.track_id}
                         className="tl-clip tl-clip-music"
-                        style={{ width: w, marginLeft: left }}
+                        style={{ width: w, position: 'absolute', left }}
                         title={`${track.music_file} (${track.duration.toFixed(1)}s) vol=${Math.round(track.volume * 100)}%`}
                       >
                         <Music size={10} />
