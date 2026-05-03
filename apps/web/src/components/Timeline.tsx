@@ -3,7 +3,7 @@ import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
   Play, Pause, SkipBack, SkipForward, Mic, Film, Type
 } from 'lucide-react'
-import { usePipeline } from '../state/pipelineStore'
+import { usePipeline, useVideoRef } from '../state/pipelineStore'
 import type { Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
@@ -35,6 +35,7 @@ function getTtsDuration(block: Block): number {
 
 export function Timeline() {
   const { manifest } = usePipeline()
+  const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -53,35 +54,49 @@ export function Timeline() {
     let rafId: number
 
     const tick = () => {
-      const video = document.getElementById('final-video') as HTMLVideoElement | null
+      const video = videoRef.current
       if (video) {
         setPlayheadPos(video.currentTime)
         setPlaying(!video.paused && !video.ended)
+      } else {
+        setPlaying(false)
       }
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
 
     return () => cancelAnimationFrame(rafId)
+  }, [videoRef])
+
+  const playVideo = useCallback((video: HTMLVideoElement) => {
+    const playback = video.play()
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+        throw error
+      })
+    }
   }, [])
 
   // Playback: controls the actual <video> element
   const togglePlay = useCallback(() => {
-    const video = document.getElementById('final-video') as HTMLVideoElement | null
+    const video = videoRef.current
     if (!video) return
     if (video.paused) {
-      video.play()
+      playVideo(video)
     } else {
       video.pause()
     }
-  }, [])
+  }, [playVideo, videoRef])
 
   const seekTo = useCallback((time: number) => {
-    const video = document.getElementById('final-video') as HTMLVideoElement | null
+    const video = videoRef.current
     if (!video) return
     video.currentTime = Math.max(0, Math.min(time, video.duration || totalDuration))
     setPlayheadPos(video.currentTime)
-  }, [totalDuration])
+  }, [totalDuration, videoRef])
 
   const handleTimelineClick = useCallback((e: React.MouseEvent) => {
     if (!timelineRef.current || totalDuration === 0) return

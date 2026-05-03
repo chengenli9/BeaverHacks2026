@@ -394,6 +394,24 @@ describe('Dashboard', () => {
     expect(await screen.findByText('29.7s')).toBeInTheDocument()
   })
 
+  it('keeps only one main playback video when output preview is also visible', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockResolvedValue({ ...mockRender, cache_key: 'abc123' })
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('29.7s')
+    await user.click(screen.getByText('Output'))
+
+    expect(document.querySelectorAll('#final-video').length).toBe(1)
+  })
+
   it('shows failed state event in log on API error', async () => {
     const m = mockApi()
     m.openDemoProject.mockRejectedValue(new Error('Connection refused'))

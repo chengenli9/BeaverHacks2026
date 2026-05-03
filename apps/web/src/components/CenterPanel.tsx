@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
 import { getProjectFileUrl } from '../api/directorloopApi'
-import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
 import { BlockCard } from './BlockCard'
 import { SceneCard } from './SceneCard'
 import { Timeline } from './Timeline'
@@ -11,9 +11,15 @@ type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 export function CenterPanel() {
   const { sceneIndex, plan, manifest, renderSummary, projectId, selectedMedia } = usePipeline()
   const { selectMedia } = usePipelineActions()
+  const videoRef = useVideoRef()
   const [tab, setTab] = useState<CenterTab>('player')
   const selectedVideoUrl = projectId && selectedMedia?.type === 'video'
     ? getProjectFileUrl(projectId, selectedMedia.path)
+    : null
+  const renderVideoUrl = renderSummary
+    ? (renderSummary.cache_key
+      ? `${renderSummary.url}?v=${encodeURIComponent(renderSummary.cache_key)}`
+      : renderSummary.url)
     : null
 
   return (
@@ -62,7 +68,14 @@ export function CenterPanel() {
             ) : renderSummary ? (
               <>
                 <div className="video-viewport">
-                  <video src={renderSummary.url} controls preload="metadata" id="final-video" />
+                  <video
+                    key={renderVideoUrl ?? renderSummary.url}
+                    ref={videoRef}
+                    src={renderVideoUrl ?? renderSummary.url}
+                    controls
+                    preload="metadata"
+                    id="final-video"
+                  />
                 </div>
                 <div className="player-info">
                   <span>{renderSummary.duration.toFixed(1)}s</span>

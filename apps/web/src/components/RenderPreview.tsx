@@ -22,7 +22,7 @@ export function RenderPreview() {
           src={videoUrl}
           controls
           preload="metadata"
-          id="final-video"
+          id="output-final-video"
         />
       </div>
       <div className="video-meta">
