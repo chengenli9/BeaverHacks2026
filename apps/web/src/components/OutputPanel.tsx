@@ -41,9 +41,9 @@ export function OutputPanel() {
             <Panel id="render-preview" defaultSize={40} minSize={20} maxSize={70} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
               <RenderPreview />
             </Panel>
-            
+
             <Separator className="resize-handle-y" />
-            
+
             <Panel id="output-details" defaultSize={60} minSize={20} maxSize={80} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
               {renderJob && (
                 <div className="card" style={{ borderColor: 'var(--blue)' }}>

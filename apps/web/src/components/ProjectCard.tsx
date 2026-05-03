@@ -16,8 +16,8 @@ function timeAgo(dateStr: string): string {
 
 function statusLabel(project: ProjectListItem): string {
   if ((project.progress ?? 0) > 0 && (project.progress ?? 0) < 100) return `${project.progress}% complete`
-  if (project.status === 'active') return 'In progress'
-  return 'Draft'
+  if (project.status === 'active' || project.status === 'in_progress') return 'In progress'
+  return 'Empty'
 }
 
 /** Abstract thumbnail SVGs matching the reference image */

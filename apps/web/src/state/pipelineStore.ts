@@ -91,10 +91,10 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
   switch (action.type) {
     case 'SET_PROJECT':
       return {
-        ...state,
+        ...initialState,
         projectId: action.payload.project_id,
         projectName: action.payload.display_name ?? action.payload.name ?? action.payload.project_id,
-        selectedMedia: null,
+        // Preserve event log? No, start fresh for a new project
       }
     case 'SET_JOB':
       return { ...state, activeJobs: { ...state.activeJobs, [action.payload.job_id]: action.payload } }
@@ -376,11 +376,13 @@ export function usePipelineActions() {
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Creating ${name}...`) })
       const project = await api.createProject(name)
       await hydrateProject(dispatch, project)
+      return project
     } catch (error) {
       dispatch({
         type: 'ADD_EVENT',
         payload: makeEvent('error', `Create project failed: ${error instanceof Error ? error.message : 'Unknown'}`),
       })
+      throw error
     }
   }, [dispatch])
 

@@ -9,7 +9,7 @@ import { ProjectCard, NewProjectCard } from './ProjectCard'
 import { ProjectModal, type ModalMode } from './ProjectModal'
 import { usePipelineActions } from '../state/pipelineStore'
 
-const FILTER_CHIPS = ['All', 'Starred', 'Draft', 'Exported'] as const
+const FILTER_CHIPS = ['All', 'Starred', 'In Progress', 'Exported'] as const
 
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -59,25 +59,18 @@ export function HomePage() {
     setModalProject(null)
   }, [])
 
-  const handleCreate = useCallback(async (name: string, description: string) => {
+  const handleCreate = useCallback(async (name: string) => {
     closeModal()
-    const projectId = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    await createNewProject(name)
-    // Add to local list for instant feedback
-    setProjects((prev) => [
-      {
-        project_id: projectId,
-        name,
-        description,
-        status: 'empty' as const,
-        progress: 0,
-        updated_at: new Date().toISOString(),
-        thumbnail_type: 'empty',
-        starred: false,
-      },
-      ...prev,
-    ])
-    navigate(`/project/${projectId}`)
+    try {
+      const project = await createNewProject(name)
+      // We can rely on the real project object from the backend now
+      if (project) {
+        setProjects((prev) => [project, ...prev])
+        navigate(`/project/${project.project_id}`)
+      }
+    } catch (err) {
+      console.error('Failed to create project', err)
+    }
   }, [closeModal, createNewProject])
 
   const handleEdit = useCallback(async (projectId: string, name: string, description: string) => {
@@ -143,7 +136,7 @@ export function HomePage() {
       if (!match) return false
     }
 
-    if (activeChip === 'Draft' && p.status !== 'draft' && p.status !== 'empty') return false
+    if (activeChip === 'In Progress' && p.status !== 'in_progress' && p.status !== 'active') return false
     if (activeChip === 'Exported' && p.progress !== 100) return false
     if (activeChip === 'Starred' && !p.starred) return false
 
