@@ -282,7 +282,7 @@ def _run(command: list[str], log_path: Path) -> None:
     env = os.environ.copy()
     # Fix fontconfig on Windows: drawtext crashes without a fonts.conf
     if sys.platform == "win32" or "win" in sys.platform.lower():
-        _fc_dir = Path(tempfile.gettempdir()) / "directorloop-fontconfig"
+        _fc_dir = Path(tempfile.gettempdir()) / "scenerio-fontconfig"
         _fc_dir.mkdir(exist_ok=True)
         _fc_file = _fc_dir / "fonts.conf"
         _fc_file.write_text(

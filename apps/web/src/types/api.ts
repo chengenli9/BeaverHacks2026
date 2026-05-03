@@ -1,4 +1,4 @@
-// DirectorLoop frontend API types. Mirrors docs/API_AND_DATA_CONTRACTS.md.
+// Scenerio frontend API types. Mirrors docs/API_AND_DATA_CONTRACTS.md.
 
 export type JobStatusValue = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 

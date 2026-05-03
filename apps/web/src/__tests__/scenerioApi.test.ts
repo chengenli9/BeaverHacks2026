@@ -6,14 +6,14 @@ import {
   getProjectMedia,
   importProjectMedia,
   startJob,
-} from '../api/directorloopApi'
+} from '../api/scenerioApi'
 
 const okResponse = {
   ok: true,
   json: () => Promise.resolve({ job_id: 'job_001', status: 'queued' }),
 } as Response
 
-describe('directorloopApi', () => {
+describe('scenerioApi', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse))
   })

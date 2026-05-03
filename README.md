@@ -1,6 +1,6 @@
-# DirectorLoop
+# Scenerio
 
-DirectorLoop is a local-first, manifest-driven rough-cut editor for turning raw hackathon footage into a polished demo video. The locked architecture is demo-first: Gemini plans and critiques structured manifests, the backend validates every timing decision, humans approve changes, and FFmpeg renders deterministic normalized blocks.
+Scenerio is a local-first, manifest-driven rough-cut editor for turning raw hackathon footage into a polished demo video. The locked architecture is demo-first: Gemini plans and critiques structured manifests, the backend validates every timing decision, humans approve changes, and FFmpeg renders deterministic normalized blocks.
 
 This repository currently contains the architecture and implementation handoff package for a four-developer hackathon build.
 

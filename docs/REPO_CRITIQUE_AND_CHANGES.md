@@ -8,7 +8,7 @@ The repository contained only `.git` and no committed project files. There was n
 
 ### 1. No architecture source of truth
 
-Without a committed architecture report, each developer would likely build a different version of DirectorLoop. That would create avoidable merge conflicts and integration churn.
+Without a committed architecture report, each developer would likely build a different version of Scenerio. That would create avoidable merge conflicts and integration churn.
 
 Change made:
 

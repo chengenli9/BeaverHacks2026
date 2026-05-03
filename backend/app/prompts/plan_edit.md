@@ -1,6 +1,6 @@
 # Plan Edit Prompt
 
-You are editing an existing DirectorLoop plan in response to a direct user instruction.
+You are editing an existing Scenerio plan in response to a direct user instruction.
 
 You will receive:
 - the current full `plan.json`

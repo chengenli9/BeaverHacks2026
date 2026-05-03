@@ -39,11 +39,11 @@ def test_build_manifest_from_plan_creates_deterministic_blocks(tmp_path):
         """
         {
           "project_id": "demo_project",
-          "title": "DirectorLoop Demo Cut",
+          "title": "Scenerio Demo Cut",
           "target_duration": 20.0,
           "story_arc": ["Hook", "Proof", "Wrap"],
           "beats": [
-            {"beat_id": "beat_001", "type": "title", "goal": "Hook", "scene_id": null, "duration": 3.0, "narration": null, "onscreen_text": "DirectorLoop"},
+            {"beat_id": "beat_001", "type": "title", "goal": "Hook", "scene_id": null, "duration": 3.0, "narration": null, "onscreen_text": "Scenerio"},
             {"beat_id": "beat_002", "type": "source_clip", "goal": "Show opening proof", "scene_id": "scene_001", "duration": 3.0, "narration": "Watch this.", "onscreen_text": null},
             {"beat_id": "beat_003", "type": "source_clip", "goal": "Show interaction", "scene_id": "scene_002", "duration": 3.0, "narration": "New obstacle appears.", "onscreen_text": null},
             {"beat_id": "beat_004", "type": "source_clip", "goal": "Show outcome", "scene_id": "scene_004", "duration": 7.0, "narration": "Colorful interaction.", "onscreen_text": null},
@@ -104,11 +104,11 @@ def test_build_manifest_writes_block_manifest_json(tmp_path):
         """
         {
           "project_id": "demo_project",
-          "title": "DirectorLoop Demo Cut",
+          "title": "Scenerio Demo Cut",
           "target_duration": 12.0,
           "story_arc": ["Hook", "Wrap"],
           "beats": [
-            {"beat_id": "beat_001", "type": "title", "goal": "Hook", "scene_id": null, "duration": 3.0, "narration": null, "onscreen_text": "DirectorLoop"},
+            {"beat_id": "beat_001", "type": "title", "goal": "Hook", "scene_id": null, "duration": 3.0, "narration": null, "onscreen_text": "Scenerio"},
             {"beat_id": "beat_003", "type": "source_clip", "goal": "Show interaction", "scene_id": "scene_003", "duration": 3.0, "narration": null, "onscreen_text": null},
             {"beat_id": "beat_005", "type": "end_card", "goal": "Wrap", "scene_id": null, "duration": 3.0, "narration": null, "onscreen_text": "Done"}
           ]
@@ -178,7 +178,7 @@ def test_build_manifest_uses_per_scene_source_and_local_bounds(tmp_path):
         """
         {
           "project_id": "demo_project",
-          "title": "DirectorLoop Demo Cut",
+          "title": "Scenerio Demo Cut",
           "target_duration": 8.0,
           "story_arc": ["Hook", "Proof"],
           "beats": [

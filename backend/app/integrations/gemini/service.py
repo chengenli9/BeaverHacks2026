@@ -1,4 +1,4 @@
-"""High-level Gemini service functions for DirectorLoop."""
+"""High-level Gemini service functions for Scenerio."""
 
 from __future__ import annotations
 

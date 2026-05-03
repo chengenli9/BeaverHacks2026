@@ -45,7 +45,7 @@ def test_sample_plan_fixture_validates_against_scene_index():
     plan = Plan.model_validate(
         {
             "project_id": "demo_project",
-            "title": "DirectorLoop Demo Cut",
+            "title": "Scenerio Demo Cut",
             "target_duration": 12.0,
             "story_arc": ["Hook", "Proof", "Wrap"],
             "beats": [
@@ -56,7 +56,7 @@ def test_sample_plan_fixture_validates_against_scene_index():
                     "scene_id": None,
                     "duration": 3.0,
                     "narration": None,
-                    "onscreen_text": "DirectorLoop",
+                    "onscreen_text": "Scenerio",
                 },
                 {
                     "beat_id": "beat_003",
@@ -73,7 +73,7 @@ def test_sample_plan_fixture_validates_against_scene_index():
 
     plan.validate_against_scene_index(scene_index)
 
-    assert plan.title == "DirectorLoop Demo Cut"
+    assert plan.title == "Scenerio Demo Cut"
     assert plan.beat_by_id("beat_003").scene_id == "scene_003"
 
 

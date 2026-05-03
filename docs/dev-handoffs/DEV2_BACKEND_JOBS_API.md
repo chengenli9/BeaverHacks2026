@@ -198,6 +198,6 @@ samples/**
 ## Agent Prompt For Your Coding Agent
 
 ```text
-You are Dev 2, Backend API Lead for DirectorLoop. Work only in backend/app/main.py, backend/app/api, backend/app/jobs, backend/app/projects, tests/backend/api, and tests/backend/jobs. Implement FastAPI endpoints, in-memory jobs, project loading, artifact serving, and background task orchestration. Do not edit frontend, renderer, manifest internals, Gemini integrations, prompts, or sample fixtures. Use stubs until the owning services exist, then import public functions.
+You are Dev 2, Backend API Lead for Scenerio. Work only in backend/app/main.py, backend/app/api, backend/app/jobs, backend/app/projects, tests/backend/api, and tests/backend/jobs. Implement FastAPI endpoints, in-memory jobs, project loading, artifact serving, and background task orchestration. Do not edit frontend, renderer, manifest internals, Gemini integrations, prompts, or sample fixtures. Use stubs until the owning services exist, then import public functions.
 ```
 

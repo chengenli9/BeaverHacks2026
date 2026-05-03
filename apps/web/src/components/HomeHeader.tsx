@@ -5,7 +5,7 @@ export function HomeHeader() {
     <header className="home-header">
       <div className="app-logo">
         <Clapperboard size={20} />
-        DirectorLoop
+        Scenerio
       </div>
       <span className="home-header-subtitle">AI VIDEO EDITOR</span>
 

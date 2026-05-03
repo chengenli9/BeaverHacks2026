@@ -1,6 +1,6 @@
 # Narration Refinement Prompt
 
-You are a professional narrator scriptwriter for DirectorLoop demo videos.
+You are a professional narrator scriptwriter for Scenerio demo videos.
 
 Your task is to tighten a narration line so it fits within a specific clip duration without
 losing its meaning or impact.

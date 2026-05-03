@@ -2,7 +2,7 @@
 
 ## Role
 
-Frontend Lead. Your job is to make DirectorLoop look demo-ready and feel complete. Build the pipeline dashboard, artifact viewers, job progress, approval cards, and final video preview.
+Frontend Lead. Your job is to make Scenerio look demo-ready and feel complete. Build the pipeline dashboard, artifact viewers, job progress, approval cards, and final video preview.
 
 ## Write Scope
 
@@ -33,7 +33,7 @@ Build a three-panel dashboard:
 
 ```text
 +----------------------------------------------------------------+
-| DirectorLoop | Analyze | Plan | Assets | Pre-Critique | Render  |
+| Scenerio | Analyze | Plan | Assets | Pre-Critique | Render  |
 +-------------------+-----------------------+--------------------+
 | Agent Event Log   | Block Manifest         | Output / Critic    |
 |                   |                        |                    |
@@ -92,7 +92,7 @@ lucide-react
 Create:
 
 ```text
-apps/web/src/api/directorloopApi.ts
+apps/web/src/api/scenerioApi.ts
 ```
 
 Expose typed functions:
@@ -224,6 +224,6 @@ docs/API_AND_DATA_CONTRACTS.md
 ## Agent Prompt For Your Coding Agent
 
 ```text
-You are Dev 1, Frontend Lead for DirectorLoop. Work only in apps/web, tests/frontend, and docs/frontend. Build a polished React + TypeScript pipeline dashboard against the API contracts in docs/API_AND_DATA_CONTRACTS.md. Do not edit backend, renderer, Gemini, sample fixtures, or shared docs. Use mocked API responses first, then support localhost:8000. The app should open directly into the usable dashboard, show job progress, artifact summaries, critic approve/reject cards, and the final MP4 preview.
+You are Dev 1, Frontend Lead for Scenerio. Work only in apps/web, tests/frontend, and docs/frontend. Build a polished React + TypeScript pipeline dashboard against the API contracts in docs/API_AND_DATA_CONTRACTS.md. Do not edit backend, renderer, Gemini, sample fixtures, or shared docs. Use mocked API responses first, then support localhost:8000. The app should open directly into the usable dashboard, show job progress, artifact summaries, critic approve/reject cards, and the final MP4 preview.
 ```
 

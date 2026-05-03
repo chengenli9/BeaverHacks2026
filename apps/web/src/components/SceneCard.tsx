@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Scene } from '../types/api'
-import { getProjectFileUrl } from '../api/directorloopApi'
+import { getProjectFileUrl } from '../api/scenerioApi'
 import { Clock, MapPin } from 'lucide-react'
 
 interface Props {

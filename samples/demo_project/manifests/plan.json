@@ -1,6 +1,6 @@
 {
   "project_id": "demo_project",
-  "title": "DirectorLoop Hackathon Demo",
+  "title": "Scenerio Hackathon Demo",
   "target_duration": 30,
   "story_arc": [
     "Introduction of the abstract game elements",
@@ -15,8 +15,8 @@
       "goal": "Introduce the project with a branded title card.",
       "scene_id": null,
       "duration": 3,
-      "narration": "DirectorLoop Demo",
-      "onscreen_text": "DirectorLoop Hackathon Demo"
+      "narration": "Scenerio Demo",
+      "onscreen_text": "Scenerio Hackathon Demo"
     },
     {
       "beat_id": "beat_002",

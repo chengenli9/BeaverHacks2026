@@ -552,7 +552,7 @@ class TestGenerateVisualAssets:
     def test_generate_assets_writes_remotion_scene_bundle(self, monkeypatch, tmp_path):
         plan = {
             "project_id": "demo",
-            "title": "DirectorLoop Demo",
+            "title": "Scenerio Demo",
             "target_duration": 12.0,
             "story_arc": ["hook", "demo"],
             "beats": [
@@ -563,7 +563,7 @@ class TestGenerateVisualAssets:
                     "scene_id": None,
                     "duration": 3.0,
                     "narration": None,
-                    "onscreen_text": "DirectorLoop",
+                    "onscreen_text": "Scenerio",
                     "style": {
                         "font_family": "display-sans",
                         "background_mode": "color",
@@ -603,7 +603,7 @@ class TestGenerateVisualAssets:
                     "scene_spec": {
                         "version": 1,
                         "block_type": "title",
-                        "text": "DirectorLoop",
+                        "text": "Scenerio",
                         "duration_seconds": 3.0,
                         "runtime_template": "hero-reveal",
                         "layout_preset": "centered",
@@ -647,7 +647,7 @@ class TestGenerateVisualAssets:
         assert (tmp_path / "assets" / "remotion" / "001_title" / "scene.json").exists()
         assert (tmp_path / "assets" / "remotion" / "001_title" / "decorator.tsx").exists()
         assert (tmp_path / "assets" / "remotion" / "001_title" / "preview.png").exists()
-        assert "Project title: DirectorLoop Demo" in str(captured["prompt"])
+        assert "Project title: Scenerio Demo" in str(captured["prompt"])
         assert "Neighboring beats" in str(captured["prompt"])
 
     @patch("backend.app.integrations.gemini.client.get_client")

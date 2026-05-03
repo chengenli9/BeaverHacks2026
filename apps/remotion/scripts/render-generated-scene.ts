@@ -53,7 +53,7 @@ async function main() {
 
   mkdirSync(dirname(outputPath), { recursive: true });
 
-  const tempDir = mkdtempSync(join(tmpdir(), `directorloop-remotion-${blockId}-`));
+  const tempDir = mkdtempSync(join(tmpdir(), `scenerio-remotion-${blockId}-`));
   const publicDir = resolve(remotionRoot, "public");
   mkdirSync(publicDir, { recursive: true });
 

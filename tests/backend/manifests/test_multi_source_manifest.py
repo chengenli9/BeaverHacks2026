@@ -56,7 +56,7 @@ def test_build_manifest_uses_scene_source_and_source_local_offsets(tmp_path):
         json.dumps(
             {
                 "project_id": "demo_project",
-                "title": "DirectorLoop Demo Cut",
+                "title": "Scenerio Demo Cut",
                 "target_duration": 8.0,
                 "story_arc": ["Hook", "Proof"],
                 "beats": [

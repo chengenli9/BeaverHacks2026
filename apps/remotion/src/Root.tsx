@@ -5,7 +5,7 @@ import { CardPropsSchema } from "./schemas/card-props";
 import type { CardProps } from "./schemas/card-props";
 
 const defaultProps: CardProps = {
-  text: "DirectorLoop",
+  text: "Scenerio",
   durationInSeconds: 3,
   layoutPreset: "centered",
   textAlignment: "center",

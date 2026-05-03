@@ -1,10 +1,10 @@
-# DirectorLoop Implementation Plan
+# Scenerio Implementation Plan
 
 > For agentic workers: follow the owner boundaries in `docs/DEVELOPER_WORK_SPLIT.md` and your assigned handoff file. Do not edit another developer's owned folders without a short written handoff.
 
 ## Goal
 
-Build a polished local hackathon demo of DirectorLoop: load a demo project, run async pipeline jobs, show structured artifacts, approve blind critic suggestions, render normalized FFmpeg blocks, and play the final MP4.
+Build a polished local hackathon demo of Scenerio: load a demo project, run async pipeline jobs, show structured artifacts, approve blind critic suggestions, render normalized FFmpeg blocks, and play the final MP4.
 
 ## Architecture
 

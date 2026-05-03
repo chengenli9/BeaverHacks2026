@@ -226,6 +226,6 @@ samples/**
 ## Agent Prompt For Your Coding Agent
 
 ```text
-You are Dev 4, Gemini Integration Lead for DirectorLoop. Work only in backend/app/integrations, backend/app/prompts, backend/app/assets, tests/backend/integrations, and tests/backend/prompts. Implement Gemini client wrappers, cheap model defaults, structured-output parsing, scene analysis, plan generation, TTS WAV generation, textless background generation, blind manifest critique, and sanitized Gemini logging. Do not edit frontend, API orchestration, manifest validation, rendering, or sample fixtures.
+You are Dev 4, Gemini Integration Lead for Scenerio. Work only in backend/app/integrations, backend/app/prompts, backend/app/assets, tests/backend/integrations, and tests/backend/prompts. Implement Gemini client wrappers, cheap model defaults, structured-output parsing, scene analysis, plan generation, TTS WAV generation, textless background generation, blind manifest critique, and sanitized Gemini logging. Do not edit frontend, API orchestration, manifest validation, rendering, or sample fixtures.
 ```
 
