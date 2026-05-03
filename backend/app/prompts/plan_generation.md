@@ -53,7 +53,7 @@ Return a single JSON object with this structure:
 
 - For `title`, `scene_card`, and `end_card` beats, provide a `style` object when it helps the demo feel more exciting.
 - Use bold, legible typography choices and confident color direction.
-- Prefer image-free `background_mode` values like `color` or `gradient` when a clean, high-contrast title card would work well.
+- Prefer `color` as the default `background_mode` for clean, high-contrast title cards. Use `gradient` sparingly.
 - Leave `style` as `null` for `source_clip` beats unless a simple overlay treatment is clearly helpful.
 - **Color consistency**: Choose ONE cohesive color palette for the entire project and use it across all styled beats.
   Pick a single `accent_color` and a single `background_color` family for all `title`, `scene_card`, and `end_card` beats.

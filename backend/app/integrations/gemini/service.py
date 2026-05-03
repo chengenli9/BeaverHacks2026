@@ -216,7 +216,7 @@ def generate_background_assets(project_path: Path) -> list[dict]:
         btype = beat.get("type")
         block_id = f"{idx:03d}_end" if btype == "end_card" else f"{idx:03d}_{btype}"
         style = beat.get("style") or {}
-        background_mode = style.get("background_mode") or "gradient"
+        background_mode = style.get("background_mode") or "color"
         bg_filename = f"bg_{idx:03d}.png"
         bg_path = bg_dir / bg_filename
         model_name = "local-pillow-background"
@@ -454,7 +454,7 @@ def _write_background_asset(path: Path, *, goal: str, text: str, style: dict) ->
     width, height = 1920, 1080
     background_color = style.get("background_color") or _default_background_color(goal)
     accent_color = style.get("accent_color") or _default_accent_color(goal)
-    background_mode = style.get("background_mode") or "gradient"
+    background_mode = style.get("background_mode") or "color"
 
     image = Image.new("RGB", (width, height), _hex_to_rgb(background_color))
     draw = ImageDraw.Draw(image)
@@ -642,7 +642,7 @@ def _neighbor_summary(beat: dict) -> dict:
 
 def _fallback_text_scene_bundle(*, beat: dict, block_id: str, background_asset: str) -> GeneratedTextSceneBundle:
     style = beat.get("style") or {}
-    background_mode = style.get("background_mode") or "gradient"
+    background_mode = style.get("background_mode") or "color"
     runtime_template = _runtime_template_from_style(style)
     scene_spec = GeneratedTextSceneSpec.model_validate(
         {

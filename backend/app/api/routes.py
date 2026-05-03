@@ -1,7 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from pathlib import Path
 import json
+import re
 
 from ..jobs.store import create_job, get_job
 from ..jobs.runner import run_job
@@ -230,8 +231,85 @@ def get_render(project_id: str):
 
 
 @router.get("/projects/{project_id}/render/file")
-def get_render_file(project_id: str):
+def get_render_file(project_id: str, request: Request):
     path = _project_path_or_404(project_id) / "renders/final_render.mp4"
     if not path.exists():
         raise HTTPException(404, "Render not available")
-    return FileResponse(path)
+    file_size = path.stat().st_size
+    range_header = request.headers.get("range")
+    if not range_header:
+        return FileResponse(path, headers={"Accept-Ranges": "bytes"})
+
+    parsed_range = _parse_byte_range(range_header, file_size)
+    if parsed_range is None:
+        return StreamingResponse(
+            _iter_file_bytes(path),
+            media_type="video/mp4",
+            headers={
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(file_size),
+            },
+        )
+
+    start, end = parsed_range
+    content_length = end - start + 1
+    return StreamingResponse(
+        _iter_file_bytes(path, start=start, end=end),
+        status_code=206,
+        media_type="video/mp4",
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+        },
+    )
+
+
+_RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)$")
+
+
+def _parse_byte_range(range_header: str, file_size: int) -> tuple[int, int] | None:
+    match = _RANGE_RE.fullmatch(range_header.strip())
+    if not match or file_size <= 0:
+        return None
+
+    start_text, end_text = match.groups()
+    if start_text == "" and end_text == "":
+        return None
+
+    if start_text == "":
+        suffix_length = int(end_text)
+        if suffix_length <= 0:
+            return None
+        start = max(file_size - suffix_length, 0)
+        end = file_size - 1
+        return (start, end) if start <= end else None
+
+    start = int(start_text)
+    if start >= file_size:
+        return None
+
+    if end_text == "":
+        end = file_size - 1
+    else:
+        end = min(int(end_text), file_size - 1)
+
+    if end < start:
+        return None
+    return start, end
+
+
+def _iter_file_bytes(path: Path, *, start: int = 0, end: int | None = None, chunk_size: int = 64 * 1024):
+    with path.open("rb") as handle:
+        handle.seek(start)
+        remaining = None if end is None else (end - start + 1)
+        while True:
+            if remaining is not None and remaining <= 0:
+                break
+            read_size = chunk_size if remaining is None else min(chunk_size, remaining)
+            chunk = handle.read(read_size)
+            if not chunk:
+                break
+            yield chunk
+            if remaining is not None:
+                remaining -= len(chunk)

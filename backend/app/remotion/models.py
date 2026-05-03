@@ -25,7 +25,7 @@ class GeneratedTextSceneSpec(BaseModel):
     font_variant: str = "bold"
     text_color: str = "#F9FAFB"
     accent_color: str = "#5B8CFF"
-    background_mode: Literal["image", "color", "gradient", "image_tint"] = "gradient"
+    background_mode: Literal["image", "color", "gradient", "image_tint"] = "color"
     background_color: str = "#111827"
     background_image_path: str | None = None
     animation_preset: Literal["fade-in", "slide-up", "typewriter"] = "fade-in"
