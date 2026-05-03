@@ -3,7 +3,7 @@ import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
   Play, Pause, SkipBack, SkipForward, Mic, Film, Type
 } from 'lucide-react'
-import { usePipeline, useVideoRef } from '../state/pipelineStore'
+import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 import type { Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
@@ -35,7 +35,6 @@ function getTtsDuration(block: Block): number {
 
 export function Timeline() {
   const { manifest, renderSummary } = usePipeline()
-  const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -47,48 +46,42 @@ export function Timeline() {
   const totalDuration = blocks.reduce((sum, b) => sum + getBlockDuration(b), 0)
   const pixelsPerSecond = 60 * zoom
 
-  // Sync playhead from actual video element at 60fps via rAF
-  // Re-attach when renderSummary changes (video mounts/unmounts)
+  // Sync playhead from the render video element at 60fps via rAF
+  // Uses getElementById so it naturally returns null when render video is unmounted
+  // (e.g. user is watching a source preview)
   useEffect(() => {
-    const id = setTimeout(() => {
-      const video = videoRef.current
-      if (!video) return
+    let rafId: number
 
-      const onPlay = () => setPlaying(true)
-      const onPause = () => setPlaying(false)
-      const onEnded = () => { setPlaying(false); setPlayheadPos(0) }
-
-      video.addEventListener('play', onPlay)
-      video.addEventListener('pause', onPause)
-      video.addEventListener('ended', onEnded)
-
-      let rafId: number
-      const tick = () => {
+    const tick = () => {
+      const video = document.getElementById('final-video') as HTMLVideoElement | null
+      if (video) {
         setPlayheadPos(video.currentTime)
-        rafId = requestAnimationFrame(tick)
+        setPlaying(!video.paused && !video.ended)
       }
       rafId = requestAnimationFrame(tick)
-    }, 50)
-    return () => clearTimeout(id)
-  }, [videoRef, renderSummary])
+    }
+    rafId = requestAnimationFrame(tick)
+
+    return () => cancelAnimationFrame(rafId)
+  }, [])
 
   // Playback: controls the actual <video> element
   const togglePlay = useCallback(() => {
-    const video = videoRef.current
+    const video = document.getElementById('final-video') as HTMLVideoElement | null
     if (!video) return
     if (video.paused) {
       video.play()
     } else {
       video.pause()
     }
-  }, [videoRef])
+  }, [])
 
   const seekTo = useCallback((time: number) => {
-    const video = videoRef.current
+    const video = document.getElementById('final-video') as HTMLVideoElement | null
     if (!video) return
     video.currentTime = Math.max(0, Math.min(time, video.duration || totalDuration))
     setPlayheadPos(video.currentTime)
-  }, [videoRef, totalDuration])
+  }, [totalDuration])
 
   const handleTimelineClick = useCallback((e: React.MouseEvent) => {
     if (!timelineRef.current || totalDuration === 0) return
