@@ -17,6 +17,32 @@ class RenderSettings(BaseModel):
     pixel_format: str = "yuv420p"
 
 
+class MotionAssetRef(BaseModel):
+    kind: Literal["remotion_scene"]
+    runtime_template: Literal["hero-reveal", "split-panel", "stacked-pulse"]
+    scene_spec_path: str
+    decorator_module_path: str | None = None
+    preview_frame_path: str | None = None
+
+    @field_validator("scene_spec_path", "decorator_module_path", "preview_frame_path")
+    @classmethod
+    def motion_asset_paths_must_be_project_relative(cls, value: str | None) -> str | None:
+        if value is not None:
+            _validate_project_relative_path(value)
+        return value
+
+
+class BeatStyle(BaseModel):
+    font_family: str | None = None
+    font_variant: str | None = None
+    text_color: str | None = None
+    accent_color: str | None = None
+    background_mode: Literal["image", "color", "gradient", "image_tint"] | None = None
+    background_color: str | None = None
+    text_alignment: Literal["left", "center", "right"] | None = None
+    layout_preset: Literal["centered", "hero-left", "hero-right", "stacked"] | None = None
+
+
 class Scene(BaseModel):
     scene_id: str
     start: float = Field(ge=0)
@@ -68,12 +94,13 @@ class SceneIndex(BaseModel):
 
 class PlanBeat(BaseModel):
     beat_id: str
-    type: Literal["title", "source_clip", "end_card"]
+    type: Literal["title", "source_clip", "scene_card", "end_card"]
     goal: str
     scene_id: str | None = None
     duration: float = Field(gt=0)
     narration: str | None = None
     onscreen_text: str | None = None
+    style: BeatStyle | None = None
 
     @model_validator(mode="after")
     def source_beats_require_scene_id(self) -> PlanBeat:
@@ -121,6 +148,7 @@ class BaseBlock(BaseModel):
     block_id: str
     type: str
     rendered_path: str
+    motion_asset: MotionAssetRef | None = None
 
     @field_validator("rendered_path")
     @classmethod
@@ -130,16 +158,31 @@ class BaseBlock(BaseModel):
 
 
 class TextBlock(BaseBlock):
-    background_asset: str
+    background_asset: str | None = None
     text: str
     duration: float = Field(gt=0)
     fontfile: str
+    font_family: str | None = None
+    font_variant: str | None = None
+    text_color: str | None = None
+    accent_color: str | None = None
+    background_mode: Literal["image", "color", "gradient", "image_tint"] = "image"
+    background_color: str | None = None
+    text_alignment: Literal["left", "center", "right"] = "center"
+    layout_preset: Literal["centered", "hero-left", "hero-right", "stacked"] = "centered"
 
     @field_validator("background_asset", "fontfile")
     @classmethod
-    def text_paths_must_be_project_relative(cls, value: str) -> str:
-        _validate_project_relative_path(value)
+    def text_paths_must_be_project_relative(cls, value: str | None) -> str | None:
+        if value is not None:
+            _validate_project_relative_path(value)
         return value
+
+    @model_validator(mode="after")
+    def validate_background_requirements(self) -> "TextBlock":
+        if self.background_mode in {"image", "image_tint"} and not self.background_asset and self.motion_asset is None:
+            raise ValueError("background_asset is required for image-based text blocks")
+        return self
 
 
 class TitleBlock(TextBlock):
@@ -148,6 +191,10 @@ class TitleBlock(TextBlock):
 
 class EndCardBlock(TextBlock):
     type: Literal["end_card"]
+
+
+class SceneCardBlock(TextBlock):
+    type: Literal["scene_card"]
 
 
 class SourceClipBlock(BaseBlock):
@@ -181,7 +228,7 @@ class SourceClipBlock(BaseBlock):
 
 
 Block = Annotated[
-    Union[TitleBlock, SourceClipBlock, EndCardBlock],
+    Union[TitleBlock, SourceClipBlock, SceneCardBlock, EndCardBlock],
     Field(discriminator="type"),
 ]
 
@@ -221,6 +268,13 @@ class CriticSuggestion(BaseModel):
     replacement_text: str | None = None
     target_block_id: str | None = None
     source_audio_volume: float | None = Field(default=None, ge=0, le=1)
+    category: str | None = None
+    severity: Literal["low", "medium", "high"] | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    viewer_problem: str | None = None
+    evidence: list[str] = Field(default_factory=list)
+    before_summary: str | None = None
+    after_summary: str | None = None
 
     @model_validator(mode="after")
     def approval_required_for_mvp(self) -> CriticSuggestion:
@@ -228,12 +282,14 @@ class CriticSuggestion(BaseModel):
             raise ValueError("requires_approval must be true for MVP suggestions")
         if self.action == "replace_text" and not self.replacement_text:
             raise ValueError("replacement_text is required for replace_text")
+        if self.action == "reorder_after" and not self.target_block_id:
+            raise ValueError("target_block_id is required for reorder_after")
         return self
 
 
 class CriticSuggestions(BaseModel):
     project_id: str
-    critic_scope: Literal["blind_manifest_only"]
+    critic_scope: Literal["blind_manifest_only", "render_review"]
     suggestions: list[CriticSuggestion]
 
     @classmethod

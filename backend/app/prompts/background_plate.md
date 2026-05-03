@@ -15,6 +15,8 @@ You are generating a textless background image for a professional tech demo vide
 
 Beat goal: {{goal}}
 Onscreen text that will be overlaid: {{onscreen_text}}
+Preferred accent color: {{accent_color}}
+Preferred background color: {{background_color}}
 
 Create a background that feels appropriate for this context without depicting any text itself.
 Abstract gradients, subtle geometric patterns, dark bokeh, or blurred technology-inspired visuals

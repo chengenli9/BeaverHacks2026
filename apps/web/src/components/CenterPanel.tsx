@@ -82,7 +82,7 @@ export function CenterPanel() {
         {tab === 'scenes' && sceneIndex && (
           <div className="artifact-scroll">
             <div className="section-header"><Map size={12} /> Scenes ({sceneIndex.scenes.length})</div>
-            {sceneIndex.scenes.map((scene) => <SceneCard key={scene.scene_id} scene={scene} />)}
+            {sceneIndex.scenes.map((scene) => <SceneCard key={scene.scene_id} scene={scene} projectId={projectId} />)}
           </div>
         )}
 

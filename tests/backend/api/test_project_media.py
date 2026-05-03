@@ -85,3 +85,24 @@ def test_media_file_streams_valid_file_and_rejects_traversal(tmp_path, monkeypat
     assert valid.status_code == 200
     assert valid.content == b"fake mp4"
     assert traversal.status_code == 400
+
+
+def test_artifact_routes_serve_media_probe_shot_index_and_render_qa(tmp_path, monkeypatch):
+    projects_root, _ = _patch_project_roots(tmp_path, monkeypatch)
+    store.create_project("artifact-test", "Artifact Test")
+    project_root = projects_root / "artifact-test"
+
+    (project_root / "cache" / "media_probe.json").write_text('{"project_id":"artifact-test","source":"source/demo.mp4","duration_seconds":12.0,"has_audio":true,"video_stream":{"codec":"h264","width":1920,"height":1080,"fps":30.0},"audio_stream":{"codec":"aac","sample_rate":48000}}', encoding="utf-8")
+    (project_root / "cache" / "shot_index.json").write_text('{"project_id":"artifact-test","source":"source/demo.mp4","shots":[{"shot_id":"shot_001","start":0.0,"end":4.0,"duration":4.0,"start_frame_path":"cache/frames/shot_001_start.jpg","mid_frame_path":"cache/frames/shot_001_mid.jpg","end_frame_path":"cache/frames/shot_001_end.jpg"}]}', encoding="utf-8")
+    (project_root / "cache" / "render_qa.json").write_text('{"project_id":"artifact-test","render_path":"renders/final_render.mp4","summary":{"has_video":true,"has_audio":true,"duration_seconds":12.0},"frame_checks":[],"audio_checks":[],"issues":[]}', encoding="utf-8")
+
+    media_probe = client.get("/projects/artifact-test/media-probe")
+    shot_index = client.get("/projects/artifact-test/shot-index")
+    render_qa = client.get("/projects/artifact-test/render-qa")
+
+    assert media_probe.status_code == 200
+    assert media_probe.json()["video_stream"]["width"] == 1920
+    assert shot_index.status_code == 200
+    assert shot_index.json()["shots"][0]["shot_id"] == "shot_001"
+    assert render_qa.status_code == 200
+    assert render_qa.json()["summary"]["has_audio"] is True

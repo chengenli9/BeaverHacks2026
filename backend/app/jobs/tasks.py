@@ -4,6 +4,7 @@ from ..integrations.gemini.service import (
     generate_plan,
     generate_tts_assets,
     precritique_manifest,
+    review_render,
 )
 from ..manifests.service import apply_approved_patches, build_manifest
 from ..rendering.service import render_project

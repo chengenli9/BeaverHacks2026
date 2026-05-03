@@ -46,7 +46,7 @@ export function ManifestPanel() {
               <Map size={12} /> Scenes ({sceneIndex.scenes.length})
             </div>
             {sceneIndex.scenes.map((s) => (
-              <SceneCard key={s.scene_id} scene={s} />
+              <SceneCard key={s.scene_id} scene={s} projectId={projectId} />
             ))}
           </>
         )}

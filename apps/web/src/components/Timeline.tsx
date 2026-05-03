@@ -30,7 +30,7 @@ function getBlockDuration(b: Block): number {
 
 function getTtsDuration(block: Block): number {
   if (block.type !== 'source_clip') return 0
-  return Number.isFinite(block.tts_duration) ? block.tts_duration : 0
+  return typeof block.tts_duration === 'number' && Number.isFinite(block.tts_duration) ? block.tts_duration : 0
 }
 
 export function Timeline() {

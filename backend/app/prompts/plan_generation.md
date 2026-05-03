@@ -21,12 +21,22 @@ Return a single JSON object with this structure:
   "beats": [
     {
       "beat_id": "beat_001",
-      "type": "<title | source_clip | end_card>",
+      "type": "<title | source_clip | scene_card | end_card>",
       "goal": "<one sentence: what this beat achieves>",
       "scene_id": "<scene_id or null for generated beats>",
       "duration": <duration in seconds>,
       "narration": "<narration text or null>",
-      "onscreen_text": "<text overlay or null>"
+      "onscreen_text": "<text overlay or null>",
+      "style": {
+        "font_family": "<display-sans | display-serif | mono-tech | null>",
+        "font_variant": "<bold | regular | null>",
+        "text_color": "<hex color or null>",
+        "accent_color": "<hex color or null>",
+        "background_mode": "<image | color | gradient | image_tint | null>",
+        "background_color": "<hex color or null>",
+        "text_alignment": "<left | center | right | null>",
+        "layout_preset": "<centered | hero-left | hero-right | stacked | null>"
+      }
     }
   ]
 }
@@ -36,7 +46,18 @@ Return a single JSON object with this structure:
 
 - `title` — branded intro card. Use `onscreen_text`, no `scene_id`.
 - `source_clip` — a clip from the source footage. Must reference a valid `scene_id`.
+- `scene_card` — a mid-video text/overlay card for transitions, chapter headers, or callouts. Use `onscreen_text`, no `scene_id`. Provide a `style` object.
 - `end_card` — closing card with credits or call to action. Use `onscreen_text`, no `scene_id`.
+
+## Styling guidance
+
+- For `title`, `scene_card`, and `end_card` beats, provide a `style` object when it helps the demo feel more exciting.
+- Use bold, legible typography choices and confident color direction.
+- Prefer `color` as the default `background_mode` for clean, high-contrast title cards. Use `gradient` sparingly.
+- Leave `style` as `null` for `source_clip` beats unless a simple overlay treatment is clearly helpful.
+- **Color consistency**: Choose ONE cohesive color palette for the entire project and use it across all styled beats.
+  Pick a single `accent_color` and a single `background_color` family for all `title`, `scene_card`, and `end_card` beats.
+  The title and end card should look like they belong to the same brand. Do not randomize colors per beat.
 
 ## Hard rules
 
@@ -47,4 +68,7 @@ Return a single JSON object with this structure:
 - `beat_id` values must be unique and follow the pattern `beat_001`, `beat_002`, etc.
 - Aim for 5–10 beats. Fewer is better for a demo.
 - Keep the story arc to 3–5 phases: problem → pipeline → result → call to action.
+- **No filler beats.** Do not include "initializing project", "setting up", "getting started",
+  "loading", or any other placeholder/setup content. Every beat must deliver value to the viewer.
+  The title card should be the project name or a punchy hook — never a status message.
 - Respond with JSON only. No markdown fences, no explanation text.

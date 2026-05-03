@@ -18,7 +18,7 @@ def test_duration_reconciliation_extends_source_end_when_tts_is_longer():
                     "video_duration": 6.0,
                     "tts_asset": "assets/tts/tts_002.wav",
                     "tts_duration": 7.5,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/002_demo.mp4",
                 }

@@ -156,6 +156,25 @@ class TestCompleteJson:
         with pytest.raises(ValueError, match="Pro model"):
             complete_json("test", model="gemini-2.5-pro")
 
+    @patch("backend.app.integrations.gemini.client.get_client")
+    def test_passes_response_json_schema_when_provided(self, mock_get_client):
+        payload = {"foo": "bar"}
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = _make_mock_text_response(payload)
+        mock_get_client.return_value = mock_client
+
+        from backend.app.integrations.gemini.client import complete_json
+
+        schema = {
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+            "required": ["foo"],
+        }
+        complete_json("test prompt", schema=schema)
+
+        config = mock_client.models.generate_content.call_args.kwargs["config"]
+        assert getattr(config, "response_json_schema", None) == schema
+
 
 # ---------------------------------------------------------------------------
 # client.py — generate_audio / WAV helpers
@@ -280,6 +299,56 @@ class TestAnalyzeScenes:
         assert isinstance(result, dict)
         assert "scenes" in result
 
+    @patch("backend.app.integrations.gemini.client.get_client")
+    def test_clamps_scene_end_to_measured_source_duration(self, mock_get_client, tmp_path, monkeypatch):
+        payload = {
+            "project_id": "demo",
+            "source": "source/v.mp4",
+            "source_duration": 99.0,
+            "scenes": [
+                {
+                    "scene_id": "scene_001",
+                    "start": 0.0,
+                    "end": 5.9,
+                    "summary": "Short clip.",
+                    "visual_tags": [],
+                    "audio_notes": "",
+                    "demo_relevance": 0.8,
+                }
+            ],
+        }
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = _make_mock_text_response(payload)
+        mock_get_client.return_value = mock_client
+
+        (tmp_path / "source").mkdir()
+        (tmp_path / "cache").mkdir()
+        (tmp_path / "logs").mkdir()
+
+        from backend.app.integrations.gemini import service
+        from backend.app.media.models import MediaProbe
+
+        monkeypatch.setattr(service, "find_primary_video", lambda project_path: None)
+        monkeypatch.setattr(
+            service,
+            "_fallback_media_probe",
+            lambda project_path: MediaProbe.model_validate(
+                {
+                    "project_id": "demo",
+                    "source": "source/v.mp4",
+                    "duration_seconds": 5.3867,
+                    "has_audio": False,
+                    "video_stream": {"codec": "unknown", "width": 1920, "height": 1080, "fps": 30.0},
+                    "audio_stream": None,
+                }
+            ),
+        )
+
+        result = service.analyze_scenes(tmp_path)
+
+        assert result["source_duration"] == pytest.approx(5.3867)
+        assert result["scenes"][0]["end"] == pytest.approx(5.3867)
+
 
 # ---------------------------------------------------------------------------
 # service.py — generate_plan
@@ -339,6 +408,109 @@ class TestGeneratePlan:
 
         assert (tmp_path / "manifests" / "plan.json").exists()
         assert "beats" in result
+
+
+class TestGenerateVisualAssets:
+    def test_generate_assets_writes_remotion_scene_bundle(self, monkeypatch, tmp_path):
+        plan = {
+            "project_id": "demo",
+            "title": "DirectorLoop Demo",
+            "target_duration": 12.0,
+            "story_arc": ["hook", "demo"],
+            "beats": [
+                {
+                    "beat_id": "beat_001",
+                    "type": "title",
+                    "goal": "Open strong",
+                    "scene_id": None,
+                    "duration": 3.0,
+                    "narration": None,
+                    "onscreen_text": "DirectorLoop",
+                    "style": {
+                        "font_family": "display-sans",
+                        "background_mode": "color",
+                        "background_color": "#111827",
+                        "text_color": "#FFFFFF",
+                        "accent_color": "#5B8CFF",
+                        "layout_preset": "centered",
+                        "text_alignment": "center",
+                    },
+                }
+            ],
+        }
+
+        (tmp_path / "manifests").mkdir()
+        (tmp_path / "cache").mkdir()
+        (tmp_path / "logs").mkdir()
+        (tmp_path / "manifests" / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
+        (tmp_path / "cache" / "scene_index.json").write_text(
+            json.dumps(
+                {
+                    "project_id": "demo",
+                    "source": "source/demo.mp4",
+                    "source_duration": 10.0,
+                    "scenes": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        captured: dict[str, object] = {}
+
+        def fake_complete_json(prompt, *, system=None, model=None, schema=None):
+            captured["prompt"] = prompt
+            return (
+                {
+                    "runtime_template": "hero-reveal",
+                    "scene_spec": {
+                        "version": 1,
+                        "block_type": "title",
+                        "text": "DirectorLoop",
+                        "duration_seconds": 3.0,
+                        "runtime_template": "hero-reveal",
+                        "layout_preset": "centered",
+                        "text_alignment": "center",
+                        "font_family": "display-sans",
+                        "font_variant": "bold",
+                        "text_color": "#FFFFFF",
+                        "accent_color": "#5B8CFF",
+                        "background_mode": "color",
+                        "background_color": "#111827",
+                        "background_image_path": None,
+                        "animation_preset": "fade-in",
+                        "show_glass_panel": True,
+                        "show_accent_bar": True,
+                    },
+                    "decorator_code": "export default null;\n",
+                    "background_requirements": {
+                        "mode": "local",
+                        "prompt": None,
+                    },
+                },
+                {
+                    "elapsed_ms": 1,
+                    "model": "gemini-test",
+                    "input_token_count": 10,
+                    "output_token_count": 20,
+                },
+            )
+
+        monkeypatch.setattr("backend.app.integrations.gemini.service._client.complete_json", fake_complete_json)
+        monkeypatch.setattr(
+            "backend.app.integrations.gemini.service.render_remotion_preview",
+            lambda project_path, scene_spec_path, decorator_module_path, output_path, settings: output_path.write_bytes(b"\x89PNG\r\n\x1a\n"),
+        )
+
+        from backend.app.integrations.gemini.service import generate_background_assets
+
+        result = generate_background_assets(tmp_path)
+
+        assert result[0]["scene_spec_path"] == "assets/remotion/001_title/scene.json"
+        assert (tmp_path / "assets" / "remotion" / "001_title" / "scene.json").exists()
+        assert (tmp_path / "assets" / "remotion" / "001_title" / "decorator.tsx").exists()
+        assert (tmp_path / "assets" / "remotion" / "001_title" / "preview.png").exists()
+        assert "Project title: DirectorLoop Demo" in str(captured["prompt"])
+        assert "Neighboring beats" in str(captured["prompt"])
 
     @patch("backend.app.integrations.gemini.client.get_client")
     def test_plan_response_parses_as_json(self, mock_get_client, tmp_path):

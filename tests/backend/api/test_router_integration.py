@@ -56,6 +56,7 @@ def test_legacy_job_routers_enqueue_current_task_functions(monkeypatch):
         "generate_background_assets",
         "build_manifest",
         "precritique_manifest",
+        "review_render",
         "apply_approved_patches",
         "render_project",
     ):
@@ -91,6 +92,21 @@ def test_legacy_job_routers_enqueue_current_task_functions(monkeypatch):
         response = client.post(path, json=apply_body)
         assert response.status_code == 200
         assert response.json()["status"] == "queued"
+
+
+def test_main_router_enqueues_review_render_job(monkeypatch):
+    monkeypatch.setattr(tasks, "review_render", _noop)
+
+    app = FastAPI()
+    from app.api.routes import router
+
+    app.include_router(router)
+    client = TestClient(app)
+
+    response = client.post("/jobs/review-render", params={"project_id": "demo_project"})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued"
 
 
 def test_project_router_creates_full_layout_and_404s_missing_projects(tmp_path, monkeypatch):

@@ -58,15 +58,22 @@ function useVisibleJobs(activeJobs: Record<string, JobStatus>) {
 }
 
 export function OutputPanel() {
-  const { activeJobs, criticSuggestions, projectId, renderSummary } = usePipeline()
+  const { activeJobs, criticSuggestions, mediaProbe, projectId, renderQa, renderSummary } = usePipeline()
   const [tab, setTab] = useState<RightTab>('events')
 
   const visibleJobs = useVisibleJobs(activeJobs)
   const runningJobs = Object.values(activeJobs).filter(
     (job) => job.status === 'queued' || job.status === 'running',
   )
+  const renderJob = runningJobs.find((job) => job.stage === 'render')
 
-  const hasOutput = Boolean(criticSuggestions || renderSummary || runningJobs.length > 0)
+  const hasOutput = Boolean(
+    criticSuggestions ||
+    renderSummary ||
+    mediaProbe ||
+    renderQa ||
+    runningJobs.length > 0
+  )
 
   return (
     <div className="panel" id="output-panel">
@@ -115,6 +122,49 @@ export function OutputPanel() {
             <Separator className="resize-handle-y" />
 
             <Panel id="output-details" defaultSize={60} minSize={20} maxSize={80} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
+{renderJob && (
+  <div className="card" style={{ borderColor: 'var(--blue)' }}>
+    <div className="card-header">
+      <span className="card-title" style={{ color: 'var(--blue)' }}>Rendering</span>
+      <StatusBadge status={renderJob.status} />
+    </div>
+    {renderJob.message && <div className="card-body">{renderJob.message}</div>}
+    <div style={{ marginTop: 6 }}><ProgressBar progress={renderJob.progress} /></div>
+  </div>
+)}
+{(mediaProbe || renderQa) && (
+  <div className="card">
+    <div className="card-header">
+      <span className="card-title">Media QA</span>
+    </div>
+    <div className="card-meta">
+      {mediaProbe && (
+        <>
+          <span className="card-meta-item">
+            {mediaProbe.video_stream.width}x{mediaProbe.video_stream.height}
+          </span>
+          <span className="card-meta-item">{mediaProbe.video_stream.fps.toFixed(1)}fps</span>
+          <span className="card-meta-item">{mediaProbe.has_audio ? 'Source audio' : 'No source audio'}</span>
+        </>
+      )}
+      {renderQa && (
+        <>
+          <span className="card-meta-item">{renderQa.summary.duration_seconds.toFixed(1)}s review</span>
+          <span className="card-meta-item">{renderQa.issues.length} issues</span>
+        </>
+      )}
+    </div>
+    {renderQa && renderQa.issues.length > 0 && (
+      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+        {renderQa.issues.slice(0, 3).map((issue) => (
+          <div key={`${issue.code}-${issue.message}`} className="card-meta-item">
+            {issue.severity}: {issue.message}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
               <CriticPanel />
               {!hasOutput && (
                 <div className="empty-state">

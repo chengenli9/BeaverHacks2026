@@ -9,6 +9,9 @@ vi.mock('../api/directorloopApi', () => ({
   startJob: vi.fn(),
   getJob: vi.fn(),
   getProjectMedia: vi.fn(),
+  getMediaProbe: vi.fn(),
+  getShotIndex: vi.fn(),
+  getRenderQa: vi.fn(),
   getProjectFileUrl: vi.fn((projectId: string, path: string) => `http://localhost:8000/projects/${projectId}/media/file?path=${encodeURIComponent(path)}`),
   importProjectMedia: vi.fn(),
   getSceneIndex: vi.fn(),
@@ -24,10 +27,10 @@ import * as api from '../api/directorloopApi'
 
 const mockCritic = {
   project_id: 'demo_project',
-  critic_scope: 'blind_manifest_only',
+  critic_scope: 'render_review',
   suggestions: [
-    { suggestion_id: 's001', block_id: '001_title', action: 'trim_end' as const, amount_seconds: 1, max_allowed_trim_seconds: 2, reason: 'Tighten pacing.', requires_approval: true },
-    { suggestion_id: 's002', block_id: '001_title', action: 'replace_text' as const, amount_seconds: 0, max_allowed_trim_seconds: 0.9, reason: 'Better text.', requires_approval: true, replacement_text: 'New Text' },
+    { suggestion_id: 's001', block_id: '001_title', action: 'trim_end' as const, amount_seconds: 1, max_allowed_trim_seconds: 2, reason: 'Tighten pacing.', requires_approval: true, category: 'pacing', severity: 'medium', confidence: 0.78, viewer_problem: 'The intro lingers after the hook lands.', evidence: ['render_qa: no technical issue', 'shot_index: repeated frames'], before_summary: '3.0s title', after_summary: '2.0s title' },
+    { suggestion_id: 's002', block_id: '001_title', action: 'replace_text' as const, amount_seconds: 0, max_allowed_trim_seconds: 0.9, reason: 'Better text.', requires_approval: true, replacement_text: 'New Text', category: 'clarity', severity: 'low', confidence: 0.66, viewer_problem: 'The title undersells the product outcome.', evidence: ['manifest: generic title copy'], before_summary: 'DirectorLoop', after_summary: 'New Text' },
   ],
 }
 
@@ -94,6 +97,12 @@ const mockManifest = {
       text: 'DirectorLoop',
       duration: 3,
       fontfile: 'assets/fonts/Inter-Bold.ttf',
+      motion_asset: {
+        kind: 'remotion_scene' as const,
+        runtime_template: 'hero-reveal',
+        scene_spec_path: 'assets/remotion/001_title/scene.json',
+        preview_frame_path: 'assets/remotion/001_title/preview.png',
+      },
       rendered_path: 'blocks/001_title.mp4',
     },
     {
@@ -105,7 +114,7 @@ const mockManifest = {
       video_duration: 4,
       tts_asset: null,
       tts_duration: null,
-      source_audio_volume: 0.15,
+      source_audio_volume: 1,
       tts_fade_seconds: 0.5,
       rendered_path: 'blocks/002_clip_without_tts.mp4',
     },
@@ -132,6 +141,46 @@ const mockMedia = {
   ],
 }
 
+const mockMediaProbe = {
+  project_id: 'demo_project',
+  source: 'source/demo_footage.mp4',
+  duration_seconds: 42,
+  has_audio: true,
+  video_stream: { codec: 'h264', width: 1920, height: 1080, fps: 30 },
+  audio_stream: { codec: 'aac', sample_rate: 48000 },
+}
+
+const mockRenderQa = {
+  project_id: 'demo_project',
+  render_path: 'renders/final.mp4',
+  summary: { has_video: true, has_audio: true, duration_seconds: 29.7 },
+  frame_checks: [],
+  audio_checks: [],
+  issues: [],
+}
+
+const fullArtifacts = {
+  media_probe: true,
+  shot_index: true,
+  scene_index: true,
+  plan: true,
+  manifest: true,
+  critic: true,
+  render_qa: true,
+  render: true,
+}
+
+const emptyArtifacts = {
+  media_probe: false,
+  shot_index: false,
+  scene_index: false,
+  plan: false,
+  manifest: false,
+  critic: false,
+  render_qa: false,
+  render: false,
+}
+
 function mockApi() {
   const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>
   return m
@@ -145,6 +194,9 @@ beforeEach(() => {
   // Re-mock listProjects after resetAllMocks
   const m = mockApi()
   m.listProjects.mockResolvedValue([])
+  m.getMediaProbe.mockRejectedValue(new Error('no'))
+  m.getShotIndex.mockRejectedValue(new Error('no'))
+  m.getRenderQa.mockRejectedValue(new Error('no'))
 })
 
 afterEach(() => {
@@ -165,7 +217,7 @@ describe('Dashboard', () => {
   it('opens demo project and populates artifact panels', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/', artifacts: fullArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockResolvedValue(mockSceneIndex)
     m.getPlan.mockResolvedValue(mockPlan)
@@ -192,7 +244,7 @@ describe('Dashboard', () => {
   it('polls a running job and updates progress', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -217,14 +269,13 @@ describe('Dashboard', () => {
     await screen.findByText('Demo')
     await user.click(screen.getByRole('button', { name: /Analyze/i }))
 
-    expect(await screen.findByText('Analyzing scene 2 of 5')).toBeInTheDocument()
-    expect(screen.getByText('42%')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Analyze/i })).toHaveClass('running')
   }, 7000)
 
   it('renders failed job retry state', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -255,7 +306,9 @@ describe('Dashboard', () => {
   it('renders critic suggestions with approve/reject controls', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
+    m.getMediaProbe.mockResolvedValue(mockMediaProbe)
+    m.getRenderQa.mockResolvedValue(mockRenderQa)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -273,12 +326,36 @@ describe('Dashboard', () => {
     const rejectButtons = screen.getAllByText('Reject')
     expect(approveButtons.length).toBe(2)
     expect(rejectButtons.length).toBe(2)
+    expect(screen.getByText('The intro lingers after the hook lands.')).toBeInTheDocument()
+    expect(screen.getByText(/repeated frames/i)).toBeInTheDocument()
+  })
+
+  it('shows remotion metadata for generated text blocks', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/', artifacts: fullArtifacts })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
+    m.getSceneIndex.mockResolvedValue(mockSceneIndex)
+    m.getPlan.mockResolvedValue(mockPlan)
+    m.getManifest.mockResolvedValue(mockManifest)
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    expect(await screen.findByText('Demo Project')).toBeInTheDocument()
+
+    const centerPanel = document.querySelector('#center-panel') as HTMLElement
+    await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
+
+    expect(within(centerPanel).getByText('remotion')).toBeInTheDocument()
+    expect(within(centerPanel).getByText('hero-reveal')).toBeInTheDocument()
   })
 
   it('submits approved and rejected critic suggestion ids', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -292,7 +369,7 @@ describe('Dashboard', () => {
     await user.click(screen.getByText('Output'))
     await user.click(await screen.findByRole('button', { name: /Approve s001/i }))
     await user.click(screen.getByRole('button', { name: /Reject s002/i }))
-    await user.click(screen.getByRole('button', { name: /Apply Changes/i }))
+    await user.click(screen.getByRole('button', { name: /Apply 1 Approved/i }))
 
     expect(m.applyApprovedPatches).toHaveBeenCalledWith({
       project_id: 'demo_project',
@@ -304,7 +381,7 @@ describe('Dashboard', () => {
   it('renders render preview when render summary exists', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -328,7 +405,7 @@ describe('Dashboard', () => {
   it('creates and loads a new empty project', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.createProject.mockResolvedValue({ project_id: 'new-project', display_name: 'New Project', artifacts: {} })
+    m.createProject.mockResolvedValue({ project_id: 'new-project', display_name: 'New Project', artifacts: emptyArtifacts })
     m.getProjectMedia.mockResolvedValue({ project_id: 'new-project', files: [] })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -346,7 +423,7 @@ describe('Dashboard', () => {
   it('renders backend media files and previews a selected video', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -370,7 +447,7 @@ describe('Dashboard', () => {
     const user = userEvent.setup()
     const m = mockApi()
     const file = new File(['fake'], 'dropped.mp4', { type: 'video/mp4' })
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getProjectMedia
       .mockResolvedValueOnce({ project_id: 'demo_project', files: [] })
       .mockResolvedValueOnce({
@@ -400,7 +477,7 @@ describe('Dashboard', () => {
   it('renders the timeline inside the center panel', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -418,5 +495,23 @@ describe('Dashboard', () => {
 
     await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
     expect(within(centerPanel).getByTestId('timeline')).toBeInTheDocument()
+  })
+
+  it('renders the review stage after render', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('Demo')
+
+    expect(screen.getByRole('button', { name: /^Review$/i })).toBeInTheDocument()
   })
 })

@@ -8,6 +8,7 @@ interface Props {
 export function BlockCard({ block }: Props) {
   const isClip = block.type === 'source_clip'
   const ttsDuration = isClip && Number.isFinite(block.tts_duration) ? block.tts_duration : null
+  const textBlock = block.type === 'title' || block.type === 'end_card' ? block : null
 
   return (
     <div className="card" id={`block-${block.block_id}`}>
@@ -21,9 +22,9 @@ export function BlockCard({ block }: Props) {
         <span className={`type-badge ${block.type}`}>{block.type.replace('_', ' ')}</span>
       </div>
 
-      {(block.type === 'title' || block.type === 'end_card') && (
+      {textBlock && (
         <div className="card-body">
-          <strong style={{ color: 'var(--text-primary)' }}>"{block.text}"</strong>
+          <strong style={{ color: 'var(--text-primary)' }}>"{textBlock.text}"</strong>
         </div>
       )}
 
@@ -45,6 +46,13 @@ export function BlockCard({ block }: Props) {
               </span>
             )}
           </>
+        )}
+        {textBlock?.layout_preset && <span className="card-meta-item">{textBlock.layout_preset}</span>}
+        {textBlock?.font_family && <span className="card-meta-item">{textBlock.font_family}</span>}
+        {textBlock?.background_mode && <span className="card-meta-item">{textBlock.background_mode}</span>}
+        {textBlock?.motion_asset && <span className="card-meta-item">remotion</span>}
+        {textBlock?.motion_asset?.runtime_template && (
+          <span className="card-meta-item">{textBlock.motion_asset.runtime_template}</span>
         )}
       </div>
 

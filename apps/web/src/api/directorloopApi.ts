@@ -5,13 +5,15 @@ import type {
   ImportMediaResponse,
   JobStartResponse,
   JobStatus,
+  MediaProbe,
   MediaTree,
   PipelineJobKind,
   Plan,
-  ProjectListItem,
   ProjectSummary,
+  RenderQa,
   RenderSummary,
   SceneIndex,
+  ShotIndex,
 } from '../types/api'
 
 
@@ -83,6 +85,14 @@ export function getPlan(projectId: string): Promise<Plan> {
   return request<Plan>(`/projects/${projectId}/plan`)
 }
 
+export function getMediaProbe(projectId: string): Promise<MediaProbe> {
+  return request<MediaProbe>(`/projects/${projectId}/media-probe`)
+}
+
+export function getShotIndex(projectId: string): Promise<ShotIndex> {
+  return request<ShotIndex>(`/projects/${projectId}/shot-index`)
+}
+
 export function getManifest(projectId: string): Promise<BlockManifest> {
   return request<BlockManifest>(`/projects/${projectId}/manifest`)
 }
@@ -95,6 +105,10 @@ export function getRender(projectId: string): Promise<RenderSummary> {
   return request<RenderSummary>(`/projects/${projectId}/render`)
 }
 
+export function getRenderQa(projectId: string): Promise<RenderQa> {
+  return request<RenderQa>(`/projects/${projectId}/render-qa`)
+}
+
 export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStartResponse> {
   return request<JobStartResponse>('/jobs/apply-approved-patches', {
     method: 'POST',
@@ -102,8 +116,8 @@ export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStar
   })
 }
 
-export async function listProjects(): Promise<ProjectListItem[]> {
-  return request<ProjectListItem[]>('/projects')
+export async function listProjects(): Promise<ProjectSummary[]> {
+  return request<ProjectSummary[]>('/projects')
 }
 
 export function updateProject(projectId: string, name: string, description: string, starred?: boolean): Promise<ProjectSummary> {

@@ -13,6 +13,10 @@ from .commands import (
     build_source_clip_command,
     build_title_block_command,
 )
+from .remotion_bridge import (
+    RemotionNotAvailableError,
+    render_generated_remotion_scene,
+)
 
 
 ProgressCallback = Callable[[float, str], None]
@@ -29,6 +33,15 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
     output = root / block.rendered_path
     output.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(block, TextBlock):
+        if block.motion_asset:
+            try:
+                return render_generated_remotion_scene(root, block, settings)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Generated Remotion render failed, falling back to Pillow+FFmpeg: %s", exc
+                )
+        # Fallback: static Pillow + FFmpeg
         command = build_title_block_command(root, block, settings)
     elif isinstance(block, SourceClipBlock):
         command = build_source_clip_command(
