@@ -21,7 +21,7 @@ Return a single JSON object with this structure:
   "beats": [
     {
       "beat_id": "beat_001",
-      "type": "<title | source_clip | lower_third>",
+      "type": "<title | source_clip | end_card>",
       "goal": "<one sentence: what this beat achieves>",
       "scene_id": "<scene_id or null for generated beats>",
       "duration": <duration in seconds>,
@@ -34,9 +34,9 @@ Return a single JSON object with this structure:
 
 ## Beat types
 
-- `title` — branded intro or outro card. Use `onscreen_text`, no `scene_id`.
+- `title` — branded intro card. Use `onscreen_text`, no `scene_id`.
 - `source_clip` — a clip from the source footage. Must reference a valid `scene_id`.
-- `lower_third` — a short text callout overlaid on a clip.
+- `end_card` — closing card with credits or call to action. Use `onscreen_text`, no `scene_id`.
 
 ## Hard rules
 

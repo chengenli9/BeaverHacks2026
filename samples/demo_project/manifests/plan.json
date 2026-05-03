@@ -1,57 +1,94 @@
 {
   "project_id": "demo_project",
-  "title": "DirectorLoop Demo Cut",
-  "target_duration": 30.0,
+  "title": "DirectorLoop Hackathon Demo",
+  "target_duration": 30,
   "story_arc": [
-    "Show why raw footage is painful.",
-    "Show DirectorLoop turning footage into structured edit artifacts.",
-    "Show human approval and a final rendered MP4."
+    "Introduction of the abstract game elements",
+    "Demonstration of gameplay mechanics and obstacles",
+    "Highlighting the visual appeal and interactivity",
+    "Conclusion and call to action"
   ],
   "beats": [
     {
       "beat_id": "beat_001",
       "type": "title",
-      "goal": "Brand the demo instantly.",
+      "goal": "Introduce the project with a branded title card.",
       "scene_id": null,
-      "duration": 3.0,
-      "narration": null,
-      "onscreen_text": "DirectorLoop"
+      "duration": 3,
+      "narration": "DirectorLoop Demo",
+      "onscreen_text": "DirectorLoop Hackathon Demo"
     },
     {
       "beat_id": "beat_002",
       "type": "source_clip",
-      "goal": "Name the editing pain in one clean sentence.",
+      "goal": "Show the basic elements: blue square, background, and beam.",
       "scene_id": "scene_001",
-      "duration": 6.5,
-      "narration": "Hackathon teams record the right moments, then lose time shaping them into a story.",
+      "duration": 3,
+      "narration": "Watch this.",
       "onscreen_text": null
     },
     {
       "beat_id": "beat_003",
       "type": "source_clip",
-      "goal": "Show the AI pipeline becoming concrete artifacts.",
+      "goal": "Demonstrate interaction with a new obstacle.",
       "scene_id": "scene_002",
-      "duration": 8.0,
-      "narration": "DirectorLoop indexes scenes, drafts a structured plan, and turns each beat into a renderable block.",
+      "duration": 3,
+      "narration": "New obstacle appears.",
       "onscreen_text": null
     },
     {
       "beat_id": "beat_004",
       "type": "source_clip",
-      "goal": "Show that the human stays in control.",
-      "scene_id": "scene_003",
-      "duration": 7.0,
-      "narration": "The critic reviews the manifest, suggests safe changes, and waits for approval.",
+      "goal": "Show continued interaction and visual elements.",
+      "scene_id": "scene_004",
+      "duration": 3,
+      "narration": "Colorful interaction.",
       "onscreen_text": null
     },
     {
       "beat_id": "beat_005",
-      "type": "end_card",
-      "goal": "End with a polished payoff.",
+      "type": "source_clip",
+      "goal": "Introduce another gameplay mechanic.",
+      "scene_id": "scene_005",
+      "duration": 3,
+      "narration": "More gameplay.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_006",
+      "type": "source_clip",
+      "goal": "Showcase a different scenario with obstacles.",
+      "scene_id": "scene_009",
+      "duration": 3,
+      "narration": "Challenging gameplay.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_007",
+      "type": "source_clip",
+      "goal": "Highlight the dynamic visual effects.",
+      "scene_id": "scene_010",
+      "duration": 3,
+      "narration": "Dynamic visuals.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_008",
+      "type": "source_clip",
+      "goal": "Show the core interaction for the final time.",
+      "scene_id": "scene_014",
+      "duration": 3,
+      "narration": "Final interaction.",
+      "onscreen_text": null
+    },
+    {
+      "beat_id": "beat_009",
+      "type": "title",
+      "goal": "End with a concluding card.",
       "scene_id": null,
-      "duration": 3.0,
-      "narration": null,
-      "onscreen_text": "Gemini plans. FFmpeg renders."
+      "duration": 3,
+      "narration": "Thank you.",
+      "onscreen_text": "Hackathon Success!"
     }
   ]
 }

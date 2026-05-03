@@ -81,6 +81,10 @@ def analyze_scenes(project_path: Path) -> dict:
     # Ensure the project_id field is set correctly
     result["project_id"] = project_id
 
+    # Stamp the correct source path — Gemini doesn't know the real filename
+    if video_file:
+        result["source"] = str(video_file.relative_to(project_path)).replace("\\", "/")
+
     out_path = project_path / "cache" / "scene_index.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -121,6 +125,15 @@ def generate_plan(project_path: Path) -> dict:
 
     result, usage = _client.complete_json(user_prompt, system=system_prompt)
     result["project_id"] = project_id
+
+    # Normalize beat types: Gemini may return stale types from old prompts
+    _TYPE_MAP = {"lower_third": "title", "title_card": "title"}
+    for beat in result.get("beats", []):
+        if beat.get("type") in _TYPE_MAP:
+            beat["type"] = _TYPE_MAP[beat["type"]]
+        # Non-source beats must not carry a scene_id
+        if beat.get("type") != "source_clip" and beat.get("scene_id"):
+            beat["scene_id"] = None
 
     out_path = project_path / "manifests" / "plan.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -228,8 +241,8 @@ def generate_background_assets(project_path: Path) -> list[dict]:
         beat_id = beat["beat_id"]
         beat_type = beat.get("type", "")
 
-        # Generate backgrounds for title and lower-third beats
-        if beat_type not in ("title", "lower_third", "title_card"):
+        # Generate backgrounds for title and end_card beats
+        if beat_type not in ("title", "end_card"):
             continue
 
         goal = beat.get("goal", "professional presentation background")
@@ -370,7 +383,7 @@ def _find_video(source_dir: Path) -> Path | None:
     """Return the first video file found in source_dir, or None."""
     if not source_dir.exists():
         return None
-    for ext in ("*.mp4", "*.mov", "*.avi", "*.mkv"):
+    for ext in ("*.mp4", "*.MP4", "*.mov", "*.MOV", "*.avi", "*.mkv"):
         matches = list(source_dir.glob(ext))
         if matches:
             return matches[0]

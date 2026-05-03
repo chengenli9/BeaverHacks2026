@@ -1,5 +1,5 @@
 import {
-  Search, FileText, Mic, Image, Boxes, ShieldCheck, Film,
+  Search, FileText, Image, Boxes, ShieldCheck, Film,
   FolderOpen, RefreshCw, Loader, Plus,
 } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
@@ -15,7 +15,6 @@ interface StageConfig {
 const STAGES: StageConfig[] = [
   { kind: 'analyze-scenes', label: 'Analyze', icon: <Search size={13} /> },
   { kind: 'generate-plan', label: 'Plan', icon: <FileText size={13} />, prereq: 'analyze-scenes' },
-  { kind: 'generate-tts', label: 'TTS', icon: <Mic size={13} />, prereq: 'generate-plan' },
   { kind: 'generate-assets', label: 'Assets', icon: <Image size={13} />, prereq: 'generate-plan' },
   { kind: 'build-manifest', label: 'Manifest', icon: <Boxes size={13} />, prereq: 'generate-plan' },
   { kind: 'precritique', label: 'Critique', icon: <ShieldCheck size={13} />, prereq: 'build-manifest' },

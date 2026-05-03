@@ -1,43 +1,150 @@
 {
   "project_id": "demo_project",
-  "source": "source/demo_footage.mp4",
-  "source_duration": 42.0,
+  "source": "hackathon_footage.mp4",
+  "source_duration": 41.872,
   "scenes": [
     {
       "scene_id": "scene_001",
       "start": 0.0,
-      "end": 8.0,
-      "summary": "A team member introduces the problem: raw hackathon footage is messy and slow to edit.",
-      "visual_tags": ["intro", "talking-head", "problem"],
-      "audio_notes": "Clear speech with mild room noise.",
-      "demo_relevance": 0.82
+      "end": 3.0,
+      "summary": "A small blue square moves across a colorful striped background, interacting with a rainbow-colored beam and a grey horizontal bar.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
     },
     {
       "scene_id": "scene_002",
-      "start": 8.0,
-      "end": 19.0,
-      "summary": "Screen recording shows footage being analyzed and converted into an edit plan.",
-      "visual_tags": ["screen-recording", "pipeline", "analysis"],
-      "audio_notes": "Keyboard and room noise under speech.",
-      "demo_relevance": 0.94
+      "start": 3.0,
+      "end": 7.0,
+      "summary": "The blue square is now larger and situated within a grey square on the red and green sections of the color bars.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
     },
     {
       "scene_id": "scene_003",
-      "start": 19.0,
-      "end": 31.0,
-      "summary": "The product shows manifest blocks, critic cards, and approval controls.",
-      "visual_tags": ["ui", "critic", "approval"],
-      "audio_notes": "Presenter explains the approval loop.",
-      "demo_relevance": 0.9
+      "start": 7.0,
+      "end": 11.0,
+      "summary": "The blue square moves between the red and green sections, interacting with the grey bar and the rainbow beam.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
     },
     {
       "scene_id": "scene_004",
+      "start": 11.0,
+      "end": 15.0,
+      "summary": "The blue square navigates the color bars, avoiding or interacting with various elements like the rainbow beam and a cluster of small squares.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_005",
+      "start": 15.0,
+      "end": 19.0,
+      "summary": "The blue square moves through the pink and blue sections, interacting with the rainbow beam and a collection of green squares.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_006",
+      "start": 19.0,
+      "end": 23.0,
+      "summary": "The blue square is in the red section, near a grey bar, while the rainbow beam and other elements are visible.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_007",
+      "start": 23.0,
+      "end": 27.0,
+      "summary": "The blue square moves across the color bars, interacting with the rainbow beam and a grid of green squares.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_008",
+      "start": 27.0,
+      "end": 31.0,
+      "summary": "The blue square travels through the yellow and blue sections, interacting with the rainbow beam.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_009",
       "start": 31.0,
-      "end": 42.0,
-      "summary": "Final rendered video plays back inside the app.",
-      "visual_tags": ["render", "final-video", "payoff"],
-      "audio_notes": "Short celebratory narration and final UI click.",
-      "demo_relevance": 0.96
+      "end": 35.0,
+      "summary": "The blue square is positioned within the grey square in the red section, near the edge of the green section.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_010",
+      "start": 35.0,
+      "end": 39.0,
+      "summary": "The blue square moves across the color bars, interacting with the rainbow beam and the cluster of green squares.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_011",
+      "start": 39.0,
+      "end": 41.872,
+      "summary": "The blue square is in the green section, near a vertical grey bar, with the rainbow beam extending diagonally.",
+      "visual_tags": [
+        "gameplay",
+        "abstract",
+        "color-bars"
+      ],
+      "audio_notes": "No discernible audio.",
+      "demo_relevance": 0.5
     }
   ]
 }

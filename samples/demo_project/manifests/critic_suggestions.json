@@ -4,23 +4,30 @@
   "suggestions": [
     {
       "suggestion_id": "s001",
-      "block_id": "003_pipeline",
+      "block_id": "002_beat_002",
       "action": "trim_end",
-      "amount_seconds": 1.0,
-      "max_allowed_trim_seconds": 2.4,
-      "reason": "The pipeline block has enough duration to stay clear while tightening the middle pacing.",
+      "amount_seconds": 0.5,
+      "max_allowed_trim_seconds": 1.95,
+      "reason": "This block's duration of 6.5 seconds is longer than the corresponding scene summary (scene_001: 3.0s, scene_002: 4.0s) and could be shortened to improve pacing.",
       "requires_approval": true
     },
     {
       "suggestion_id": "s002",
-      "block_id": "005_end",
-      "action": "replace_text",
-      "amount_seconds": 0.0,
-      "max_allowed_trim_seconds": 0.9,
-      "reason": "The end card can reinforce the human approval loop more directly.",
-      "replacement_text": "Gemini plans. Humans approve. FFmpeg renders.",
+      "block_id": "003_beat_003",
+      "action": "trim_end",
+      "amount_seconds": 1.0,
+      "max_allowed_trim_seconds": 2.4,
+      "reason": "This block is 8.0 seconds long, but the combined scene summaries it covers (scene_003: 4.0s, scene_004: 4.0s) only total 8.0s, suggesting it might be slightly too long. Trimming could tighten the pacing.",
+      "requires_approval": true
+    },
+    {
+      "suggestion_id": "s003",
+      "block_id": "004_beat_004",
+      "action": "trim_end",
+      "amount_seconds": 0.5,
+      "max_allowed_trim_seconds": 2.1,
+      "reason": "This block is 7.0 seconds long and covers scenes_005 through 007, which span 9.0 seconds in total. While the block is shorter than the scenes it covers, trimming 0.5 seconds could help maintain a consistent pace with other blocks.",
       "requires_approval": true
     }
   ]
 }
-
