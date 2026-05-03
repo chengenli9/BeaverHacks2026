@@ -128,6 +128,11 @@ class Shot(BaseModel):
     mid_frame_path: str
     end_frame_path: str
 
+    @field_validator("start", mode="before")
+    @classmethod
+    def clamp_start_non_negative(cls, value: float) -> float:
+        return max(0.0, value)
+
     @field_validator("source", "start_frame_path", "mid_frame_path", "end_frame_path")
     @classmethod
     def frame_paths_are_project_relative(cls, value: str) -> str:

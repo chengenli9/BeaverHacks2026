@@ -116,6 +116,7 @@ export function MediaBrowser() {
             <input
               ref={inputRef}
               type="file"
+              accept="video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi"
               multiple
               aria-label="Add media files"
               className="visually-hidden"
