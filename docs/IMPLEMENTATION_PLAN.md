@@ -1,5 +1,7 @@
 # Scenerio Implementation Plan
 
+> Archived planning document. The app has since been implemented; use `README.md` and the current docs for runnable instructions and API details.
+
 > For agentic workers: follow the owner boundaries in `docs/DEVELOPER_WORK_SPLIT.md` and your assigned handoff file. Do not edit another developer's owned folders without a short written handoff.
 
 ## Goal

@@ -1,5 +1,7 @@
 # Dev 4 Handoff: Gemini Integrations, Assets, and Blind Critic
 
+> Archived handoff. Current Gemini defaults and policy are in `docs/GEMINI_MODEL_POLICY.md` and `backend/app/integrations/gemini/settings.py`.
+
 ## Role
 
 AI Integration Lead. Your job is to make Gemini useful, cheap, structured, and contained. The rest of the app should see file artifacts and validated JSON, not freeform model output.

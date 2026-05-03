@@ -1,46 +1,121 @@
 # Scenerio
 
-Scenerio is a local-first, manifest-driven rough-cut editor for turning raw hackathon footage into a polished demo video. The locked architecture is demo-first: Gemini plans and critiques structured manifests, the backend validates every timing decision, humans approve changes, and FFmpeg renders deterministic normalized blocks.
+Scenerio is a local-first demo-video editor for turning hackathon footage into a structured rough cut. The current app includes a FastAPI backend, a React/Vite dashboard, Gemini-powered planning and asset steps, deterministic manifest validation, FFmpeg rendering, and Remotion-generated motion/text scenes.
 
-This repository currently contains the architecture and implementation handoff package for a four-developer hackathon build.
+The important rule: project artifacts live on disk. The UI and API read and write JSON manifests, generated assets, block videos, logs, and the final render inside each project folder.
 
-## Start Here
+## Current App
 
-- [Architecture report](docs/ARCHITECTURE_REPORT.md)
-- [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
-- [Developer work split](docs/DEVELOPER_WORK_SPLIT.md)
-- [API and data contracts](docs/API_AND_DATA_CONTRACTS.md)
-- [Testing strategy](docs/TESTING_STRATEGY.md)
-- [Repository critique and changes](docs/REPO_CRITIQUE_AND_CHANGES.md)
-- [Gemini model and credit policy](docs/GEMINI_MODEL_POLICY.md)
-- [Demo runbook](docs/DEMO_RUNBOOK.md)
+- `apps/web` - React 19 + Vite dashboard for projects, media, pipeline jobs, manifests, critic suggestions, and render preview.
+- `backend/app` - FastAPI app with project CRUD, media import, background jobs, Gemini integration, manifest mutation, and render endpoints.
+- `apps/remotion` - Remotion renderer for generated text/motion scene assets.
+- `samples/demo_project` - built-in demo project opened by `POST /projects/open-demo`.
+- `projects` - user-created local projects and generated outputs.
+- `tests` - backend pytest suite plus frontend Vitest tests under `apps/web/src`.
 
-## Four Dev Lanes
+## Requirements
 
-- Dev 1: [Frontend pipeline dashboard](docs/dev-handoffs/DEV1_FRONTEND_PIPELINE_UI.md)
-- Dev 2: [Backend jobs and project API](docs/dev-handoffs/DEV2_BACKEND_JOBS_API.md)
-- Dev 3: [Manifest validation and FFmpeg renderer](docs/dev-handoffs/DEV3_MANIFEST_RENDERER.md)
-- Dev 4: [Gemini integrations, prompts, and assets](docs/dev-handoffs/DEV4_GEMINI_ASSETS_CRITIC.md)
+- Python 3.13
+- Node.js and npm
+- FFmpeg/ffprobe on `PATH` for real rendering and media probing
+- Gemini API key for live AI stages
 
-## Repo Shape
+Install dependencies:
 
-```text
-apps/web/                  React + TypeScript UI owned by Dev 1
-backend/app/api/           FastAPI routes owned by Dev 2
-backend/app/jobs/          In-memory job system owned by Dev 2
-backend/app/projects/      Local project loader owned by Dev 2
-backend/app/manifests/     Manifest contracts and reconciliation owned by Dev 3
-backend/app/rendering/     FFmpeg block renderer owned by Dev 3
-backend/app/integrations/  Gemini API clients owned by Dev 4
-backend/app/prompts/       Structured prompts owned by Dev 4
-assets/fonts/              Bundled render fonts
-samples/demo_project/      Static fixture project for parallel development
-tests/                     Test folders partitioned by owner
+```bash
+pip install -r requirements.txt
+npm --prefix apps/web install
+npm --prefix apps/remotion install
 ```
 
-## Cost Policy
+Create local config:
 
-All Gemini text planning, scene indexing, and critic endpoints should default to `gemini-2.5-flash-lite`. TTS should default to `gemini-2.5-flash-preview-tts`. Textless background generation should default to `gemini-2.5-flash-image`. Do not use Pro models in the live hackathon path unless the team explicitly opts into a higher-cost fallback.
+```bash
+cp .env.example .env
+```
 
-Copy `.env.example` to `.env` when implementation begins.
+Set at least `GEMINI_API_KEY` for live Gemini calls. Without it, cached artifacts and non-AI routes can still be used.
 
+## Run Locally
+
+Backend:
+
+```bash
+python3.13 -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+Frontend:
+
+```bash
+npm --prefix apps/web run dev
+```
+
+Or start both with:
+
+```bash
+./startApp.sh
+```
+
+Open the Vite URL printed by the frontend, usually `http://localhost:5173`.
+
+## Pipeline
+
+The dashboard drives these backend jobs:
+
+1. Analyze scenes: `POST /jobs/analyze-scenes?project_id=...`
+2. Generate plan: `POST /jobs/generate-plan?project_id=...`
+3. Generate TTS: `POST /jobs/generate-tts?project_id=...`
+4. Generate assets: `POST /jobs/generate-assets?project_id=...`
+5. Build manifest: `POST /jobs/build-manifest?project_id=...`
+6. Pre-critique: `POST /jobs/precritique?project_id=...`
+7. Apply approved patches: `POST /jobs/apply-approved-patches`
+8. Render: `POST /jobs/render?project_id=...`
+9. Review render: `POST /jobs/review-render?project_id=...`
+
+Poll job status at `GET /jobs/{job_id}`.
+
+## Project Layout
+
+Every project must contain:
+
+```text
+source/       raw uploaded media
+cache/        scene indexes, probes, QA frames, temporary renders
+assets/       generated backgrounds, images, TTS, fonts, Remotion scene specs
+blocks/       per-block rendered MP4s
+renders/      final_render.mp4
+manifests/    plan.json, block_manifest.json, critic_suggestions.json
+logs/         FFmpeg, Remotion, and Gemini logs when present
+project.json  metadata for user-created projects
+```
+
+The demo project is read from `samples/demo_project`. User projects are stored under `projects`.
+
+## Docs
+
+- [API and data contracts](docs/API_AND_DATA_CONTRACTS.md)
+- [Demo runbook](docs/DEMO_RUNBOOK.md)
+- [Testing strategy](docs/TESTING_STRATEGY.md)
+- [Gemini model policy](docs/GEMINI_MODEL_POLICY.md)
+
+Older planning and handoff docs may still be useful for background, but the files above describe the current runnable app.
+
+## Tests
+
+Backend:
+
+```bash
+pytest tests/backend -q
+```
+
+Frontend:
+
+```bash
+npm --prefix apps/web test
+```
+
+Frontend build:
+
+```bash
+npm --prefix apps/web run build
+```

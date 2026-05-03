@@ -1,5 +1,7 @@
 # Dev 3 Handoff: Manifest Validation and FFmpeg Renderer
 
+> Archived handoff. Current manifest and rendering behavior is implemented under `backend/app/manifests` and `backend/app/rendering`; see `docs/API_AND_DATA_CONTRACTS.md`.
+
 ## Role
 
 Rendering Lead. Your job is to make the manifest deterministic and the render path boring, reliable, and demo-safe.

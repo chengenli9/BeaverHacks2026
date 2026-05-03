@@ -1,5 +1,7 @@
 # Dev 2 Handoff: Backend Jobs and Project API
 
+> Archived handoff. The current backend routes are documented in `docs/API_AND_DATA_CONTRACTS.md` and implemented under `backend/app/api/routes.py`.
+
 ## Role
 
 Backend API Lead. Your job is to make the local FastAPI backend reliable, async-looking, and easy for the frontend to consume.

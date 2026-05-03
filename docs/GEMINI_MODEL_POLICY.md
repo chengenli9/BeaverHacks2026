@@ -1,6 +1,6 @@
 # Gemini Model and Credit Policy
 
-Last verified: 2026-05-02
+Last repo-verified: 2026-05-03
 
 ## Goal
 
@@ -10,10 +10,11 @@ Use Gemini where it makes the demo better, but default to cheaper models so the 
 
 | Pipeline stage | Default model | Reason |
 | --- | --- | --- |
-| Scene analysis | `gemini-2.5-flash-lite` | Cheapest text/image/video-capable text model suitable for structured JSON. |
-| Plan generation | `gemini-2.5-flash-lite` | Structured JSON planning does not need Pro by default. |
-| Narration script generation | `gemini-2.5-flash-lite` | Short text generation with strict duration constraints. |
-| Manifest pre-critique | `gemini-2.5-flash-lite` | Blind text-only critique over JSON artifacts. |
+| Scene analysis | `gemini-3.1-flash-lite-preview` | Cheap default text model configured in `backend/app/integrations/gemini/settings.py`. |
+| Plan generation | `gemini-3.1-flash-lite-preview` | Structured JSON planning does not need Pro by default. |
+| Narration script generation | `gemini-3.1-flash-lite-preview` | Short text generation with strict duration constraints. |
+| Manifest pre-critique | `gemini-3.1-flash-lite-preview` | Blind text-only critique over JSON artifacts. |
+| Render review | `gemini-3.1-flash-lite-preview` | Render QA should stay on the same cheap text default. |
 | TTS narration | `gemini-2.5-flash-preview-tts` | Lower-cost Flash TTS path for controllable speech. |
 | Textless backgrounds | `gemini-2.5-flash-image` | Speed and cost before high-end image quality. |
 
@@ -22,7 +23,7 @@ Use Gemini where it makes the demo better, but default to cheaper models so the 
 Use:
 
 ```bash
-GEMINI_TEXT_MODEL=gemini-2.5-flash-lite
+GEMINI_TEXT_MODEL=gemini-3.1-flash-lite-preview
 GEMINI_TTS_MODEL=gemini-2.5-flash-preview-tts
 GEMINI_IMAGE_MODEL=gemini-2.5-flash-image
 GEMINI_ENABLE_GROUNDING=false
@@ -40,7 +41,7 @@ GEMINI_MAX_OUTPUT_TOKENS=4096
 
 ## Allowed Fallbacks
 
-If `gemini-2.5-flash-lite` produces invalid structured JSON twice, the endpoint may return a job failure with a clear retry message. Do not silently switch to a Pro model.
+If the configured Flash-Lite text model produces invalid structured JSON twice, the endpoint may return a job failure with a clear retry message. Do not silently switch to a Pro model.
 
 If image generation fails, use a local placeholder background so the renderer can still complete the demo.
 
@@ -78,4 +79,3 @@ full private source transcript unless the user opts in
 - Gemini structured outputs: https://ai.google.dev/gemini-api/docs/structured-output
 - Gemini TTS: https://ai.google.dev/gemini-api/docs/speech-generation
 - Gemini image generation: https://ai.google.dev/gemini-api/docs/image-generation
-

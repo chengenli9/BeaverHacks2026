@@ -1,239 +1,72 @@
 # API and Data Contracts
 
-## API Conventions
-
-Base URL during development:
+Base URL in local development:
 
 ```text
 http://localhost:8000
 ```
 
-All job creation endpoints return immediately:
+`GET /health` returns `{"status":"ok"}`.
+
+## Projects
+
+- `GET /projects` - list the demo project plus local projects from `projects/`.
+- `POST /projects/open-demo` - return the built-in `demo_project` summary.
+- `POST /projects` - create a local project. Body: `{ "name": "My Demo" }`.
+- `PUT /projects/{project_id}` - update `name`, `description`, or `starred`.
+- `DELETE /projects/{project_id}` - delete a local project. The demo project cannot be deleted.
+- `GET /projects/{project_id}/media` - return a recursive media tree.
+- `POST /projects/{project_id}/media/import` - multipart upload into `source/`.
+- `GET /projects/{project_id}/media/file?path=source/file.mp4` - stream a project-relative file.
+
+Project summaries include artifact booleans for `media_probe`, `shot_index`, `scene_index`, `plan`, `manifest`, `critic`, `render_qa`, and `render`.
+
+## Jobs
+
+All job endpoints enqueue work and return immediately:
 
 ```json
 {
-  "job_id": "job_001",
+  "job_id": "uuid-like-id",
   "status": "queued"
 }
 ```
 
-All artifact endpoints return JSON except the final render endpoint, which returns either a file response or a JSON object containing a local URL/path the frontend can load.
+Poll:
 
-## Job Status
+```text
+GET /jobs/{job_id}
+```
+
+Job response:
 
 ```json
 {
-  "job_id": "job_render_001",
+  "job_id": "job_123",
   "project_id": "demo_project",
   "status": "running",
-  "stage": "rendering_blocks",
+  "stage": "rendering",
   "progress": 0.6,
-  "message": "Rendering block 3 of 5",
+  "message": "Rendering updated cut",
   "error": null,
-  "created_at": "2026-05-02T20:00:00Z",
-  "updated_at": "2026-05-02T20:00:05Z"
+  "created_at": "2026-05-03T00:00:00Z",
+  "updated_at": "2026-05-03T00:00:05Z"
 }
 ```
 
-Allowed `status` values:
+Current job creation endpoints:
 
-```text
-queued
-running
-succeeded
-failed
-cancelled
-```
+- `POST /jobs/analyze-scenes?project_id=...`
+- `POST /jobs/generate-plan?project_id=...`
+- `POST /jobs/generate-tts?project_id=...`
+- `POST /jobs/generate-assets?project_id=...`
+- `POST /jobs/build-manifest?project_id=...`
+- `POST /jobs/precritique?project_id=...`
+- `POST /jobs/review-render?project_id=...`
+- `POST /jobs/render?project_id=...`
+- `POST /jobs/apply-approved-patches`
 
-## Scene Index
-
-File:
-
-```text
-cache/scene_index.json
-```
-
-Contract:
-
-```json
-{
-  "project_id": "demo_project",
-  "source": "source/demo_footage.mp4",
-  "source_duration": 42.0,
-  "scenes": [
-    {
-      "scene_id": "scene_001",
-      "start": 0.0,
-      "end": 8.0,
-      "summary": "Opening shot of the team explaining the project.",
-      "visual_tags": ["team", "intro", "talking-head"],
-      "audio_notes": "Clear speech with light room noise",
-      "demo_relevance": 0.8
-    }
-  ]
-}
-```
-
-Rules:
-
-- `end` must be greater than `start`.
-- Scene ranges must be within `source_duration`.
-- `demo_relevance` is a float from `0.0` to `1.0`.
-
-## Plan
-
-File:
-
-```text
-manifests/plan.json
-```
-
-Contract:
-
-```json
-{
-  "project_id": "demo_project",
-  "title": "Scenerio Demo Cut",
-  "target_duration": 30.0,
-  "story_arc": [
-    "Name the problem",
-    "Show the pipeline",
-    "Show the rendered result"
-  ],
-  "beats": [
-    {
-      "beat_id": "beat_001",
-      "type": "title",
-      "goal": "Brand the demo instantly",
-      "scene_id": null,
-      "duration": 3.0,
-      "narration": null,
-      "onscreen_text": "Scenerio"
-    },
-    {
-      "beat_id": "beat_002",
-      "type": "source_clip",
-      "goal": "Show the workflow problem",
-      "scene_id": "scene_001",
-      "duration": 6.5,
-      "narration": "Raw footage becomes a structured edit plan in seconds.",
-      "onscreen_text": null
-    }
-  ]
-}
-```
-
-Rules:
-
-- `duration` must be positive.
-- Source beats must reference known scenes.
-- Narration must respect 2 words per second of allocated duration.
-
-## Block Manifest
-
-File:
-
-```text
-manifests/block_manifest.json
-```
-
-Contract:
-
-```json
-{
-  "project_id": "demo_project",
-  "version": 1,
-  "render_settings": {
-    "width": 1920,
-    "height": 1080,
-    "fps": 30,
-    "video_codec": "libx264",
-    "audio_codec": "aac",
-    "sample_rate": 48000,
-    "pixel_format": "yuv420p"
-  },
-  "blocks": [
-    {
-      "block_id": "001_title",
-      "type": "title",
-      "background_asset": "assets/backgrounds/bg_001.png",
-      "text": "Scenerio",
-      "duration": 3.0,
-      "fontfile": "assets/fonts/Inter-Bold.ttf",
-      "rendered_path": "blocks/001_title.mp4"
-    },
-    {
-      "block_id": "002_demo",
-      "type": "source_clip",
-      "source": "source/demo_footage.mp4",
-      "source_start": 12.0,
-      "source_end": 18.5,
-      "video_duration": 6.5,
-      "tts_asset": "assets/tts/tts_002.wav",
-      "tts_duration": 5.8,
-      "source_audio_volume": 0.15,
-      "tts_fade_seconds": 0.5,
-      "rendered_path": "blocks/002_demo.mp4"
-    }
-  ]
-}
-```
-
-Rules:
-
-- `block_id` must be unique.
-- Every path is project-relative.
-- `fontfile` is required for text/title blocks.
-- `video_duration` must equal `source_end - source_start` after reconciliation.
-- If `tts_duration > video_duration`, increase `source_end` before writing the manifest.
-- `source_audio_volume` must be between `0.0` and `1.0`.
-
-## Critic Suggestions
-
-File:
-
-```text
-manifests/critic_suggestions.json
-```
-
-Contract:
-
-```json
-{
-  "project_id": "demo_project",
-  "critic_scope": "blind_manifest_only",
-  "suggestions": [
-    {
-      "suggestion_id": "s001",
-      "block_id": "002_demo",
-      "action": "trim_end",
-      "amount_seconds": 1.0,
-      "max_allowed_trim_seconds": 1.95,
-      "reason": "The block appears to continue after the narration ends.",
-      "requires_approval": true
-    }
-  ]
-}
-```
-
-Allowed actions for MVP:
-
-```text
-trim_end
-extend_end
-reorder_after
-replace_text
-lower_source_audio
-```
-
-Rules:
-
-- Suggestions are advisory until approved.
-- `requires_approval` must be true for all MVP suggestions.
-- Trim suggestions cannot exceed 30 percent of current block duration.
-- Suggestions cannot critique visual quality because the critic is blind.
-
-## Apply Approved Patches Request
+Patch body:
 
 ```json
 {
@@ -243,18 +76,20 @@ Rules:
 }
 ```
 
-Response:
+## Artifacts
 
-```json
-{
-  "job_id": "job_apply_patches_001",
-  "status": "queued"
-}
-```
+- `GET /projects/{project_id}/scene-index` - `cache/scene_index.json`
+- `GET /projects/{project_id}/media-probe` - `cache/media_probe.json`
+- `GET /projects/{project_id}/shot-index` - `cache/shot_index.json`
+- `GET /projects/{project_id}/plan` - `manifests/plan.json`
+- `GET /projects/{project_id}/manifest` - `manifests/block_manifest.json`
+- `GET /projects/{project_id}/critic-suggestions` - `manifests/critic_suggestions.json`
+- `GET /projects/{project_id}/render-qa` - `cache/render_qa.json`
+- `GET /projects/{project_id}/render` - render metadata and playable URL
+- `GET /projects/{project_id}/render/file` - final MP4 with range-request support
+- `GET /music-library` - global music-track metadata
 
-## Final Render Response
-
-Preferred JSON response for the frontend:
+Render metadata:
 
 ```json
 {
@@ -262,7 +97,74 @@ Preferred JSON response for the frontend:
   "render_path": "renders/final_render.mp4",
   "url": "http://localhost:8000/projects/demo_project/render/file",
   "duration": 29.7,
-  "bytes": 1842042
+  "bytes": 1842042,
+  "cache_key": "mtime-ns"
 }
 ```
 
+## Plan Editing
+
+- `PUT /projects/{project_id}/plan/reorder` with `{ "beat_order": ["beat_001", "beat_002"] }`
+- `DELETE /projects/{project_id}/plan/beats/{beat_id}`
+- `POST /projects/{project_id}/plan/edit-prompt` with `{ "prompt": "Make it tighter" }`
+- `POST /projects/{project_id}/plan/beats`
+
+Create beat body:
+
+```json
+{
+  "type": "scene_card",
+  "text": "Key result",
+  "duration": 3,
+  "insert_after": "beat_002"
+}
+```
+
+`type` can be `scene_card` or `image_card`. Image cards require `image_prompt` and may set `ken_burns`.
+
+## Core Files
+
+`cache/scene_index.json` now supports multiple sources:
+
+```json
+{
+  "project_id": "demo_project",
+  "total_duration_seconds": 42.0,
+  "sources": [
+    {
+      "path": "source/demo.mp4",
+      "duration_seconds": 42.0,
+      "start_offset_seconds": 0.0,
+      "end_offset_seconds": 42.0
+    }
+  ],
+  "scenes": [
+    {
+      "scene_id": "scene_001",
+      "source": "source/demo.mp4",
+      "start": 0.0,
+      "end": 8.0,
+      "summary": "Opening shot.",
+      "visual_tags": ["intro"],
+      "audio_notes": "Clear speech",
+      "demo_relevance": 0.8
+    }
+  ]
+}
+```
+
+`manifests/plan.json` supports `title`, `target_duration`, `story_arc`, `beats`, and optional `audio_tracks`. Beat types are `title`, `source_clip`, `scene_card`, `end_card`, and `image_card`.
+
+`manifests/block_manifest.json` supports `title`, `source_clip`, `scene_card`, `end_card`, and `image_card` blocks. Text blocks may reference a `motion_asset` generated by Remotion. All paths must be project-relative and cannot contain `..`.
+
+`manifests/critic_suggestions.json` supports actions:
+
+```text
+trim_end
+extend_end
+reorder_after
+replace_text
+lower_source_audio
+```
+
+Every suggestion must require human approval.

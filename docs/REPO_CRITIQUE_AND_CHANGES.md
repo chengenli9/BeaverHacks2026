@@ -1,5 +1,7 @@
 # Repository Critique and Changes
 
+> Archived planning document. Use `README.md` and the current docs for the implemented app.
+
 ## Initial State
 
 The repository contained only `.git` and no committed project files. There was no implementation to critique for correctness, but the absence of structure was itself a serious hackathon risk.

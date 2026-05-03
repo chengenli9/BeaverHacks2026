@@ -1,5 +1,7 @@
 # Dev 1 Handoff: Frontend Pipeline Dashboard
 
+> Archived handoff. The current frontend lives in `apps/web`; use `README.md`, `docs/API_AND_DATA_CONTRACTS.md`, and the app source as the source of truth.
+
 ## Role
 
 Frontend Lead. Your job is to make Scenerio look demo-ready and feel complete. Build the pipeline dashboard, artifact viewers, job progress, approval cards, and final video preview.

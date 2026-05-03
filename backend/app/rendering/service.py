@@ -193,11 +193,18 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
     if manifest.audio_tracks:
         if progress_callback:
             progress_callback(0.95, "Mixing audio tracks")
+        video_duration = sum(b.duration for b in manifest.blocks)
+        # Compute actual rendered durations (source clips may differ from plan)
+        for block in manifest.blocks:
+            if isinstance(block, SourceClipBlock):
+                video_duration += block.video_duration - block.duration
         music_dir = Path(__file__).resolve().parents[2] / "assets" / "music"
         overlay_cmd = build_audio_overlay_command(
             root, concat_output, manifest.audio_tracks, music_dir, manifest.render_settings,
+            video_duration=video_duration,
         )
-        _run(overlay_cmd, root / "logs" / "ffmpeg.log")
+        if overlay_cmd:
+            _run(overlay_cmd, root / "logs" / "ffmpeg.log")
         # Clean up intermediate concat file
         try:
             concat_output.unlink()

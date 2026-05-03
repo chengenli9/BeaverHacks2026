@@ -425,13 +425,17 @@ def build_audio_overlay_command(
     audio_tracks: list[AudioTrack],
     music_dir: Path,
     settings: RenderSettings,
+    *,
+    video_duration: float,
 ) -> list[str]:
     """Build an FFmpeg command that overlays music tracks onto the concat output.
 
     Input 0 is the concat video. Each music track gets its own input.
     The filter complex mixes all audio (original + music) into one stream.
+    Tracks shorter than their requested duration are looped.
+    Tracks extending past the video end are clamped.
     """
-    from ..audio.service import resolve_music_path
+    from ..audio.service import get_audio_duration, resolve_music_path
 
     root = Path(project_path)
     final_output = root / "renders" / "final_render.mp4"
@@ -445,23 +449,48 @@ def build_audio_overlay_command(
         music_path = resolve_music_path(track.music_file)
         command.extend(["-i", str(music_path)])
 
+        # Clamp: track must end before video ends
+        max_duration = max(video_duration - track.start_offset, 0)
+        dur = min(track.duration, max_duration)
+        if dur <= 0:
+            continue
+
         delay_ms = int(track.start_offset * 1000)
-        dur = track.duration
-        # Clamp fades so they don't exceed the track duration
+
+        # If the source file is shorter than needed, loop it
+        source_dur = get_audio_duration(music_path)
+        loop_needed = dur > source_dur + 0.5
+
         fi = min(track.fade_in, dur / 2)
         fo = min(track.fade_out, dur / 2)
         fade_out_start = max(dur - fo, 0)
 
-        # Order matters: trim → reset PTS → volume → fades → THEN delay
-        filter_parts.append(
-            f"[{i}:a]atrim=0:{_seconds(dur)},"
-            f"asetpts=PTS-STARTPTS,"
-            f"volume={track.volume},"
-            f"afade=t=in:st=0:d={_seconds(fi)},"
-            f"afade=t=out:st={_seconds(fade_out_start)}:d={_seconds(fo)},"
-            f"adelay={delay_ms}|{delay_ms}"
-            f"[m{i}]"
-        )
+        if loop_needed:
+            # Loop enough times to cover duration, then trim
+            loops = int(dur / source_dur) + 2
+            filter_parts.append(
+                f"[{i}:a]aloop=loop={loops}:size=2e+09,"
+                f"atrim=0:{_seconds(dur)},"
+                f"asetpts=PTS-STARTPTS,"
+                f"volume={track.volume},"
+                f"afade=t=in:st=0:d={_seconds(fi)},"
+                f"afade=t=out:st={_seconds(fade_out_start)}:d={_seconds(fo)},"
+                f"adelay={delay_ms}|{delay_ms}"
+                f"[m{i}]"
+            )
+        else:
+            filter_parts.append(
+                f"[{i}:a]atrim=0:{_seconds(dur)},"
+                f"asetpts=PTS-STARTPTS,"
+                f"volume={track.volume},"
+                f"afade=t=in:st=0:d={_seconds(fi)},"
+                f"afade=t=out:st={_seconds(fade_out_start)}:d={_seconds(fo)},"
+                f"adelay={delay_ms}|{delay_ms}"
+                f"[m{i}]"
+            )
+
+    if not filter_parts:
+        return []
 
     # Build amix label list: original audio [0:a] + all music tracks
     mix_inputs = ["[0:a]"] + [f"[m{i}]" for i in range(1, len(audio_tracks) + 1)]

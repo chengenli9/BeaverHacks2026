@@ -1,5 +1,7 @@
 # Developer Work Split
 
+> Archived planning document. Ownership lanes here are historical and may not match the current codebase. Use `README.md` for the current repo shape.
+
 ## Principle
 
 Each developer owns a vertical slice with a clear write scope. Other developers can read those files but should not edit them. If an interface change is needed, write it in the relevant handoff channel or issue first, then let the owning developer make the change.
@@ -104,4 +106,3 @@ Dev 4 should return data that validates against Dev 3 contracts. If a schema fee
 4. Dev 1 points UI from mocks to local API.
 5. All devs integrate approval loop.
 6. All devs run demo checklist.
-

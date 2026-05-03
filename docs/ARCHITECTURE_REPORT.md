@@ -1,5 +1,7 @@
 # Scenerio Architecture Report
 
+> Archived planning document. For current setup, endpoints, project layout, and test commands, use `README.md`, `docs/API_AND_DATA_CONTRACTS.md`, `docs/DEMO_RUNBOOK.md`, `docs/TESTING_STRATEGY.md`, and `docs/GEMINI_MODEL_POLICY.md`.
+
 Last verified: 2026-05-02
 
 ## Executive Summary
