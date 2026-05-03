@@ -14,6 +14,9 @@ from ..projects.service import (
     list_project_media,
     open_demo_project,
     resolve_project_file,
+    list_all_projects,
+    update_project,
+    delete_local_project,
 )
 from ..rendering.service import summarize_render
 
@@ -33,10 +36,31 @@ def open_demo():
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/projects")
+def get_projects():
+    return list_all_projects()
+
+
 @router.post("/projects")
 def create_project(payload: dict = Body(...)):
     try:
         return create_local_project(str(payload.get("name") or "New Project"))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.put("/projects/{project_id}")
+def update_project_endpoint(project_id: str, payload: dict = Body(...)):
+    try:
+        return update_project(project_id, payload)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/projects/{project_id}")
+def delete_project_endpoint(project_id: str):
+    try:
+        return delete_local_project(project_id)
     except ProjectNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
