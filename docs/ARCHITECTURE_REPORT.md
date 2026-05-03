@@ -64,8 +64,7 @@ In-memory job system
   +--> Gemini API
   |      +--> scene analysis
   |      +--> structured edit planning
-  |      +--> TTS narration
-  |      +--> Nano Banana textless backgrounds
+  |      +--> Nano Banana images
   |      +--> blind manifest pre-critique
   |
   +--> Manifest validator

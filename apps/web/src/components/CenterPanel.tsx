@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Boxes, FileText, Layers, Map, Play, Plus, Send, Trash2 } from 'lucide-react'
+import { Boxes, FileText, Layers, Map, Pencil, Play, Plus, Send, Trash2 } from 'lucide-react'
 import { getProjectFileUrl } from '../api/scenerioApi'
 import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
 import { BeatFormModal } from './BeatFormModal'
@@ -11,10 +11,12 @@ type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 
 export function CenterPanel() {
   const { activeJobs, sceneIndex, plan, manifest, renderSummary, projectId, selectedMedia } = usePipeline()
-  const { createBeat, deleteBeat, editPlanPrompt, reorderPlanBeats, selectMedia } = usePipelineActions()
+  const { createBeat, deleteBeat, editPlanPrompt, reorderPlanBeats, selectMedia, updateBeat } = usePipelineActions()
   const videoRef = useVideoRef()
   const [tab, setTab] = useState<CenterTab>('player')
   const [draggingBeatId, setDraggingBeatId] = useState<string | null>(null)
+  const [editingBeatId, setEditingBeatId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
   const [dragOverBeatIndex, setDragOverBeatIndex] = useState<number | null>(null)
   const [planPrompt, setPlanPrompt] = useState('')
   const [insertAfterBeatId, setInsertAfterBeatId] = useState<string | null>(null)
@@ -141,11 +143,13 @@ export function CenterPanel() {
                 <div key={step} className="arc-step"><span className="arc-number">{index + 1}</span>{step}</div>
               ))}
             </div>
-            {plan.beats.map((beat, index) => (
+            {plan.beats.map((beat, index) => {
+              const isEditing = editingBeatId === beat.beat_id
+              return (
               <div key={beat.beat_id}>
               <div
                 className={`card ${draggingBeatId === beat.beat_id ? 'dragging' : ''} ${dragOverBeatIndex === index ? 'drag-over' : ''}`}
-                draggable
+                draggable={!isEditing}
                 onDragStart={() => setDraggingBeatId(beat.beat_id)}
                 onDragOver={(event) => { event.preventDefault(); setDragOverBeatIndex(index) }}
                 onDrop={(event) => { event.preventDefault(); void handleBeatDrop(index) }}
@@ -155,20 +159,54 @@ export function CenterPanel() {
                   <span className="card-title">{beat.beat_id}</span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
+                    <button className="tl-tool-btn" type="button" onClick={() => {
+                      if (isEditing) {
+                        void updateBeat(beat.beat_id, {
+                          onscreen_text: editText.trim() || null,
+                          goal: beat.goal,
+                        })
+                        setEditingBeatId(null)
+                      } else {
+                        setEditText(beat.onscreen_text ?? beat.goal)
+                        setEditingBeatId(beat.beat_id)
+                      }
+                    }} title={isEditing ? 'Save' : 'Edit text'}>
+                      <Pencil size={12} />
+                    </button>
                     <button className="tl-tool-btn" type="button" onClick={() => void deleteBeat(beat.beat_id)} title="Delete beat">
                       <Trash2 size={12} />
                     </button>
                   </div>
                 </div>
                 <div className="card-body">
-                  <strong>{beat.goal}</strong>
+                  {isEditing ? (
+                    <input
+                      className="modal-input"
+                      type="text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          void updateBeat(beat.beat_id, { onscreen_text: editText.trim() || null })
+                          setEditingBeatId(null)
+                        } else if (e.key === 'Escape') {
+                          setEditingBeatId(null)
+                        }
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <>
+                      <strong>{beat.goal}</strong>
+                      {beat.onscreen_text && (
+                        <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
+                      )}
+                    </>
+                  )}
                   {beat.narration && (
                     <div style={{ marginTop: 4, fontStyle: 'italic', color: 'var(--text-muted)' }}>
                       "{beat.narration}"
                     </div>
-                  )}
-                  {beat.onscreen_text && (
-                    <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
                   )}
                   {beat.image_prompt && (
                     <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>Image prompt: {beat.image_prompt}</div>
@@ -188,7 +226,8 @@ export function CenterPanel() {
                 <Plus size={12} /> Insert After
               </button>
               </div>
-            ))}
+              )
+            })}
             <form
               className="card"
               onSubmit={(event) => {

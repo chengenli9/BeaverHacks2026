@@ -132,7 +132,28 @@ def insert_plan_beat(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(beats)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
+    return updated
+
+
+def update_plan_beat(
+    project_path: str | Path,
+    beat_id: str,
+    updates: dict,
+    *,
+    progress_callback=None,
+) -> Plan:
+    root = Path(project_path)
+    plan = load_plan(root)
+    beat_index = next((i for i, b in enumerate(plan.beats) if b.beat_id == beat_id), None)
+    if beat_index is None:
+        raise KeyError(f"Unknown beat_id: {beat_id}")
+    beats = [b.model_dump(mode="json") for b in plan.beats]
+    beats[beat_index].update(updates)
+    updated = plan.model_copy(update={"beats": _renumber_plan_beats(beats)})
+    updated = Plan.model_validate(updated.model_dump(mode="json"))
+    write_plan(root, updated)
+    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
     return updated
 
 

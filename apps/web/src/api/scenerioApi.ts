@@ -131,10 +131,14 @@ export function deletePlanBeat(projectId: string, beatId: string): Promise<JobSt
   })
 }
 
-export function editPlanWithPrompt(projectId: string, prompt: string): Promise<JobStartResponse> {
+export function editPlanWithPrompt(
+  projectId: string,
+  prompt: string,
+  history?: { role: 'user' | 'assistant'; content: string }[],
+): Promise<JobStartResponse> {
   return request<JobStartResponse>(`/projects/${projectId}/plan/edit-prompt`, {
     method: 'POST',
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, history: history ?? [] }),
   })
 }
 
@@ -142,6 +146,13 @@ export function createPlanBeat(projectId: string, body: CreateBeatRequest): Prom
   return request<JobStartResponse>(`/projects/${projectId}/plan/beats`, {
     method: 'POST',
     body: JSON.stringify(body),
+  })
+}
+
+export function updatePlanBeat(projectId: string, beatId: string, updates: Record<string, unknown>): Promise<JobStartResponse> {
+  return request<JobStartResponse>(`/projects/${projectId}/plan/beats/${beatId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
   })
 }
 

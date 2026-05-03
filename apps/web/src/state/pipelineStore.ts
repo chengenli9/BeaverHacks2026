@@ -738,11 +738,11 @@ export function usePipelineActions() {
     }
   }, [dispatch, startPolling, state.manifest, state.plan, state.projectId])
 
-  const editPlanPrompt = useCallback(async (prompt: string) => {
+  const editPlanPrompt = useCallback(async (prompt: string, history?: { role: 'user' | 'assistant'; content: string }[]) => {
     if (!state.projectId || !prompt.trim()) return
     dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
     try {
-      const { job_id } = await api.editPlanWithPrompt(state.projectId, prompt.trim())
+      const { job_id } = await api.editPlanWithPrompt(state.projectId, prompt.trim(), history)
       dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'edit-plan') })
       startPolling(job_id, 'edit-plan', state.projectId)
     } catch (error) {
@@ -766,6 +766,21 @@ export function usePipelineActions() {
         payload: makeEvent('error', `Create beat failed: ${error instanceof Error ? error.message : 'Unknown'}`),
       })
       throw error
+    }
+  }, [dispatch, startPolling, state.projectId])
+
+  const updateBeat = useCallback(async (beatId: string, updates: Record<string, unknown>) => {
+    if (!state.projectId) return
+    dispatch({ type: 'SNAPSHOT_UNDO' })
+    try {
+      const { job_id } = await api.updatePlanBeat(state.projectId, beatId, updates)
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'edit-plan') })
+      startPolling(job_id, 'edit-plan', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Update beat failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
     }
   }, [dispatch, startPolling, state.projectId])
 
@@ -808,6 +823,7 @@ export function usePipelineActions() {
     deleteBeat,
     editPlanPrompt,
     createBeat,
+    updateBeat,
   }
 }
 

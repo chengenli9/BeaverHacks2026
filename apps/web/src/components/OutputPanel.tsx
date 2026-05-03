@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Panel, Group, Separator } from 'react-resizable-panels'
-import { Eye, ScrollText } from 'lucide-react'
+import { Eye, MessageSquare, ScrollText } from 'lucide-react'
 import { usePipeline } from '../state/pipelineStore'
+import { ChatPanel } from './ChatPanel'
 import { CriticPanel } from './CriticPanel'
 import { EventLog } from './EventLog'
 import { ProgressBar } from './ProgressBar'
@@ -9,7 +10,7 @@ import { RenderPreview } from './RenderPreview'
 import { StatusBadge } from './StatusBadge'
 import type { JobStatus } from '../types/api'
 
-type RightTab = 'events' | 'output'
+type RightTab = 'events' | 'output' | 'chat'
 
 interface VisibleJob {
   job: JobStatus
@@ -92,6 +93,9 @@ export function OutputPanel() {
           >
             <Eye size={11} /> Output
           </button>
+          <button className={`media-tab ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')}>
+            <MessageSquare size={11} /> Chat
+          </button>
         </div>
       </div>
 
@@ -116,6 +120,7 @@ export function OutputPanel() {
       )}
 
       <div className="panel-content">
+        {tab === 'chat' && <ChatPanel />}
         {tab === 'events' && <EventLog embedded />}
 
         {tab === 'output' && (

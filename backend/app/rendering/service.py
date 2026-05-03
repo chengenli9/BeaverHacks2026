@@ -155,7 +155,7 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
     root = Path(project_path)
     check_ffmpeg_available()
     manifest = load_manifest(root)
-    validate_project_assets(root, manifest)
+    validate_project_assets(root, manifest, require_media=False)
 
     # A) Override video codec to NVENC if GPU is available
     effective_codec = _effective_codec(manifest.render_settings.video_codec)
@@ -164,13 +164,22 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
             update={"render_settings": manifest.render_settings.model_copy(update={"video_codec": effective_codec})}
         )
 
-    # B) Render each block (skipping cached blocks)
+    # B) Render each block (skipping cached blocks and blocks with missing assets)
     total = len(manifest.blocks)
     cached_count = 0
+    skipped_count = 0
 
     for index, block in enumerate(manifest.blocks, start=1):
         if progress_callback:
             progress_callback((index - 1) / total, f"Rendering block {index} of {total}")
+
+        # Skip image_card blocks whose image hasn't been generated yet
+        if isinstance(block, ImageCardBlock):
+            if not (root / block.image_asset).exists():
+                logger.warning("Skipping %s — image asset missing: %s", block.block_id, block.image_asset)
+                skipped_count += 1
+                continue
+
         if _try_restore_from_cache(root, block, manifest.render_settings):
             cached_count += 1
             continue
@@ -193,11 +202,12 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
     if manifest.audio_tracks:
         if progress_callback:
             progress_callback(0.95, "Mixing audio tracks")
-        video_duration = sum(b.duration for b in manifest.blocks)
-        # Compute actual rendered durations (source clips may differ from plan)
+        video_duration = 0.0
         for block in manifest.blocks:
             if isinstance(block, SourceClipBlock):
-                video_duration += block.video_duration - block.duration
+                video_duration += block.video_duration
+            else:
+                video_duration += block.duration
         music_dir = Path(__file__).resolve().parents[2] / "assets" / "music"
         overlay_cmd = build_audio_overlay_command(
             root, concat_output, manifest.audio_tracks, music_dir, manifest.render_settings,
@@ -221,7 +231,13 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
 def write_concat_file(project_path: str | Path, manifest: BlockManifest) -> Path:
     root = Path(project_path)
     concat_path = root / "concat.txt"
-    lines = [f"file '{_safe_concat_path(block.rendered_path)}'" for block in manifest.blocks]
+    lines = []
+    for block in manifest.blocks:
+        rendered = root / block.rendered_path
+        if rendered.exists():
+            lines.append(f"file '{_safe_concat_path(block.rendered_path)}'")
+        else:
+            logger.warning("Skipping %s in concat — rendered file missing", block.block_id)
     concat_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return concat_path
 

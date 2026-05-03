@@ -6,7 +6,7 @@ import re
 
 from ..jobs.store import create_job, get_job
 from ..jobs.runner import run_job
-from ..manifests.models import ApplyPatchesRequest, CreateBeatRequest, PlanEditPromptRequest, PlanReorderRequest
+from ..manifests.models import ApplyPatchesRequest, CreateBeatRequest, PlanEditPromptRequest, PlanReorderRequest, UpdateBeatRequest
 from ..projects.service import (
     ProjectNotFoundError,
     create_local_project,
@@ -208,12 +208,17 @@ def delete_plan_beat(project_id: str, beat_id: str, bg: BackgroundTasks):
 
 @router.post("/projects/{project_id}/plan/edit-prompt")
 def edit_plan_prompt(project_id: str, request: PlanEditPromptRequest, bg: BackgroundTasks):
-    return _enqueue(bg, project_id, "editing_plan", svc.edit_plan_with_prompt, request.prompt)
+    return _enqueue(bg, project_id, "editing_plan", svc.edit_plan_with_prompt, request.prompt, request.history)
 
 
 @router.post("/projects/{project_id}/plan/beats")
 def create_plan_beat(project_id: str, request: CreateBeatRequest, bg: BackgroundTasks):
     return _enqueue(bg, project_id, "creating_plan_beat", svc.insert_plan_beat, request)
+
+
+@router.patch("/projects/{project_id}/plan/beats/{beat_id}")
+def update_beat(project_id: str, beat_id: str, bg: BackgroundTasks, request: dict = Body(...)):
+    return _enqueue(bg, project_id, "edit-plan", svc.update_plan_beat, beat_id, request)
 
 
 @router.get("/projects/{project_id}/manifest")

@@ -434,6 +434,8 @@ def review_render(project_path: Path, progress_callback=None) -> dict:
     render_qa = build_render_qa(project_path)
     media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
     shot_index = _maybe_load(ShotIndex, project_path / "cache" / "shot_index.json")
+    scene_index = _maybe_load(SceneIndex, project_path / "cache" / "scene_index.json")
+    plan = _maybe_load(Plan, project_path / "manifests" / "plan.json")
     render_path = project_path / "renders" / "final_render.mp4"
     manifest = json.loads((project_path / "manifests" / "block_manifest.json").read_text(encoding="utf-8"))
     block_manifest = BlockManifest.model_validate(manifest)
@@ -443,15 +445,20 @@ def review_render(project_path: Path, progress_callback=None) -> dict:
     system_prompt = _load_prompt("render_review_critic")
     user_prompt = (
         f"Project ID: {project_id}\n\n"
-        "Block manifest:\n"
+        "Creative plan (intent behind each beat):\n"
+        f"{plan.model_dump_json(indent=2) if plan else '{}'}\n\n"
+        "Block manifest (rendered assembly):\n"
         f"{json.dumps(manifest, indent=2)}\n\n"
+        "Scene index (source footage descriptions):\n"
+        f"{scene_index.model_dump_json(indent=2) if scene_index else '{}'}\n\n"
         "Media probe:\n"
         f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
         "Shot index:\n"
         f"{shot_index.model_dump_json(indent=2) if shot_index else '{}'}\n\n"
-        "Render QA:\n"
+        "Render QA (automated checks):\n"
         f"{render_qa.model_dump_json(indent=2)}\n\n"
-        "Review the final rendered cut and produce actionable critique suggestions. "
+        "Review the final rendered cut. Compare each block against its stated goal in the plan. "
+        "Flag blocks that fail their purpose, confuse the viewer, or break pacing. "
         "Prefer whole-second source-clip edits when the recommendation is coarse pacing work."
     )
 
@@ -500,28 +507,41 @@ def review_render(project_path: Path, progress_callback=None) -> dict:
     return critique.model_dump(mode="json")
 
 
-def edit_plan_with_prompt(project_path: Path, prompt: str, progress_callback=None) -> dict:
+def edit_plan_with_prompt(project_path: Path, prompt: str, history=None, progress_callback=None) -> dict:
     project_path = Path(project_path)
     project_id = project_path.name
     current_plan = Plan.from_file(project_path / "manifests" / "plan.json")
     scene_index = SceneIndex.from_file(project_path / "cache" / "scene_index.json")
     media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
+    manifest = _maybe_load(BlockManifest, project_path / "manifests" / "block_manifest.json")
 
     if progress_callback:
         progress_callback(0.15, "Preparing plan edit request")
     system_prompt = _load_prompt("plan_edit")
-    # Build optional Remotion context section
     remotion_ctx = _remotion_capabilities_context()
     remotion_section = f"\n\nRemotion capabilities (use these when designing scene_card / title / end_card beats):\n{remotion_ctx}\n" if remotion_ctx else ""
+
+    history_section = ""
+    if history:
+        history_lines = []
+        for msg in history:
+            role = msg.role if hasattr(msg, "role") else msg.get("role", "user")
+            content = msg.content if hasattr(msg, "content") else msg.get("content", "")
+            history_lines.append(f"[{role}]: {content}")
+        if history_lines:
+            history_section = "Conversation history (previous edits in this session):\n" + "\n".join(history_lines) + "\n\n"
+
     user_prompt = (
         f"Project ID: {project_id}\n\n"
         "Current plan:\n"
         f"{current_plan.model_dump_json(indent=2)}\n\n"
+        f"{'Current manifest:\n' + manifest.model_dump_json(indent=2) + chr(10) + chr(10) if manifest else ''}"
         "Scene index:\n"
         f"{scene_index.model_dump_json(indent=2)}\n\n"
         "Media probe:\n"
         f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
         f"{remotion_section}"
+        f"{history_section}"
         "User instruction:\n"
         f"{prompt}\n"
     )

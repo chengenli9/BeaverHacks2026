@@ -468,8 +468,14 @@ class PlanReorderRequest(BaseModel):
     beat_order: list[str] = Field(min_length=1)
 
 
+class ChatHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class PlanEditPromptRequest(BaseModel):
     prompt: str = Field(min_length=1)
+    history: list[ChatHistoryMessage] = Field(default_factory=list)
 
 
 class CreateBeatRequest(BaseModel):
@@ -488,6 +494,11 @@ class CreateBeatRequest(BaseModel):
         if self.type == "image_card" and not self.image_prompt:
             raise ValueError("image_card creation requires image_prompt")
         return self
+
+
+class UpdateBeatRequest(BaseModel):
+    beat_id: str
+    updates: dict
 
 
 def _validate_project_relative_path(value: str) -> None:
