@@ -9,7 +9,7 @@ import { ProjectCard, NewProjectCard } from './ProjectCard'
 import { ProjectModal, type ModalMode } from './ProjectModal'
 import { usePipelineActions } from '../state/pipelineStore'
 
-const FILTER_CHIPS = ['All', 'Draft', 'Exported'] as const
+const FILTER_CHIPS = ['All', 'Starred', 'Draft', 'Exported'] as const
 
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -106,6 +106,31 @@ export function HomePage() {
     }
   }, [closeModal])
 
+  const handleToggleStar = useCallback(async (project: ProjectListItem) => {
+    try {
+      const newStarred = !project.starred
+      // Optimistic update
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.project_id === project.project_id
+            ? { ...p, starred: newStarred }
+            : p
+        )
+      )
+      await updateProject(project.project_id, project.name, project.description ?? '', newStarred)
+    } catch (err) {
+      console.error('Failed to toggle star', err)
+      // Revert on error
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.project_id === project.project_id
+            ? { ...p, starred: project.starred }
+            : p
+        )
+      )
+    }
+  }, [])
+
   // ── Filtering ───────────────────────────────────
 
   const filtered = projects.filter((p) => {
@@ -118,8 +143,9 @@ export function HomePage() {
       if (!match) return false
     }
 
-    if (activeChip === 'Draft' && p.status !== 'draft') return false
+    if (activeChip === 'Draft' && p.status !== 'draft' && p.status !== 'empty') return false
     if (activeChip === 'Exported' && p.progress !== 100) return false
+    if (activeChip === 'Starred' && !p.starred) return false
 
     if (sidebarFilter === 'starred' && !p.starred) return false
 
@@ -219,6 +245,7 @@ export function HomePage() {
                   project={project}
                   onEdit={openEditModal}
                   onDelete={openDeleteModal}
+                  onToggleStar={handleToggleStar}
                 />
               ))}
               <NewProjectCard onClick={openCreateModal} />
