@@ -1,0 +1,187 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-sans);}
+.page{padding:40px 32px 48px;}
+.wordmark{display:flex;align-items:baseline;gap:10px;margin-bottom:48px;}
+.wordmark-name{font-size:15px;font-weight:500;color:var(--color-text-primary);letter-spacing:-0.01em;}
+.wordmark-tag{font-size:12px;color:var(--color-text-tertiary);}
+.hero{margin-bottom:48px;}
+.hero-label{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-text-tertiary);margin-bottom:10px;}
+.hero-title{font-size:28px;font-weight:500;color:var(--color-text-primary);letter-spacing:-0.02em;line-height:1.2;margin-bottom:6px;}
+.hero-sub{font-size:13px;color:var(--color-text-secondary);line-height:1.6;}
+.hero-actions{display:flex;gap:10px;margin-top:20px;align-items:center;}
+.btn-new{padding:9px 20px;background:#BA7517;color:#fff;border:none;border-radius:var(--border-radius-md);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-sans);}
+.btn-new:hover{background:#854F0B;}
+.btn-ghost{padding:9px 16px;background:transparent;color:var(--color-text-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);font-size:13px;cursor:pointer;font-family:var(--font-sans);}
+.btn-ghost:hover{background:var(--color-background-secondary);}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+.section-label{font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-text-tertiary);}
+.section-count{font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono);}
+.projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:24px;}
+.flipbook{position:relative;cursor:pointer;}
+.flipbook:hover .fb-stack-2{transform:rotate(-4deg) translateY(6px);}
+.flipbook:hover .fb-stack-1{transform:rotate(-2deg) translateY(3px);}
+.flipbook:hover .fb-card{transform:translateY(-4px);}
+.fb-stack-2,.fb-stack-1{position:absolute;top:0;left:0;right:0;border-radius:var(--border-radius-lg);transition:transform 0.25s ease;}
+.fb-stack-2{height:100%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);transform:rotate(-3deg);z-index:0;}
+.fb-stack-1{height:100%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);transform:rotate(-1.5deg);z-index:1;}
+.fb-card{position:relative;z-index:2;border-radius:var(--border-radius-lg);border:0.5px solid var(--color-border-secondary);overflow:hidden;transition:transform 0.25s ease;background:var(--color-background-primary);}
+.fb-thumb{width:100%;aspect-ratio:16/9;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.fb-thumb-inner{width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+.fb-frame-lines{position:absolute;inset:0;pointer-events:none;opacity:0.06;}
+.fb-meta{padding:10px 12px 12px;}
+.fb-title{font-size:12px;font-weight:500;color:var(--color-text-primary);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fb-subtitle{font-size:11px;color:var(--color-text-tertiary);font-family:var(--font-mono);}
+.fb-status{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:500;padding:2px 7px;border-radius:20px;margin-top:6px;}
+.st-done{background:#E1F5EE;color:#085041;}
+.st-draft{background:#FAEEDA;color:#854F0B;}
+.st-progress{background:#E6F1FB;color:#0C447C;}
+.fb-footer{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);}
+.fb-dur{font-size:10px;color:var(--color-text-tertiary);font-family:var(--font-mono);}
+.fb-date{font-size:10px;color:var(--color-text-tertiary);}
+.dot{width:5px;height:5px;border-radius:50%;display:inline-block;}
+.new-project-card{border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-lg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:border-color 0.15s,background 0.15s;padding:32px 16px;min-height:180px;}
+.new-project-card:hover{border-color:#BA7517;background:#FAEEDA18;}
+.np-icon{width:32px;height:32px;border-radius:50%;border:1.5px solid var(--color-border-secondary);display:flex;align-items:center;justify-content:center;color:var(--color-text-tertiary);font-size:18px;line-height:1;}
+.np-label{font-size:12px;color:var(--color-text-secondary);}
+</style>
+
+<h2 class="sr-only">Video pipeline home page showing recent projects as flipbook-style stacked cards</h2>
+
+<div class="page">
+
+  <div class="wordmark">
+    <span class="wordmark-name">Reelsmith</span>
+    <span class="wordmark-tag">AI video editor</span>
+  </div>
+
+  <div class="hero">
+    <div class="hero-label">Your studio</div>
+    <div class="hero-title">Welcome back,<br>what are we cutting?</div>
+    <div class="hero-sub">Drop footage. Set a goal. Ship a film.</div>
+    <div class="hero-actions">
+      <button class="btn-new" onclick="sendPrompt('Start the video pipeline to create a new project')">+ New project</button>
+      <button class="btn-ghost">Browse templates</button>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <span class="section-label">Recent projects</span>
+    <span class="section-count">4 projects</span>
+  </div>
+
+  <div class="projects-grid">
+
+    <div class="flipbook" onclick="sendPrompt('Open the product launch reel project')">
+      <div class="fb-stack-2"></div>
+      <div class="fb-stack-1"></div>
+      <div class="fb-card">
+        <div class="fb-thumb" style="background:#1a1208;">
+          <svg width="100%" height="100%" viewBox="0 0 200 112" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+            <rect width="200" height="112" fill="#1a1208"/>
+            <rect x="0" y="44" width="200" height="1" fill="#BA7517" opacity="0.3"/>
+            <rect x="0" y="68" width="200" height="1" fill="#BA7517" opacity="0.15"/>
+            <rect x="60" y="28" width="80" height="56" rx="2" fill="#BA7517" opacity="0.08"/>
+            <text x="100" y="52" text-anchor="middle" font-size="10" fill="#FAC775" font-family="var(--font-sans)" font-weight="500" opacity="0.9">PRODUCT</text>
+            <text x="100" y="65" text-anchor="middle" font-size="10" fill="#FAC775" font-family="var(--font-sans)" font-weight="500" opacity="0.9">LAUNCH</text>
+            <line x1="0" y1="0" x2="0" y2="112" stroke="#BA7517" stroke-width="0.5" opacity="0.2"/>
+            <line x1="200" y1="0" x2="200" y2="112" stroke="#BA7517" stroke-width="0.5" opacity="0.2"/>
+          </svg>
+        </div>
+        <div class="fb-meta">
+          <div class="fb-title">Product launch reel</div>
+          <div class="fb-subtitle">draft_1.mp4</div>
+          <span class="fb-status st-draft"><span class="dot" style="background:#BA7517"></span>In review</span>
+        </div>
+        <div class="fb-footer">
+          <span class="fb-dur">33.5 s</span>
+          <span class="fb-date">Today</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flipbook" onclick="sendPrompt('Open the brand documentary project')">
+      <div class="fb-stack-2"></div>
+      <div class="fb-stack-1"></div>
+      <div class="fb-card">
+        <div class="fb-thumb" style="background:#04150e;">
+          <svg width="100%" height="100%" viewBox="0 0 200 112" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+            <rect width="200" height="112" fill="#04150e"/>
+            <circle cx="100" cy="56" r="34" fill="none" stroke="#1D9E75" stroke-width="0.8" opacity="0.4"/>
+            <circle cx="100" cy="56" r="22" fill="none" stroke="#1D9E75" stroke-width="0.5" opacity="0.25"/>
+            <circle cx="100" cy="56" r="8" fill="#1D9E75" opacity="0.3"/>
+            <line x1="20" y1="56" x2="66" y2="56" stroke="#1D9E75" stroke-width="0.5" opacity="0.3"/>
+            <line x1="134" y1="56" x2="180" y2="56" stroke="#1D9E75" stroke-width="0.5" opacity="0.3"/>
+            <line x1="100" y1="8" x2="100" y2="22" stroke="#1D9E75" stroke-width="0.5" opacity="0.3"/>
+            <line x1="100" y1="90" x2="100" y2="104" stroke="#1D9E75" stroke-width="0.5" opacity="0.3"/>
+          </svg>
+        </div>
+        <div class="fb-meta">
+          <div class="fb-title">Brand documentary</div>
+          <div class="fb-subtitle">final_render.mp4</div>
+          <span class="fb-status st-done"><span class="dot" style="background:#1D9E75"></span>Exported</span>
+        </div>
+        <div class="fb-footer">
+          <span class="fb-dur">4 m 12 s</span>
+          <span class="fb-date">Yesterday</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flipbook" onclick="sendPrompt('Open the team culture video project')">
+      <div class="fb-stack-2"></div>
+      <div class="fb-stack-1"></div>
+      <div class="fb-card">
+        <div class="fb-thumb" style="background:#060c1c;">
+          <svg width="100%" height="100%" viewBox="0 0 200 112" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+            <rect width="200" height="112" fill="#060c1c"/>
+            <rect x="16" y="30" width="50" height="52" rx="2" fill="#185FA5" opacity="0.25"/>
+            <rect x="75" y="18" width="50" height="52" rx="2" fill="#185FA5" opacity="0.18"/>
+            <rect x="134" y="36" width="50" height="52" rx="2" fill="#185FA5" opacity="0.25"/>
+            <line x1="0" y1="82" x2="200" y2="82" stroke="#378ADD" stroke-width="0.5" opacity="0.2"/>
+          </svg>
+        </div>
+        <div class="fb-meta">
+          <div class="fb-title">Team culture video</div>
+          <div class="fb-subtitle">plan.json · 7 blocks</div>
+          <span class="fb-status st-progress"><span class="dot" style="background:#378ADD"></span>Rendering</span>
+        </div>
+        <div class="fb-footer">
+          <span class="fb-dur">1 m 48 s</span>
+          <span class="fb-date">2 days ago</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flipbook" onclick="sendPrompt('Open the event highlight reel project')">
+      <div class="fb-stack-2"></div>
+      <div class="fb-stack-1"></div>
+      <div class="fb-card">
+        <div class="fb-thumb" style="background:#160510;">
+          <svg width="100%" height="100%" viewBox="0 0 200 112" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0;">
+            <rect width="200" height="112" fill="#160510"/>
+            <polygon points="100,20 180,92 20,92" fill="none" stroke="#D4537E" stroke-width="0.8" opacity="0.3"/>
+            <polygon points="100,34 162,84 38,84" fill="none" stroke="#D4537E" stroke-width="0.5" opacity="0.2"/>
+            <circle cx="100" cy="64" r="6" fill="#D4537E" opacity="0.35"/>
+          </svg>
+        </div>
+        <div class="fb-meta">
+          <div class="fb-title">Event highlight reel</div>
+          <div class="fb-subtitle">final_render.mp4</div>
+          <span class="fb-status st-done"><span class="dot" style="background:#1D9E75"></span>Exported</span>
+        </div>
+        <div class="fb-footer">
+          <span class="fb-dur">2 m 05 s</span>
+          <span class="fb-date">Last week</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="new-project-card" onclick="sendPrompt('Start the video pipeline to create a new project')">
+      <div class="np-icon">+</div>
+      <span class="np-label">New project</span>
+    </div>
+
+  </div>
+</div>
