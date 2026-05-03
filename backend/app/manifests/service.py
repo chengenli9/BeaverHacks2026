@@ -45,10 +45,9 @@ def build_manifest(project_path: str | Path) -> BlockManifest:
     plan = load_plan(project_path)
     plan.validate_against_scene_index(scene_index)
     manifest = build_manifest_from_plan(project_path)
-    reconciled = reconcile_durations(manifest)
-    validate_manifest_source_bounds(reconciled, scene_index)
-    write_manifest(project_path, reconciled)
-    return reconciled
+    # build_manifest_from_plan already reconciles and validates
+    write_manifest(project_path, manifest)
+    return manifest
 
 
 def build_manifest_from_plan(
@@ -95,7 +94,7 @@ def build_manifest_from_plan(
             source_end = min(requested_end, scene.end, scene_index.source_duration)
             video_duration = source_end - source_start
             tts_duration = tts_durations.get(beat.beat_id)
-            tts_asset = _tts_asset_for_beat(index) if beat.narration and tts_duration is not None else None
+            tts_asset = _tts_asset_for_beat(beat.beat_id) if beat.narration and tts_duration is not None else None
             blocks.append(
                 {
                     "block_id": f"{ordinal}_{beat.beat_id}",
@@ -120,12 +119,16 @@ def build_manifest_from_plan(
             "blocks": blocks,
         }
     )
-    reconciled = reconcile_durations(manifest)
+    reconciled = reconcile_durations(manifest, max_source_end=scene_index.source_duration)
     validate_manifest_source_bounds(reconciled, scene_index)
     return reconciled
 
 
-def reconcile_durations(manifest: BlockManifest) -> BlockManifest:
+def reconcile_durations(
+    manifest: BlockManifest,
+    *,
+    max_source_end: float | None = None,
+) -> BlockManifest:
     updated_blocks: list[Block] = []
     adapter = TypeAdapter(Block)
     for block in manifest.blocks:
@@ -134,8 +137,9 @@ def reconcile_durations(manifest: BlockManifest) -> BlockManifest:
             video_duration = block.source_end - block.source_start
             tts_duration = block.tts_duration or 0
             if tts_duration > video_duration:
-                block_data["source_end"] = block.source_start + tts_duration
-                block_data["video_duration"] = tts_duration
+                desired_end = block.source_start + tts_duration
+                block_data["source_end"] = min(desired_end, max_source_end) if max_source_end else desired_end
+                block_data["video_duration"] = block_data["source_end"] - block.source_start
             else:
                 block_data["video_duration"] = video_duration
             updated_blocks.append(adapter.validate_python(block_data))
@@ -273,5 +277,5 @@ def _block_index(blocks: list[Block], block_id: str) -> int:
     raise KeyError(f"Unknown block_id: {block_id}")
 
 
-def _tts_asset_for_beat(index: int) -> str:
-    return f"assets/tts/tts_{index:03d}.wav"
+def _tts_asset_for_beat(beat_id: str) -> str:
+    return f"assets/tts/tts_{beat_id}.wav"

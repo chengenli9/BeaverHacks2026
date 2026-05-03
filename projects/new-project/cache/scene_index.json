@@ -1,0 +1,58 @@
+{
+  "project_id": "new-project",
+  "source": "source.mp4",
+  "source_duration": 5.3,
+  "scenes": [
+    {
+      "scene_id": "scene_001",
+      "start": 0.0,
+      "end": 1.5,
+      "summary": "A person smiles and looks at the camera in a hallway setting with a laptop and keyboard visible.",
+      "visual_tags": [
+        "person",
+        "hallway",
+        "laptop"
+      ],
+      "audio_notes": "Clear audio.",
+      "demo_relevance": 0.7
+    },
+    {
+      "scene_id": "scene_002",
+      "start": 1.5,
+      "end": 3.0,
+      "summary": "A person wearing a black hoodie smiles and looks at the camera.",
+      "visual_tags": [
+        "person",
+        "close-up"
+      ],
+      "audio_notes": "Clear audio.",
+      "demo_relevance": 0.7
+    },
+    {
+      "scene_id": "scene_003",
+      "start": 3.0,
+      "end": 4.5,
+      "summary": "A person wearing glasses and a grey sweater gives a thumbs-up gesture.",
+      "visual_tags": [
+        "person",
+        "gesture",
+        "indoor"
+      ],
+      "audio_notes": "Clear audio.",
+      "demo_relevance": 0.7
+    },
+    {
+      "scene_id": "scene_004",
+      "start": 4.5,
+      "end": 5.3,
+      "summary": "A blurry shot of a person's hands and part of their body.",
+      "visual_tags": [
+        "blurry",
+        "hands",
+        "indoors"
+      ],
+      "audio_notes": "Clear audio.",
+      "demo_relevance": 0.3
+    }
+  ]
+}

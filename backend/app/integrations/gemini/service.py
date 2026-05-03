@@ -122,6 +122,15 @@ def generate_plan(project_path: Path) -> dict:
     result, usage = _client.complete_json(user_prompt, system=system_prompt)
     result["project_id"] = project_id
 
+    # Normalize beat types: Gemini may return stale types from old prompts
+    _TYPE_MAP = {"lower_third": "title", "title_card": "title"}
+    for beat in result.get("beats", []):
+        if beat.get("type") in _TYPE_MAP:
+            beat["type"] = _TYPE_MAP[beat["type"]]
+        # Non-source beats must not carry a scene_id
+        if beat.get("type") != "source_clip" and beat.get("scene_id"):
+            beat["scene_id"] = None
+
     out_path = project_path / "manifests" / "plan.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -228,8 +237,8 @@ def generate_background_assets(project_path: Path) -> list[dict]:
         beat_id = beat["beat_id"]
         beat_type = beat.get("type", "")
 
-        # Generate backgrounds for title and lower-third beats
-        if beat_type not in ("title", "lower_third", "title_card"):
+        # Generate backgrounds for title and end_card beats
+        if beat_type not in ("title", "end_card"):
             continue
 
         goal = beat.get("goal", "professional presentation background")
