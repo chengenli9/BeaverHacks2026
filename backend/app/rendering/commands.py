@@ -136,6 +136,7 @@ def build_source_clip_command(
 
 def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> list[str]:
     root = Path(project_path)
+    s = manifest.render_settings
     return [
         "ffmpeg",
         "-y",
@@ -145,8 +146,14 @@ def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> l
         "0",
         "-i",
         str(root / "concat.txt"),
-        "-c",
-        "copy",
+        "-c:v",
+        s.video_codec,
+        "-c:a",
+        s.audio_codec,
+        "-ar",
+        str(s.sample_rate),
+        "-pix_fmt",
+        s.pixel_format,
         str(root / "renders" / "final_render.mp4"),
     ]
 

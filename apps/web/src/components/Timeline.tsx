@@ -3,7 +3,7 @@ import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
   Play, Pause, SkipBack, SkipForward, Mic, Film, Type
 } from 'lucide-react'
-import { usePipeline } from '../state/pipelineStore'
+import { usePipeline, useVideoRef } from '../state/pipelineStore'
 import type { Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
@@ -24,7 +24,8 @@ function formatTime(seconds: number): string {
 }
 
 function getBlockDuration(b: Block): number {
-  return b.type === 'source_clip' ? b.video_duration : b.duration
+  if (b.type === 'source_clip') return b.video_duration
+  return b.duration
 }
 
 function getTtsDuration(block: Block): number {
@@ -33,33 +34,61 @@ function getTtsDuration(block: Block): number {
 }
 
 export function Timeline() {
-  const { manifest } = usePipeline()
+  const { manifest, renderSummary } = usePipeline()
+  const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [draggingBlock, setDraggingBlock] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
-  const playTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const blocks = manifest?.blocks ?? []
   const totalDuration = blocks.reduce((sum, b) => sum + getBlockDuration(b), 0)
   const pixelsPerSecond = 60 * zoom
 
-  // Playback simulation
+  // Sync playhead from actual video element at 60fps via rAF
+  // Re-attach when renderSummary changes (video mounts/unmounts)
   useEffect(() => {
-    if (playing && totalDuration > 0) {
-      playTimer.current = setInterval(() => {
-        setPlayheadPos(prev => {
-          if (prev >= totalDuration) { setPlaying(false); return 0 }
-          return prev + 0.05
-        })
-      }, 50)
-    } else if (playTimer.current) {
-      clearInterval(playTimer.current)
+    const id = setTimeout(() => {
+      const video = videoRef.current
+      if (!video) return
+
+      const onPlay = () => setPlaying(true)
+      const onPause = () => setPlaying(false)
+      const onEnded = () => { setPlaying(false); setPlayheadPos(0) }
+
+      video.addEventListener('play', onPlay)
+      video.addEventListener('pause', onPause)
+      video.addEventListener('ended', onEnded)
+
+      let rafId: number
+      const tick = () => {
+        setPlayheadPos(video.currentTime)
+        rafId = requestAnimationFrame(tick)
+      }
+      rafId = requestAnimationFrame(tick)
+    }, 50)
+    return () => clearTimeout(id)
+  }, [videoRef, renderSummary])
+
+  // Playback: controls the actual <video> element
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) {
+      video.play()
+    } else {
+      video.pause()
     }
-    return () => { if (playTimer.current) clearInterval(playTimer.current) }
-  }, [playing, totalDuration])
+  }, [videoRef])
+
+  const seekTo = useCallback((time: number) => {
+    const video = videoRef.current
+    if (!video) return
+    video.currentTime = Math.max(0, Math.min(time, video.duration || totalDuration))
+    setPlayheadPos(video.currentTime)
+  }, [videoRef, totalDuration])
 
   const handleTimelineClick = useCallback((e: React.MouseEvent) => {
     if (!timelineRef.current || totalDuration === 0) return
@@ -67,8 +96,8 @@ export function Timeline() {
     const scrollLeft = timelineRef.current.scrollLeft
     const x = e.clientX - rect.left + scrollLeft - 40 // account for track label
     const time = Math.max(0, Math.min(x / pixelsPerSecond, totalDuration))
-    setPlayheadPos(time)
-  }, [pixelsPerSecond, totalDuration])
+    seekTo(time)
+  }, [pixelsPerSecond, totalDuration, seekTo])
 
   // Drag handlers
   const handleDragStart = (blockId: string) => { setDraggingBlock(blockId) }
@@ -95,11 +124,11 @@ export function Timeline() {
         </div>
 
         <div className="timeline-transport">
-          <button className="tl-tool-btn" onClick={() => setPlayheadPos(0)}><SkipBack size={14} /></button>
-          <button className="tl-play-btn" onClick={() => setPlaying(!playing)} id="timeline-play-btn">
+          <button className="tl-tool-btn" onClick={() => seekTo(0)}><SkipBack size={14} /></button>
+          <button className="tl-play-btn" onClick={togglePlay} id="timeline-play-btn">
             {playing ? <Pause size={16} /> : <Play size={16} />}
           </button>
-          <button className="tl-tool-btn" onClick={() => setPlayheadPos(totalDuration)}><SkipForward size={14} /></button>
+          <button className="tl-tool-btn" onClick={() => seekTo(totalDuration)}><SkipForward size={14} /></button>
           <span className="tl-time">{formatTime(playheadPos)}</span>
           <span className="tl-time-sep">/</span>
           <span className="tl-time tl-time-total">{formatTime(totalDuration)}</span>

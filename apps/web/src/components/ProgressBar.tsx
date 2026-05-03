@@ -2,13 +2,16 @@ import { useEffect, useState } from "react"
 
 interface Props {
   showLabel?: boolean
-  durationMs?: number // optional override
+  durationMs?: number // optional override for animated mode
+  progress?: number // 0-1, if provided skips animation and shows directly
 }
 
-export function ProgressBar({ showLabel = true, durationMs = 10000 }: Props) {
-  const [progress, setProgress] = useState(0)
+export function ProgressBar({ showLabel = true, durationMs = 10000, progress: externalProgress }: Props) {
+  const [animProgress, setProgress] = useState(0)
 
   useEffect(() => {
+    if (externalProgress !== undefined) return // controlled externally
+
     let start = performance.now()
 
     // irregular easing function (non-linear + jitter)
@@ -25,7 +28,6 @@ export function ProgressBar({ showLabel = true, durationMs = 10000 }: Props) {
       const jitter = (Math.sin(t * 40) + Math.sin(t * 13)) * 0.015
 
       const next = Math.min(Math.max(base + jitter, 0), 1)
-
       setProgress(next)
 
       if (t < 1) {
@@ -34,10 +36,10 @@ export function ProgressBar({ showLabel = true, durationMs = 10000 }: Props) {
     }
 
     const frame = requestAnimationFrame(step)
-
     return () => cancelAnimationFrame(frame)
-  }, [durationMs])
+  }, [durationMs, externalProgress])
 
+  const progress = externalProgress !== undefined ? externalProgress : animProgress
   const pct = Math.round(progress * 100)
 
   return (

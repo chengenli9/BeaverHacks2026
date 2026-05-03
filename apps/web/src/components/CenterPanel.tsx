@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
 import { getProjectFileUrl } from '../api/directorloopApi'
-import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
 import { BlockCard } from './BlockCard'
 import { ProgressBar } from './ProgressBar'
 import { SceneCard } from './SceneCard'
@@ -13,6 +13,7 @@ type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 export function CenterPanel() {
   const { sceneIndex, plan, manifest, renderSummary, activeJobs, projectId, selectedMedia } = usePipeline()
   const { selectMedia } = usePipelineActions()
+  const videoRef = useVideoRef()
   const [tab, setTab] = useState<CenterTab>('player')
 
   const visibleJobs = Object.values(activeJobs).filter((job) => job.status === 'queued' || job.status === 'running')
@@ -66,7 +67,7 @@ export function CenterPanel() {
             ) : renderSummary ? (
               <>
                 <div className="video-viewport">
-                  <video src={renderSummary.url} controls preload="metadata" id="final-video" />
+                  <video ref={videoRef} src={renderSummary.url} controls preload="metadata" id="final-video" />
                 </div>
                 <div className="player-info">
                   <span>{renderSummary.duration.toFixed(1)}s</span>
