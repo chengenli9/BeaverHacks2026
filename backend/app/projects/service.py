@@ -62,6 +62,83 @@ def create_local_project(name: str) -> dict:
     return _project_summary(project_id)
 
 
+def list_all_projects() -> list[dict]:
+    raw_projects = store.list_projects()
+    summaries = []
+    
+    # Always include the demo project
+    summaries.append(open_demo_project())
+
+    for p in raw_projects:
+        try:
+            summaries.append(_project_summary(p["project_id"]))
+        except ProjectNotFoundError:
+            continue
+
+    # Sort: Starred first, then newest
+    summaries.sort(key=lambda x: (not x.get("starred", False), x.get("updated_at", "")))
+    return summaries
+
+
+def update_project(project_id: str, updates: dict) -> dict:
+    if project_id == DEMO_PROJECT_ID:
+        raise ProjectNotFoundError("Cannot edit the demo project.")
+    
+    try:
+        project = store.load_project(project_id)
+    except FileNotFoundError as exc:
+        raise ProjectNotFoundError(f"Unknown project: {project_id}") from exc
+
+    new_project_id = project_id
+
+    if "name" in updates:
+        new_name = updates["name"]
+        project["name"] = new_name
+        project["display_name"] = new_name
+
+        # Rename directory to match new name
+        slug = _slugify(new_name)
+        if slug != project_id:
+            new_id = slug
+            suffix = 2
+            while store.get_project_path(new_id).exists() and new_id != project_id:
+                new_id = f"{slug}-{suffix}"
+                suffix += 1
+            
+            if new_id != project_id:
+                old_path = store.get_project_path(project_id)
+                new_path = store.get_project_path(new_id)
+                if old_path.exists():
+                    import shutil
+                    shutil.move(str(old_path), str(new_path))
+                project["project_id"] = new_id
+                new_project_id = new_id
+
+    if "description" in updates:
+        project["description"] = updates["description"]
+    if "starred" in updates:
+        project["starred"] = updates["starred"]
+        
+    from datetime import datetime, timezone
+    project["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+    store.save_project(new_project_id, project)
+    return _project_summary(new_project_id)
+
+
+def delete_local_project(project_id: str):
+    if project_id == DEMO_PROJECT_ID:
+        raise ProjectNotFoundError("Cannot delete the demo project.")
+        
+    try:
+        store.load_project(project_id)
+    except FileNotFoundError as exc:
+        raise ProjectNotFoundError(f"Unknown project: {project_id}") from exc
+        
+    store.delete_project(project_id)
+    return {"status": "deleted"}
+
+
 def list_project_media(project_id: str) -> dict:
     project_path = get_project_path(project_id)
     return {
@@ -114,17 +191,35 @@ def _project_summary(project_id: str) -> dict:
         metadata = store.load_project(project_id)
     except FileNotFoundError:
         metadata = {"project_id": project_id, "display_name": project_id, "name": project_id}
+        
+    has_manifest = (project_path / "manifests/block_manifest.json").exists()
+    has_render = (project_path / "renders/final_render.mp4").exists()
+    
+    status = metadata.get("status", "empty")
+    if status == "empty" and has_manifest:
+        status = "active"
+        
+    thumbnail_type = metadata.get("thumbnail_type", "empty")
+    if thumbnail_type == "empty" and has_render:
+        thumbnail_type = "timeline"
+
     return {
         "project_id": project_id,
         "name": metadata.get("name") or metadata.get("display_name") or project_id,
         "display_name": metadata.get("display_name") or metadata.get("name") or project_id,
+        "description": metadata.get("description", ""),
+        "status": status,
+        "progress": metadata.get("progress", 0),
+        "thumbnail_type": thumbnail_type,
+        "starred": metadata.get("starred", False),
+        "updated_at": metadata.get("updated_at", ""),
         "source_path": str(project_path / "source"),
         "artifacts": {
             "scene_index": (project_path / "cache/scene_index.json").exists(),
             "plan": (project_path / "manifests/plan.json").exists(),
-            "manifest": (project_path / "manifests/block_manifest.json").exists(),
+            "manifest": has_manifest,
             "critic": (project_path / "manifests/critic_suggestions.json").exists(),
-            "render": (project_path / "renders/final_render.mp4").exists(),
+            "render": has_render,
         },
     }
 
