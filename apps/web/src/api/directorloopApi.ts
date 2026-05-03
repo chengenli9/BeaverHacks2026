@@ -106,10 +106,10 @@ export async function listProjects(): Promise<ProjectListItem[]> {
   return request<ProjectListItem[]>('/projects')
 }
 
-export function updateProject(projectId: string, name: string, description: string): Promise<ProjectSummary> {
+export function updateProject(projectId: string, name: string, description: string, starred?: boolean): Promise<ProjectSummary> {
   return request<ProjectSummary>(`/projects/${projectId}`, {
     method: 'PUT',
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, starred }),
   })
 }
 

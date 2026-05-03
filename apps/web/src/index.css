@@ -674,11 +674,23 @@ html, body, #root {
   position: relative;
 }
 
-.thumb-label {
+.project-card-star-btn {
   position: absolute; top: 10px; left: 12px;
-  font-family: var(--font-mono); font-size: 9px;
-  font-weight: 600; letter-spacing: 1px;
-  color: var(--text-muted); text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  z-index: 10;
+}
+
+.project-card-star-btn:hover {
+  background: rgba(0, 0, 0, 0.6);
+  transform: scale(1.05);
 }
 
 .thumb-svg {
@@ -731,10 +743,9 @@ html, body, #root {
 
 .project-card-footer-sep { margin: 0 6px; }
 
-/* ─── New Project Card ────────────────────────── */
 .project-card-new {
   border-style: dashed; border-color: var(--border);
-  background: transparent; justify-content: center; min-height: 260px;
+  background: transparent; justify-content: center; height: 100%;
 }
 
 .project-card-new:hover {

@@ -15,22 +15,8 @@ function timeAgo(dateStr: string): string {
 }
 
 function statusLabel(project: ProjectListItem): string {
-  if (project.status === 'empty') return 'Empty'
-  if (project.status === 'draft') return 'Draft'
   if ((project.progress ?? 0) > 0 && (project.progress ?? 0) < 100) return `${project.progress}% complete`
   if (project.status === 'active') return 'In progress'
-  return 'Draft'
-}
-
-function statusBadgeClass(project: ProjectListItem): string {
-  if (project.status === 'active' && !project.starred) return 'project-badge-active'
-  if (project.starred) return 'project-badge-starred'
-  return 'project-badge-draft'
-}
-
-function statusBadgeLabel(project: ProjectListItem): string {
-  if (project.starred) return 'Starred'
-  if (project.status === 'active') return 'Active'
   return 'Draft'
 }
 
@@ -40,7 +26,6 @@ function Thumbnail({ type }: { type?: string }) {
     case 'timeline':
       return (
         <div className="project-thumb project-thumb-timeline">
-          <div className="thumb-label">TIMELINE EDIT</div>
           <svg viewBox="0 0 200 80" className="thumb-svg">
             <rect x="8" y="8" width="70" height="10" rx="2" fill="var(--teal)" opacity="0.7" />
             <rect x="8" y="22" width="120" height="10" rx="2" fill="var(--blue)" opacity="0.6" />
@@ -55,7 +40,6 @@ function Thumbnail({ type }: { type?: string }) {
     case 'mobile':
       return (
         <div className="project-thumb project-thumb-mobile">
-          <div className="thumb-label">MOBILE UI</div>
           <svg viewBox="0 0 200 80" className="thumb-svg">
             <rect x="20" y="5" width="50" height="70" rx="4" fill="var(--bg-card-hover)" stroke="var(--border)" strokeWidth="1" />
             <rect x="75" y="5" width="50" height="70" rx="4" fill="var(--bg-card-hover)" stroke="var(--border)" strokeWidth="1" />
@@ -70,7 +54,6 @@ function Thumbnail({ type }: { type?: string }) {
     case 'analytics':
       return (
         <div className="project-thumb project-thumb-analytics">
-          <div className="thumb-label">ANALYTICS</div>
           <svg viewBox="0 0 200 80" className="thumb-svg">
             <rect x="15" y="55" width="18" height="20" rx="2" fill="var(--lime)" opacity="0.8" />
             <rect x="38" y="40" width="18" height="35" rx="2" fill="var(--lime)" opacity="0.7" />
@@ -86,7 +69,6 @@ function Thumbnail({ type }: { type?: string }) {
     case 'gameloop':
       return (
         <div className="project-thumb project-thumb-game">
-          <div className="thumb-label">GAME LOOP</div>
           <svg viewBox="0 0 200 80" className="thumb-svg">
             <circle cx="50" cy="45" r="18" fill="none" stroke="var(--lime)" strokeWidth="3" opacity="0.7" />
             <circle cx="100" cy="45" r="14" fill="none" stroke="var(--lime)" strokeWidth="3" opacity="0.9" />
@@ -99,7 +81,6 @@ function Thumbnail({ type }: { type?: string }) {
     case 'empty':
       return (
         <div className="project-thumb project-thumb-empty">
-          <div className="thumb-label">UNTITLED</div>
           <svg viewBox="0 0 200 80" className="thumb-svg">
             <rect x="30" y="20" width="140" height="8" rx="2" fill="var(--text-muted)" opacity="0.15" />
             <rect x="30" y="35" width="100" height="8" rx="2" fill="var(--text-muted)" opacity="0.12" />
@@ -122,9 +103,10 @@ interface Props {
   project: ProjectListItem
   onEdit?: (project: ProjectListItem) => void
   onDelete?: (project: ProjectListItem) => void
+  onToggleStar?: (project: ProjectListItem) => void
 }
 
-export function ProjectCard({ project, onEdit, onDelete }: Props) {
+export function ProjectCard({ project, onEdit, onDelete, onToggleStar }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -171,29 +153,30 @@ export function ProjectCard({ project, onEdit, onDelete }: Props) {
         {/* Thumbnail */}
         <div className="project-card-thumb">
           <Thumbnail type={project.thumbnail_type} />
-          <span className={`project-status-badge ${statusBadgeClass(project)}`}>
-            {statusBadgeLabel(project)}
-          </span>
+          
+          <button 
+            className="project-card-star-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleStar?.(project)
+            }}
+            aria-label={project.starred ? "Unstar project" : "Star project"}
+          >
+            <Star size={16} fill={project.starred ? "var(--amber)" : "rgba(0,0,0,0.3)"} color={project.starred ? "var(--amber)" : "var(--text-muted)"} />
+          </button>
         </div>
 
         {/* Info */}
         <div className="project-card-info">
           <div className="project-card-title-row">
             <h3 className="project-card-name">{project.display_name ?? project.name}</h3>
-            <span className="project-card-status-icon">
-              {project.starred && <Star size={14} fill="var(--amber)" color="var(--amber)" />}
-              {project.status === 'active' && !project.starred && <Play size={14} fill="var(--lime)" color="var(--lime)" />}
-              {project.status === 'empty' && <Circle size={14} color="var(--blue)" />}
-              {project.status === 'draft' && !project.starred && project.thumbnail_type !== 'empty' && (
-                <AlertCircle size={14} color="var(--teal)" />
-              )}
+            <span className="project-card-status-icon" style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+              {statusLabel(project)}
             </span>
           </div>
           <p className="project-card-desc">{project.description}</p>
           <div className="project-card-footer">
             <span>Edited {timeAgo(project.updated_at)}</span>
-            <span className="project-card-footer-sep">•</span>
-            <span>{statusLabel(project)}</span>
           </div>
         </div>
       </button>
@@ -239,7 +222,7 @@ export function NewProjectCard({ onClick }: NewProjectCardProps) {
       <div className="project-card-new-content">
         <div className="project-card-new-icon">+</div>
         <div className="project-card-new-label">New Project</div>
-        <div className="project-card-new-hint">Upload footage to start</div>
+        <div className="project-card-new-hint">Press here to start a new project</div>
       </div>
     </button>
   )
