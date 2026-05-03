@@ -1,4 +1,4 @@
-"""Gemini integration package for DirectorLoop.
+"""Gemini integration package for Scenerio.
 
 Public surface:
     from backend.app.integrations.gemini import service

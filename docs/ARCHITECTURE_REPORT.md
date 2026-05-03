@@ -1,10 +1,10 @@
-# DirectorLoop Architecture Report
+# Scenerio Architecture Report
 
 Last verified: 2026-05-02
 
 ## Executive Summary
 
-DirectorLoop is locked as a local-first, async, manifest-driven, block-rendered Gemini rough-cut system. It is not a nonlinear editor. It is a polished pipeline dashboard that turns raw footage into a demo-ready rough cut with observable artifacts at each stage.
+Scenerio is locked as a local-first, async, manifest-driven, block-rendered Gemini rough-cut system. It is not a nonlinear editor. It is a polished pipeline dashboard that turns raw footage into a demo-ready rough cut with observable artifacts at each stage.
 
 The core rule is:
 
@@ -30,7 +30,7 @@ The necessary structural change is to add documentation, sample fixtures, and ex
 
 ## Product Concept
 
-DirectorLoop turns source footage into a polished rough-cut video through a visible, controllable pipeline:
+Scenerio turns source footage into a polished rough-cut video through a visible, controllable pipeline:
 
 ```text
 Footage
@@ -109,7 +109,7 @@ Gemini image generation creates textless background plates only. Exact text is r
 Bad image prompt:
 
 ```text
-Generate a title card that says "DirectorLoop".
+Generate a title card that says "Scenerio".
 ```
 
 Good image prompt:
@@ -353,7 +353,7 @@ Build a pipeline dashboard, not a timeline editor.
 
 ```text
 +----------------------------------------------------------------+
-| DirectorLoop | Analyze | Plan | Pre-Critique | Render           |
+| Scenerio | Analyze | Plan | Pre-Critique | Render           |
 +-------------------+-----------------------+--------------------+
 | Agent Event Log   | Block Manifest         | Output / Critic    |
 |                   |                        |                    |

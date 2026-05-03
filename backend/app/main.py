@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import router
 
-app = FastAPI(title="DirectorLoop Backend")
+app = FastAPI(title="Scenerio Backend")
 
 app.add_middleware(
     CORSMiddleware,

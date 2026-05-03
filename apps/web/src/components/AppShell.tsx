@@ -42,7 +42,7 @@ export function AppShell({ projectId: routeProjectId }: Props) {
 
         <div className="app-logo">
           <Clapperboard size={20} />
-          DirectorLoop
+          Scenerio
         </div>
 
         {projectId && (

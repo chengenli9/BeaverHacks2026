@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, LayoutGrid, List, Plus } from 'lucide-react'
 import type { ProjectListItem } from '../types/api'
-import { listProjects, updateProject, deleteProject } from '../api/directorloopApi'
+import { listProjects, updateProject, deleteProject } from '../api/scenerioApi'
 import { navigate } from '../router'
 import { HomeHeader } from './HomeHeader'
 import { HomeSidebar } from './HomeSidebar'
@@ -225,7 +225,7 @@ export function HomePage() {
           ) : filtered.length === 0 && !searchQuery ? (
             <div className="home-empty">
               <h3>No projects yet</h3>
-              <p>Create your first project to get started with DirectorLoop.</p>
+              <p>Create your first project to get started with Scenerio.</p>
               <button className="home-new-project-btn" onClick={openCreateModal}>
                 <Plus size={16} /> New Project
               </button>

@@ -3,7 +3,7 @@ import type { ProjectListItem } from '../types/api'
 export const MOCK_PROJECTS: ProjectListItem[] = [
   {
     project_id: 'demo_project',
-    name: 'DirectorLoop — Demo Reel',
+    name: 'Scenerio — Demo Reel',
     description: 'AI rough cut with self-healing critic loop. Gemini indexed 47 scenes.',
     status: 'active',
     progress: 72,

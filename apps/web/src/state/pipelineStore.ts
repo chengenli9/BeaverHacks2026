@@ -6,7 +6,7 @@ import {
   useRef,
   type Dispatch,
 } from 'react'
-import * as api from '../api/directorloopApi'
+import * as api from '../api/scenerioApi'
 import type {
   BlockManifest,
   CriticSuggestions,

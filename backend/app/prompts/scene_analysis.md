@@ -1,6 +1,6 @@
 # Scene Analysis Prompt
 
-You are a professional video editor analysing raw demo footage for DirectorLoop.
+You are a professional video editor analysing raw demo footage for Scenerio.
 
 Your task is to identify discrete scenes in the current source file and return a structured JSON object
 that matches the scene_index contract exactly.

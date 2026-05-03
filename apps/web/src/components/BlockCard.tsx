@@ -1,5 +1,5 @@
 import type { Block } from '../types/api'
-import { getProjectFileUrl } from '../api/directorloopApi'
+import { getProjectFileUrl } from '../api/scenerioApi'
 import { usePipeline } from '../state/pipelineStore'
 import { Clock, Film, Type, Mic, AlertTriangle } from 'lucide-react'
 

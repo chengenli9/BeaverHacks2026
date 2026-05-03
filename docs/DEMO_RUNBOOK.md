@@ -7,7 +7,7 @@ Make the hackathon demo feel complete even if one live Gemini call is slow or un
 ## Golden Path
 
 ```text
-1. Open DirectorLoop.
+1. Open Scenerio.
 2. Click Open Demo Project.
 3. Click Analyze.
 4. Show scene_index.json summary.

@@ -93,7 +93,7 @@ Contract:
 ```json
 {
   "project_id": "demo_project",
-  "title": "DirectorLoop Demo Cut",
+  "title": "Scenerio Demo Cut",
   "target_duration": 30.0,
   "story_arc": [
     "Name the problem",
@@ -108,7 +108,7 @@ Contract:
       "scene_id": null,
       "duration": 3.0,
       "narration": null,
-      "onscreen_text": "DirectorLoop"
+      "onscreen_text": "Scenerio"
     },
     {
       "beat_id": "beat_002",
@@ -157,7 +157,7 @@ Contract:
       "block_id": "001_title",
       "type": "title",
       "background_asset": "assets/backgrounds/bg_001.png",
-      "text": "DirectorLoop",
+      "text": "Scenerio",
       "duration": 3.0,
       "fontfile": "assets/fonts/Inter-Bold.ttf",
       "rendered_path": "blocks/001_title.mp4"

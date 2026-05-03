@@ -51,11 +51,11 @@ def _seed_project(tmp_path: Path) -> Path:
     plan = Plan.model_validate(
         {
           "project_id": "demo_project",
-          "title": "DirectorLoop Demo Cut",
+          "title": "Scenerio Demo Cut",
           "target_duration": 10.0,
           "story_arc": ["Hook", "Proof", "Close"],
           "beats": [
-            {"beat_id": "beat_001", "type": "title", "goal": "Hook", "scene_id": None, "duration": 2.0, "narration": None, "onscreen_text": "DirectorLoop"},
+            {"beat_id": "beat_001", "type": "title", "goal": "Hook", "scene_id": None, "duration": 2.0, "narration": None, "onscreen_text": "Scenerio"},
             {"beat_id": "beat_002", "type": "source_clip", "goal": "Show intro", "scene_id": "scene_001", "duration": 3.0, "narration": None, "onscreen_text": None},
             {"beat_id": "beat_003", "type": "source_clip", "goal": "Show proof", "scene_id": "scene_002", "duration": 3.0, "narration": None, "onscreen_text": None}
           ]

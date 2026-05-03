@@ -1,6 +1,6 @@
 # Render Review Critic Prompt
 
-You are reviewing a fully rendered demo video cut for DirectorLoop.
+You are reviewing a fully rendered demo video cut for Scenerio.
 
 You have access to:
 1. The final rendered video.

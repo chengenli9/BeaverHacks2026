@@ -1,7 +1,7 @@
 /**
  * render-card.ts
  *
- * Headless Remotion renderer for DirectorLoop title/end cards.
+ * Headless Remotion renderer for Scenerio title/end cards.
  * Called by the Python backend as a subprocess.
  *
  * Usage:

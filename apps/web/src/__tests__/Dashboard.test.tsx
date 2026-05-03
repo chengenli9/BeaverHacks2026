@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 
-vi.mock('../api/directorloopApi', () => ({
+vi.mock('../api/scenerioApi', () => ({
   createProject: vi.fn(),
   openDemoProject: vi.fn(),
   startJob: vi.fn(),
@@ -23,14 +23,14 @@ vi.mock('../api/directorloopApi', () => ({
   listProjects: vi.fn().mockResolvedValue([]),
 }))
 
-import * as api from '../api/directorloopApi'
+import * as api from '../api/scenerioApi'
 
 const mockCritic = {
   project_id: 'demo_project',
   critic_scope: 'render_review',
   suggestions: [
     { suggestion_id: 's001', block_id: '001_title', action: 'trim_end' as const, amount_seconds: 1, max_allowed_trim_seconds: 2, reason: 'Tighten pacing.', requires_approval: true, category: 'pacing', severity: 'medium', confidence: 0.78, viewer_problem: 'The intro lingers after the hook lands.', evidence: ['render_qa: no technical issue', 'shot_index: repeated frames'], before_summary: '3.0s title', after_summary: '2.0s title' },
-    { suggestion_id: 's002', block_id: '001_title', action: 'replace_text' as const, amount_seconds: 0, max_allowed_trim_seconds: 0.9, reason: 'Better text.', requires_approval: true, replacement_text: 'New Text', category: 'clarity', severity: 'low', confidence: 0.66, viewer_problem: 'The title undersells the product outcome.', evidence: ['manifest: generic title copy'], before_summary: 'DirectorLoop', after_summary: 'New Text' },
+    { suggestion_id: 's002', block_id: '001_title', action: 'replace_text' as const, amount_seconds: 0, max_allowed_trim_seconds: 0.9, reason: 'Better text.', requires_approval: true, replacement_text: 'New Text', category: 'clarity', severity: 'low', confidence: 0.66, viewer_problem: 'The title undersells the product outcome.', evidence: ['manifest: generic title copy'], before_summary: 'Scenerio', after_summary: 'New Text' },
   ],
 }
 
@@ -69,7 +69,7 @@ const mockSceneIndex = {
 
 const mockPlan = {
   project_id: 'demo_project',
-  title: 'DirectorLoop Demo Cut',
+  title: 'Scenerio Demo Cut',
   target_duration: 30,
   story_arc: ['Name the problem', 'Show the pipeline'],
   beats: [
@@ -80,7 +80,7 @@ const mockPlan = {
       scene_id: null,
       duration: 3,
       narration: null,
-      onscreen_text: 'DirectorLoop',
+      onscreen_text: 'Scenerio',
     },
   ],
 }
@@ -102,7 +102,7 @@ const mockManifest = {
       block_id: '001_title',
       type: 'title' as const,
       background_asset: 'assets/backgrounds/bg_001.png',
-      text: 'DirectorLoop',
+      text: 'Scenerio',
       duration: 3,
       fontfile: 'assets/fonts/Inter-Bold.ttf',
       motion_asset: {
@@ -223,7 +223,7 @@ describe('Dashboard', () => {
   it('renders empty state with Open Demo Project button', () => {
     window.location.hash = '#/project'
     render(<App />)
-    expect(screen.getByText('DirectorLoop')).toBeInTheDocument()
+    expect(screen.getByText('Scenerio')).toBeInTheDocument()
     expect(screen.getByText('Open Demo Project')).toBeInTheDocument()
     expect(screen.getByText('No Events')).toBeInTheDocument()
     expect(screen.getByText('No Project')).toBeInTheDocument()
@@ -249,7 +249,7 @@ describe('Dashboard', () => {
 
     const centerPanel = document.querySelector('#center-panel') as HTMLElement
     await user.click(within(centerPanel).getByRole('button', { name: /Plan/i }))
-    expect(screen.getByText('DirectorLoop Demo Cut')).toBeInTheDocument()
+    expect(screen.getByText('Scenerio Demo Cut')).toBeInTheDocument()
 
     await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
     expect(screen.getByText('Block Manifest v1')).toBeInTheDocument()
