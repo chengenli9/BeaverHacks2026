@@ -1,16 +1,17 @@
-import { CheckCircle, Send, ShieldCheck, XCircle, Pencil } from 'lucide-react'
+import { CheckCircle, Send, ShieldCheck, XCircle, Pencil, X } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 
 export function CriticPanel() {
   const { criticSuggestions, approvalState, manifest } = usePipeline()
-  const { setApproval, submitApprovals, highlightBlock } = usePipelineActions()
+  const { setApproval, submitApprovals, highlightBlock, dismissSuggestion } = usePipelineActions()
 
   if (!criticSuggestions) return null
 
-  const decisions = Object.values(approvalState)
-  const approvedCount = decisions.filter((value) => value === 'approved').length
-  const rejectedCount = decisions.filter((value) => value === 'rejected').length
-  const skippedCount = decisions.filter((value) => value === 'pending').length
+  const visible = criticSuggestions.suggestions.filter((s) => approvalState[s.suggestion_id] !== 'dismissed')
+  const decisions = visible.map((s) => approvalState[s.suggestion_id] ?? 'pending')
+  const approvedCount = decisions.filter((v) => v === 'approved').length
+  const rejectedCount = decisions.filter((v) => v === 'rejected').length
+  const skippedCount = decisions.filter((v) => v === 'pending').length
   const hasAnyDecision = approvedCount + rejectedCount > 0
 
   const blockTypes: Record<string, string> = {}
@@ -18,13 +19,15 @@ export function CriticPanel() {
     blockTypes[block.block_id] = block.type.replace('_', ' ')
   }
 
+  if (visible.length === 0) return null
+
   return (
     <div id="critic-section">
       <div className="section-header">
-        <ShieldCheck size={12} /> Review Suggestions ({criticSuggestions.suggestions.length})
+        <ShieldCheck size={12} /> Review Suggestions ({visible.length})
       </div>
 
-      {criticSuggestions.suggestions.map((suggestion) => {
+      {visible.map((suggestion) => {
         const state = approvalState[suggestion.suggestion_id] ?? 'pending'
         const blockLabel = blockTypes[suggestion.block_id] ?? 'block'
 
@@ -36,6 +39,14 @@ export function CriticPanel() {
             onMouseEnter={() => highlightBlock(suggestion.block_id)}
             onMouseLeave={() => highlightBlock(null)}
           >
+            <button
+              className="card-dismiss"
+              title="Dismiss"
+              onClick={() => dismissSuggestion(suggestion.suggestion_id)}
+            >
+              <X size={12} />
+            </button>
+
             <div className="card-header">
               <span className="suggestion-target">
                 <Pencil size={10} />
@@ -113,20 +124,19 @@ export function CriticPanel() {
         )
       })}
 
-      <button
-        className="apply-btn"
-        onClick={submitApprovals}
-        disabled={!hasAnyDecision}
-        id="apply-patches-btn"
-      >
-        <Send size={14} />
-        {approvedCount > 0
-          ? `Apply ${approvedCount} Approved${rejectedCount > 0 ? `, ${rejectedCount} Rejected` : ''}`
-          : rejectedCount > 0
-            ? `Dismiss ${rejectedCount} Suggestion${rejectedCount === 1 ? '' : 's'}`
-            : 'Submit'}
-        {skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}
-      </button>
+      {hasAnyDecision && (
+        <button
+          className="apply-btn"
+          onClick={submitApprovals}
+          id="apply-patches-btn"
+        >
+          <Send size={14} />
+          {approvedCount > 0
+            ? `Apply ${approvedCount} Approved${rejectedCount > 0 ? `, ${rejectedCount} Rejected` : ''}`
+            : `Dismiss ${rejectedCount} Suggestion${rejectedCount === 1 ? '' : 's'}`}
+          {skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}
+        </button>
+      )}
     </div>
   )
 }

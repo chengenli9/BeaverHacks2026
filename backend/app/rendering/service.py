@@ -11,6 +11,7 @@ from typing import Callable
 from ..manifests.models import Block, BlockManifest, ImageCardBlock, SourceClipBlock, TextBlock
 from ..manifests.service import load_manifest, validate_project_assets
 from .commands import (
+    build_audio_overlay_command,
     build_concat_command,
     build_image_card_command,
     build_source_clip_command,
@@ -184,8 +185,25 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
 
     # C) Stream-copy concat (no re-encode)
     write_concat_file(root, manifest)
-    command = build_concat_command(root, manifest)
+    concat_output = (root / "renders" / "concat_raw.mp4") if manifest.audio_tracks else (root / "renders" / "final_render.mp4")
+    command = build_concat_command(root, manifest, concat_output)
     _run(command, root / "logs" / "ffmpeg.log")
+
+    # D) Audio overlay — if the manifest has music tracks, mix them onto the concat output
+    if manifest.audio_tracks:
+        if progress_callback:
+            progress_callback(0.95, "Mixing audio tracks")
+        music_dir = Path(__file__).resolve().parents[2] / "assets" / "music"
+        overlay_cmd = build_audio_overlay_command(
+            root, concat_output, manifest.audio_tracks, music_dir, manifest.render_settings,
+        )
+        _run(overlay_cmd, root / "logs" / "ffmpeg.log")
+        # Clean up intermediate concat file
+        try:
+            concat_output.unlink()
+        except OSError:
+            pass
+
     final_render = root / "renders" / "final_render.mp4"
     probe_render(final_render)
     if progress_callback:

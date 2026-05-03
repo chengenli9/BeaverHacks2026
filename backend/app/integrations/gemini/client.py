@@ -15,24 +15,45 @@ from google.genai import types
 
 from .settings import (
     GEMINI_API_KEY,
+    GEMINI_IMAGE_API_KEY,
     GEMINI_IMAGE_MODEL,
     GEMINI_MAX_OUTPUT_TOKENS,
+    GEMINI_LOCATION,
+    GEMINI_PROJECT_ID,
     GEMINI_TEXT_MODEL,
     GEMINI_TTS_MODEL,
+    GEMINI_USE_VERTEXAI,
     assert_not_pro,
 )
 
-_client: genai.Client | None = None
+_text_client: genai.Client | None = None
+_image_client: genai.Client | None = None
 
 
-def get_client() -> genai.Client:
+def get_client(*, for_image: bool = False) -> genai.Client:
     """Return the module-level Gemini client, creating it on first call."""
-    global _client
-    if _client is None:
-        if not GEMINI_API_KEY:
-            raise RuntimeError("GEMINI_API_KEY is required for live Gemini calls")
-        _client = genai.Client(api_key=GEMINI_API_KEY)
-    return _client
+    global _text_client, _image_client
+    target = _image_client if for_image else _text_client
+    if target is None:
+        if GEMINI_USE_VERTEXAI:
+            if not GEMINI_PROJECT_ID:
+                raise RuntimeError("GEMINI_PROJECT_ID is required when GEMINI_USE_VERTEXAI=true")
+            target = genai.Client(
+                vertexai=True,
+                project=GEMINI_PROJECT_ID,
+                location=GEMINI_LOCATION,
+            )
+        else:
+            api_key = GEMINI_IMAGE_API_KEY if for_image and GEMINI_IMAGE_API_KEY else GEMINI_API_KEY
+            if not api_key:
+                missing_name = "GEMINI_IMAGE_API_KEY" if for_image else "GEMINI_API_KEY"
+                raise RuntimeError(f"{missing_name} is required for live Gemini calls")
+            target = genai.Client(api_key=api_key)
+        if for_image:
+            _image_client = target
+        else:
+            _text_client = target
+    return target
 
 
 # ---------------------------------------------------------------------------
@@ -214,11 +235,13 @@ def measure_wav_duration(wav_path: Path) -> float:
 # ---------------------------------------------------------------------------
 
 
-def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dict]:
+def generate_image(
+    prompt: str,
+    *,
+    model: str | None = None,
+    allow_fallback: bool = False,
+) -> tuple[bytes, dict]:
     """Generate a textless background PNG image.
-
-    Falls back to a solid-colour placeholder if the model call fails so the
-    renderer can always proceed.
 
     Returns:
         (png_bytes, usage_metadata_dict)
@@ -226,28 +249,46 @@ def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dic
     target_model = model or GEMINI_IMAGE_MODEL
     assert_not_pro(target_model)
 
-    client = get_client()
+    client = get_client(for_image=True)
     t0 = time.monotonic()
     elapsed_ms = 0
 
     try:
-        response = client.models.generate_content(
-            model=target_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-            ),
-        )
-        elapsed_ms = int((time.monotonic() - t0) * 1000)
-
-        png_bytes = b""
-        for part in response.candidates[0].content.parts:
-            if part.inline_data and part.inline_data.mime_type == "image/png":
-                png_bytes = part.inline_data.data
-                break
-            if part.inline_data and part.inline_data.mime_type == "image/jpeg":
-                png_bytes = part.inline_data.data
-                break
+        if _is_imagen_model(target_model):
+            response = client.models.generate_images(
+                model=target_model,
+                prompt=prompt,
+                config=types.GenerateImagesConfig(
+                    number_of_images=1,
+                    output_mime_type="image/png",
+                ),
+            )
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            png_bytes = b""
+            if getattr(response, "generated_images", None):
+                first = response.generated_images[0]
+                image = getattr(first, "image", None)
+                png_bytes = getattr(image, "image_bytes", b"") if image else b""
+            if not png_bytes and getattr(response, "images", None):
+                first_image = response.images[0]
+                png_bytes = getattr(first_image, "image_bytes", b"")
+        else:
+            response = client.models.generate_content(
+                model=target_model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                ),
+            )
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            png_bytes = b""
+            for part in response.candidates[0].content.parts:
+                if part.inline_data and part.inline_data.mime_type == "image/png":
+                    png_bytes = part.inline_data.data
+                    break
+                if part.inline_data and part.inline_data.mime_type == "image/jpeg":
+                    png_bytes = part.inline_data.data
+                    break
 
         if not png_bytes:
             raise RuntimeError("No image data in response")
@@ -255,8 +296,13 @@ def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dic
         usage = _extract_usage(response, target_model, elapsed_ms)
         return png_bytes, usage
 
-    except Exception:  # noqa: BLE001 — fallback per model policy
+    except Exception as exc:  # noqa: BLE001
         elapsed_ms = int((time.monotonic() - t0) * 1000)
+        if not allow_fallback:
+            raise RuntimeError(
+                f"Image generation failed for model '{target_model}': {exc}. "
+                "Check the image API key/project backing GEMINI_IMAGE_API_KEY and confirm that this specific model is enabled for that project/account."
+            ) from exc
         png_bytes = _placeholder_png()
         usage = {
             "elapsed_ms": elapsed_ms,
@@ -264,8 +310,13 @@ def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dic
             "input_token_count": 0,
             "output_token_count": 0,
             "error": "image_generation_fallback",
+            "error_detail": str(exc),
         }
         return png_bytes, usage
+
+
+def _is_imagen_model(model: str) -> bool:
+    return model.lower().startswith("imagen-")
 
 
 # ---------------------------------------------------------------------------

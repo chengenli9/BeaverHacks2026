@@ -118,6 +118,16 @@ export interface BeatStyle {
   background_color?: string | null
   text_alignment?: 'left' | 'center' | 'right' | null
   layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked' | null
+  animation_preset?:
+    | 'fade_slide_up'
+    | 'fade_slide_down'
+    | 'fade_zoom_in'
+    | 'zoom_reveal'
+    | 'typewriter'
+    | 'word_highlight'
+    | 'split_reveal'
+    | 'pulse_glow'
+    | null
 }
 
 export interface Plan {
@@ -126,6 +136,25 @@ export interface Plan {
   target_duration: number
   story_arc: string[]
   beats: Beat[]
+  audio_tracks?: AudioTrack[]
+}
+
+export interface AudioTrack {
+  track_id: string
+  music_file: string
+  start_offset: number
+  duration: number
+  volume: number
+  fade_in: number
+  fade_out: number
+}
+
+export interface MusicTrackRef {
+  filename: string
+  display_name: string
+  bpm: number | null
+  description: string
+  use_case: string | null
 }
 
 export interface RenderSettings {
@@ -236,6 +265,7 @@ export interface BlockManifest {
   version: number
   render_settings: RenderSettings
   blocks: Block[]
+  audio_tracks?: AudioTrack[]
 }
 
 export type CriticAction =

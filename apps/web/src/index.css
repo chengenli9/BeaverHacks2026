@@ -717,6 +717,7 @@ body,
 
 /* ═══ CARDS ═══════════════════════════════════ */
 .card {
+  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -911,6 +912,30 @@ body,
   outline-offset: -1px;
   z-index: 2;
   filter: brightness(1.25);
+}
+
+.card-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.card:hover .card-dismiss {
+  opacity: 1;
+}
+.card-dismiss:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .approval-controls {
@@ -1289,6 +1314,25 @@ body,
   --clip-color: var(--emerald);
   height: 28px;
   font-size: 9px;
+}
+
+.tl-clip-music {
+  --clip-color: #a855f7;
+  height: 28px;
+  font-size: 9px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(59, 130, 246, 0.25));
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  position: relative;
+}
+.tl-clip-music::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.8), rgba(59, 130, 246, 0.6));
+  border-radius: 0 0 4px 4px;
 }
 
 /* Clip resize handles */

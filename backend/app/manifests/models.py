@@ -41,6 +41,10 @@ class BeatStyle(BaseModel):
     background_color: str | None = None
     text_alignment: Literal["left", "center", "right"] | None = None
     layout_preset: Literal["centered", "hero-left", "hero-right", "stacked"] | None = None
+    animation_preset: Literal[
+        "fade_slide_up", "fade_slide_down", "fade_zoom_in", "zoom_reveal",
+        "typewriter", "word_highlight", "split_reveal", "pulse_glow",
+    ] | None = None
 
 
 class TimelineSource(BaseModel):
@@ -175,6 +179,30 @@ class SceneIndex(BaseModel):
         return self.sources[0].duration_seconds
 
 
+class AudioTrack(BaseModel):
+    """A music track placed on a separate audio timeline, independent of video beats.
+
+    Audio tracks are mixed in during the post-concat overlay step, so they can
+    span across multiple blocks seamlessly.
+    """
+    track_id: str
+    music_file: str
+    start_offset: float = Field(ge=0, description="Seconds from video start")
+    duration: float = Field(gt=0, description="How long to play (may be shorter than the track)")
+    volume: float = Field(default=0.08, ge=0, le=1)
+    fade_in: float = Field(default=0.5, ge=0, description="Fade-in duration in seconds")
+    fade_out: float = Field(default=0.5, ge=0, description="Fade-out duration in seconds")
+
+
+class MusicTrackRef(BaseModel):
+    """Metadata for a music track in the global library (read-only for the frontend)."""
+    filename: str
+    display_name: str
+    description: str
+    bpm: int | None = None
+    use_case: str | None = None
+
+
 class PlanBeat(BaseModel):
     beat_id: str
     type: Literal["title", "source_clip", "scene_card", "end_card", "image_card"]
@@ -206,6 +234,7 @@ class Plan(BaseModel):
     target_duration: float = Field(gt=0)
     story_arc: list[str]
     beats: list[PlanBeat]
+    audio_tracks: list[AudioTrack] = Field(default_factory=list)
 
     @classmethod
     def from_file(cls, path: str | Path) -> Plan:
@@ -216,6 +245,19 @@ class Plan(BaseModel):
         beat_ids = [beat.beat_id for beat in self.beats]
         if len(beat_ids) != len(set(beat_ids)):
             raise ValueError("beat_id values must be unique")
+        track_ids = [t.track_id for t in self.audio_tracks]
+        if len(track_ids) != len(set(track_ids)):
+            raise ValueError("audio track_id values must be unique")
+        # Clamp audio tracks to video duration
+        total_dur = sum(b.duration for b in self.beats)
+        clamped: list[AudioTrack] = []
+        for t in self.audio_tracks:
+            start = min(t.start_offset, max(total_dur - 0.5, 0))
+            remaining = max(total_dur - start, 0)
+            dur = min(t.duration, remaining) if remaining > 0 else 0
+            if dur > 0:
+                clamped.append(t.model_copy(update={"start_offset": round(start, 3), "duration": round(dur, 3)}))
+        self.audio_tracks = clamped
         return self
 
     def beat_by_id(self, beat_id: str) -> PlanBeat:
@@ -341,6 +383,7 @@ class BlockManifest(BaseModel):
     version: int
     render_settings: RenderSettings = Field(default_factory=RenderSettings)
     blocks: list[Block]
+    audio_tracks: list[AudioTrack] = Field(default_factory=list)
 
     @classmethod
     def from_file(cls, path: str | Path) -> BlockManifest:

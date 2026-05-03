@@ -27,8 +27,11 @@ export function CenterPanel() {
       : renderSummary.url)
     : null
   const isPlanMutationRunning = useMemo(
-    () => Object.values(activeJobs).some((job) => job.status === 'queued' || job.status === 'running') &&
-      Object.values(activeJobs).some((job) => ['reorder-plan', 'delete-beat', 'edit-plan', 'create-beat'].includes(String(job.stage))),
+    () => Object.values(activeJobs).some(
+      (job) =>
+        (job.status === 'queued' || job.status === 'running') &&
+        ['reorder-plan', 'delete-beat', 'edit-plan', 'create-beat'].includes(String(job.stage)),
+    ),
     [activeJobs],
   )
 

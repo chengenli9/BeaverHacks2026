@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
-  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon
+  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon, Music
 } from 'lucide-react'
 import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
-import type { Block } from '../types/api'
+import type { AudioTrack, Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
   title: '#8b5cf6',
@@ -36,8 +36,9 @@ function getTtsDuration(block: Block): number {
 }
 
 export function Timeline() {
-  const { manifest, highlightedBlockId, plan } = usePipeline()
-  const { reorderPlanBeats } = usePipelineActions()
+  const { manifest, highlightedBlockId, selectedBlockId, plan, undoStack, redoStack } = usePipeline()
+  const audioTracks: AudioTrack[] = manifest?.audio_tracks ?? plan?.audio_tracks ?? []
+  const { reorderPlanBeats, deleteBeat, selectBlock, undo, redo } = usePipelineActions()
   const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
@@ -101,18 +102,64 @@ export function Timeline() {
     setPlayheadPos(video.currentTime)
   }, [totalDuration, videoRef])
 
-  const handleTimelineClick = useCallback((e: React.MouseEvent) => {
+  const handleTimelineClick = useCallback((e: MouseEvent) => {
     if (!timelineRef.current || totalDuration === 0) return
     const rect = timelineRef.current.getBoundingClientRect()
     const scrollLeft = timelineRef.current.scrollLeft
-    const x = e.clientX - rect.left + scrollLeft - 40 // account for track label
+    const x = e.clientX - rect.left + scrollLeft - 40
     const time = Math.max(0, Math.min(x / pixelsPerSecond, totalDuration))
     seekTo(time)
   }, [pixelsPerSecond, totalDuration, seekTo])
 
+  const handleClipClick = useCallback((e: MouseEvent, blockId: string) => {
+    e.stopPropagation()
+    selectBlock(selectedBlockId === blockId ? null : blockId)
+  }, [selectBlock, selectedBlockId])
+
+  const beatIdForBlock = useCallback((blockId: string): string | null => {
+    if (!plan || !manifest) return null
+    const idx = manifest.blocks.findIndex((b) => b.block_id === blockId)
+    return idx >= 0 && idx < plan.beats.length ? plan.beats[idx].beat_id : null
+  }, [manifest, plan])
+
+  const deleteSelectedBlock = useCallback(() => {
+    if (!selectedBlockId) return
+    const beatId = beatIdForBlock(selectedBlockId)
+    if (beatId) {
+      selectBlock(null)
+      void deleteBeat(beatId)
+    }
+  }, [selectedBlockId, beatIdForBlock, selectBlock, deleteBeat])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      const mod = e.ctrlKey || e.metaKey
+      if (mod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+      if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        redo()
+        return
+      }
+      if (!selectedBlockId) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelectedBlock()
+      } else if (e.key === 'Escape') {
+        selectBlock(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedBlockId, deleteSelectedBlock, selectBlock, undo, redo])
+
   // Drag handlers
   const handleDragStart = (blockId: string) => { setDraggingBlock(blockId) }
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
+  const handleDragOver = (e: DragEvent, idx: number) => {
     e.preventDefault(); setDragOverIndex(idx)
   }
   const handleDragEnd = () => { setDraggingBlock(null); setDragOverIndex(null) }
@@ -146,11 +193,18 @@ export function Timeline() {
       {/* Toolbar */}
       <div className="timeline-toolbar">
         <div className="timeline-tools">
-          <button className="tl-tool-btn" title="Undo"><Undo2 size={14} /></button>
-          <button className="tl-tool-btn" title="Redo"><Redo2 size={14} /></button>
+          <button className="tl-tool-btn" title="Undo (Ctrl+Z)" disabled={undoStack.length === 0} onClick={undo}><Undo2 size={14} /></button>
+          <button className="tl-tool-btn" title="Redo (Ctrl+Y)" disabled={redoStack.length === 0} onClick={redo}><Redo2 size={14} /></button>
           <div className="tl-divider" />
           <button className="tl-tool-btn" title="Cut"><Scissors size={14} /></button>
-          <button className="tl-tool-btn" title="Delete"><Trash2 size={14} /></button>
+          <button
+            className="tl-tool-btn"
+            title={selectedBlockId ? `Delete ${selectedBlockId}` : 'Select a clip to delete'}
+            disabled={!selectedBlockId}
+            onClick={deleteSelectedBlock}
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
 
         <div className="timeline-transport">
@@ -202,13 +256,15 @@ export function Timeline() {
                   const isDragging = draggingBlock === block.block_id
                   const isOver = dragOverIndex === idx
                   const isHighlighted = highlightedBlockId === block.block_id
+                  const isSelected = selectedBlockId === block.block_id
 
                   return (
                     <div
                       key={block.block_id}
-                      className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''} ${isHighlighted ? 'tl-clip-highlight' : ''}`}
-                      style={{ width: w, '--clip-color': color } as React.CSSProperties}
+                      className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''} ${isHighlighted || isSelected ? 'tl-clip-highlight' : ''}`}
+                      style={{ width: w, '--clip-color': color } as CSSProperties}
                       draggable
+                      onClick={(e) => handleClipClick(e, block.block_id)}
                       onDragStart={() => handleDragStart(block.block_id)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDrop={(e) => { e.preventDefault(); void handleDrop(idx) }}
@@ -252,6 +308,31 @@ export function Timeline() {
                 })}
               </div>
             </div>
+
+            {/* Music track */}
+            {audioTracks.length > 0 && (
+              <div className="tl-track">
+                <div className="tl-track-label"><Music size={11} /> Music</div>
+                <div className="tl-track-clips" style={{ width: totalDuration * pixelsPerSecond }}>
+                  {audioTracks.map((track) => {
+                    const w = track.duration * pixelsPerSecond
+                    const left = track.start_offset * pixelsPerSecond
+                    return (
+                      <div
+                        key={track.track_id}
+                        className="tl-clip tl-clip-music"
+                        style={{ width: w, position: 'absolute', left }}
+                        title={`${track.music_file} (${track.duration.toFixed(1)}s) vol=${Math.round(track.volume * 100)}%`}
+                      >
+                        <Music size={10} />
+                        <span className="tl-clip-label">{track.music_file.replace(/\.mp3$/i, '')}</span>
+                        <span className="tl-clip-dur">{track.duration.toFixed(1)}s</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Playhead */}
             {totalDuration > 0 && (

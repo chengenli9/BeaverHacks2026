@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..manifests.models import BlockManifest, ImageCardBlock, RenderSettings, SourceClipBlock, TextBlock
+from ..manifests.models import AudioTrack, BlockManifest, ImageCardBlock, RenderSettings, SourceClipBlock, TextBlock
 
 
 def build_title_block_command(project_path: str | Path, block: TextBlock, settings: RenderSettings) -> list[str]:
@@ -188,8 +188,13 @@ def build_image_card_command(project_path: str | Path, block: ImageCardBlock, se
     ]
 
 
-def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> list[str]:
+def build_concat_command(
+    project_path: str | Path,
+    manifest: BlockManifest,
+    output_path: str | Path | None = None,
+) -> list[str]:
     root = Path(project_path)
+    target = Path(output_path) if output_path is not None else root / "renders" / "final_render.mp4"
     return [
         "ffmpeg",
         "-y",
@@ -201,7 +206,7 @@ def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> l
         str(root / "concat.txt"),
         "-c",
         "copy",
-        str(root / "renders" / "final_render.mp4"),
+        str(target),
     ]
 
 
@@ -412,3 +417,66 @@ def _panel_bounds(layout_preset: str, text_box: tuple[float, float, float, float
     if layout_preset == "stacked":
         return (left - 28, top - 24, right + 28, bottom + 42)
     return (left - 34, top - 30, right + 34, bottom + 30)
+
+
+def build_audio_overlay_command(
+    project_path: str | Path,
+    concat_output: Path,
+    audio_tracks: list[AudioTrack],
+    music_dir: Path,
+    settings: RenderSettings,
+) -> list[str]:
+    """Build an FFmpeg command that overlays music tracks onto the concat output.
+
+    Input 0 is the concat video. Each music track gets its own input.
+    The filter complex mixes all audio (original + music) into one stream.
+    """
+    from ..audio.service import resolve_music_path
+
+    root = Path(project_path)
+    final_output = root / "renders" / "final_render.mp4"
+
+    # Start with concat output as input 0
+    command = ["ffmpeg", "-y", "-i", str(concat_output)]
+    filter_parts: list[str] = []
+
+    # Each music track is an additional input
+    for i, track in enumerate(audio_tracks, start=1):
+        music_path = resolve_music_path(track.music_file)
+        command.extend(["-i", str(music_path)])
+
+        delay_ms = int(track.start_offset * 1000)
+        dur = track.duration
+        # Clamp fades so they don't exceed the track duration
+        fi = min(track.fade_in, dur / 2)
+        fo = min(track.fade_out, dur / 2)
+        fade_out_start = max(dur - fo, 0)
+
+        # Order matters: trim → reset PTS → volume → fades → THEN delay
+        filter_parts.append(
+            f"[{i}:a]atrim=0:{_seconds(dur)},"
+            f"asetpts=PTS-STARTPTS,"
+            f"volume={track.volume},"
+            f"afade=t=in:st=0:d={_seconds(fi)},"
+            f"afade=t=out:st={_seconds(fade_out_start)}:d={_seconds(fo)},"
+            f"adelay={delay_ms}|{delay_ms}"
+            f"[m{i}]"
+        )
+
+    # Build amix label list: original audio [0:a] + all music tracks
+    mix_inputs = ["[0:a]"] + [f"[m{i}]" for i in range(1, len(audio_tracks) + 1)]
+    filter_parts.append(
+        f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}"
+        f":duration=first:normalize=0[a]"
+    )
+
+    # Map video stream directly (copy), remap audio
+    command.extend([
+        "-filter_complex", ";".join(filter_parts),
+        "-map", "0:v", "-map", "[a]",
+        "-c:v", "copy",
+        "-c:a", settings.audio_codec,
+        "-ar", str(settings.sample_rate),
+        str(final_output),
+    ])
+    return command
