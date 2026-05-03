@@ -8,11 +8,15 @@ load_dotenv()
 # Required for live Gemini calls. Keep import-time loading permissive so
 # offline tests and non-AI app routes can import without a local secret.
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+GEMINI_IMAGE_API_KEY: str = os.getenv("GEMINI_IMAGE_API_KEY", "")
 
 # Model defaults (cheap by policy)
 GEMINI_TEXT_MODEL: str = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.1-flash-lite-preview")
 GEMINI_TTS_MODEL: str = os.getenv("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
 GEMINI_IMAGE_MODEL: str = os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+GEMINI_PROJECT_ID: str = os.getenv("GEMINI_PROJECT_ID", "")
+GEMINI_LOCATION: str = os.getenv("GEMINI_LOCATION", "us-central1")
+GEMINI_USE_VERTEXAI: bool = os.getenv("GEMINI_USE_VERTEXAI", "false").lower() == "true"
 
 # Feature flags
 GEMINI_ENABLE_GROUNDING: bool = os.getenv("GEMINI_ENABLE_GROUNDING", "false").lower() == "true"
