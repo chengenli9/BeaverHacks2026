@@ -38,7 +38,7 @@ def test_source_command_includes_tts_input_when_present():
                     "video_duration": 3.0,
                     "tts_asset": "assets/tts/tts_beat_002.wav",
                     "tts_duration": 2.2,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/002_beat_002.mp4",
                 }
@@ -74,7 +74,7 @@ def test_source_command_uses_silent_audio_when_source_has_no_audio():
                     "video_duration": 3.0,
                     "tts_asset": "assets/tts/tts_beat_002.wav",
                     "tts_duration": 2.2,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/002_beat_002.mp4",
                 }
@@ -112,7 +112,7 @@ def test_source_command_without_tts_still_outputs_audio_when_source_has_no_audio
                     "video_duration": 1.0,
                     "tts_asset": None,
                     "tts_duration": None,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/001_no_tts.mp4",
                 }

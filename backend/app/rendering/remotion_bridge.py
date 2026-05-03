@@ -20,10 +20,12 @@ if TYPE_CHECKING:
     from ..manifests.models import RenderSettings, TextBlock
 
 # Resolve paths relative to this file
-_BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
-_PROJECT_ROOT = _BACKEND_DIR.parent  # BeaverHacks2026/
+_APP_DIR = Path(__file__).resolve().parents[1]  # backend/app/
+_BACKEND_DIR = Path(__file__).resolve().parents[2]  # backend/
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]  # BeaverHacks2026/
 _REMOTION_DIR = _PROJECT_ROOT / "apps" / "remotion"
 _RENDER_CARD_SCRIPT = _REMOTION_DIR / "scripts" / "render-card.ts"
+_RENDER_GENERATED_SCENE_SCRIPT = _REMOTION_DIR / "scripts" / "render-generated-scene.ts"
 
 
 class RemotionNotAvailableError(Exception):
@@ -34,13 +36,87 @@ def is_remotion_available() -> bool:
     """Check whether the Remotion rendering pipeline is usable."""
     if not shutil.which("node"):
         return False
-    if not shutil.which("npx"):
-        return False
     if not _RENDER_CARD_SCRIPT.is_file():
+        return False
+    if not _RENDER_GENERATED_SCENE_SCRIPT.is_file():
         return False
     if not (_REMOTION_DIR / "node_modules").is_dir():
         return False
+    if not (_REMOTION_DIR / "node_modules" / "tsx" / "dist" / "cli.mjs").is_file():
+        return False
     return True
+
+
+def render_generated_remotion_scene(
+    project_path: str | Path,
+    block: TextBlock,
+    settings: RenderSettings,
+) -> Path:
+    if not block.motion_asset:
+        raise RuntimeError(f"Text block {block.block_id} is missing motion_asset")
+    if not is_remotion_available():
+        raise RemotionNotAvailableError(
+            "Remotion toolchain not available. "
+            "Install Node.js and run `npm install` in apps/remotion/."
+        )
+
+    root = Path(project_path).resolve()
+    output = root / block.rendered_path
+    output.parent.mkdir(parents=True, exist_ok=True)
+    remotion_raw = output.with_suffix(".remotion_raw.mp4")
+
+    _run_generated_scene(
+        project_path=root,
+        block_id=block.block_id,
+        scene_spec_path=root / block.motion_asset.scene_spec_path,
+        decorator_module_path=root / block.motion_asset.decorator_module_path if block.motion_asset.decorator_module_path else None,
+        output=remotion_raw,
+        fps=settings.fps,
+        width=settings.width,
+        height=settings.height,
+        log_dir=root / "logs",
+        mode="video",
+    )
+    _mux_silent_audio(
+        input_video=remotion_raw,
+        output_video=output,
+        duration=block.duration,
+        settings=settings,
+        log_dir=root / "logs",
+    )
+    if remotion_raw.exists() and output.exists():
+        remotion_raw.unlink()
+    return output
+
+
+def render_remotion_preview(
+    project_path: str | Path,
+    scene_spec_path: str | Path,
+    decorator_module_path: str | Path | None,
+    output_path: str | Path,
+    settings,
+) -> Path:
+    project_root = Path(project_path).resolve()
+    output = Path(output_path).resolve()
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    if not is_remotion_available():
+        _write_preview_placeholder(scene_spec_path, output, settings)
+        return output
+
+    _run_generated_scene(
+        project_path=project_root,
+        block_id=Path(scene_spec_path).parent.name,
+        scene_spec_path=Path(scene_spec_path).resolve(),
+        decorator_module_path=Path(decorator_module_path).resolve() if decorator_module_path else None,
+        output=output,
+        fps=_setting_value(settings, "fps", 30),
+        width=_setting_value(settings, "width", 1920),
+        height=_setting_value(settings, "height", 1080),
+        log_dir=project_root / "logs",
+        mode="still",
+    )
+    return output
 
 
 def render_remotion_card(
@@ -75,7 +151,7 @@ def render_remotion_card(
             "Install Node.js and run `npm install` in apps/remotion/."
         )
 
-    root = Path(project_path)
+    root = Path(project_path).resolve()
     output = root / block.rendered_path
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -145,7 +221,7 @@ def _run_render_card(
     log_path = log_dir / "remotion.log"
 
     command = [
-        "npx", "tsx",
+        *_tsx_prefix(),
         str(_RENDER_CARD_SCRIPT),
         "--composition", composition,
         "--props", json.dumps(props),
@@ -177,6 +253,68 @@ def _run_render_card(
 
     if not Path(output).exists():
         raise RuntimeError(f"Remotion render produced no output: {output}")
+
+
+def _run_generated_scene(
+    *,
+    project_path: Path,
+    block_id: str,
+    scene_spec_path: Path,
+    decorator_module_path: Path | None,
+    output: Path,
+    fps: int,
+    width: int,
+    height: int,
+    log_dir: Path,
+    mode: str,
+) -> None:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "remotion.log"
+
+    command = [
+        *_tsx_prefix(),
+        str(_RENDER_GENERATED_SCENE_SCRIPT),
+        "--project-path",
+        str(project_path),
+        "--block-id",
+        block_id,
+        "--scene-spec",
+        str(scene_spec_path),
+        "--output",
+        str(output),
+        "--fps",
+        str(fps),
+        "--width",
+        str(width),
+        "--height",
+        str(height),
+        "--mode",
+        mode,
+    ]
+    if decorator_module_path:
+        command.extend(["--decorator", str(decorator_module_path)])
+
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        cwd=str(_REMOTION_DIR),
+    )
+
+    with log_path.open("a", encoding="utf-8") as log:
+        log.write("COMMAND (generated): " + " ".join(command) + "\n")
+        log.write(f"RETURN_CODE: {completed.returncode}\n")
+        if completed.stdout:
+            log.write("STDOUT:\n" + completed.stdout + "\n")
+        if completed.stderr:
+            log.write("STDERR:\n" + completed.stderr + "\n")
+
+    if completed.returncode != 0:
+        raise RuntimeError(
+            f"Generated Remotion render failed (exit {completed.returncode}); see {log_path}"
+        )
+    if not output.exists():
+        raise RuntimeError(f"Generated Remotion render produced no output: {output}")
 
 
 def _mux_silent_audio(
@@ -217,3 +355,27 @@ def _mux_silent_audio(
         raise RuntimeError(
             f"Audio mux failed (exit {completed.returncode}); see {log_path}"
         )
+
+
+def _write_preview_placeholder(scene_spec_path: str | Path, output_path: Path, settings) -> None:
+    from PIL import Image, ImageDraw
+
+    payload = json.loads(Path(scene_spec_path).read_text(encoding="utf-8"))
+    width = _setting_value(settings, "width", 1920)
+    height = _setting_value(settings, "height", 1080)
+    background = payload.get("background_color") or "#111827"
+    image = Image.new("RGB", (width, height), background)
+    draw = ImageDraw.Draw(image)
+    draw.text((80, 80), str(payload.get("text") or "Preview"), fill=payload.get("text_color") or "#F9FAFB")
+    image.save(output_path, "PNG")
+
+
+def _setting_value(settings, key: str, default: int) -> int:
+    if isinstance(settings, dict):
+        return int(settings.get(key, default))
+    return int(getattr(settings, key, default))
+
+
+def _tsx_prefix() -> list[str]:
+    tsx_cli = _REMOTION_DIR / "node_modules" / "tsx" / "dist" / "cli.mjs"
+    return ["node", str(tsx_cli)]

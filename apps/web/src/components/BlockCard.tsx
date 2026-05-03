@@ -50,6 +50,10 @@ export function BlockCard({ block }: Props) {
         {textBlock?.layout_preset && <span className="card-meta-item">{textBlock.layout_preset}</span>}
         {textBlock?.font_family && <span className="card-meta-item">{textBlock.font_family}</span>}
         {textBlock?.background_mode && <span className="card-meta-item">{textBlock.background_mode}</span>}
+        {textBlock?.motion_asset && <span className="card-meta-item">remotion</span>}
+        {textBlock?.motion_asset?.runtime_template && (
+          <span className="card-meta-item">{textBlock.motion_asset.runtime_template}</span>
+        )}
       </div>
 
       {isClip && ttsDuration != null && ttsDuration > block.video_duration && (

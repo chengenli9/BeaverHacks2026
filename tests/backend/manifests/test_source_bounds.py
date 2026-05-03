@@ -68,7 +68,7 @@ def test_manifest_source_bounds_reject_clip_past_source_duration():
                     "video_duration": 5.0,
                     "tts_asset": None,
                     "tts_duration": None,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/001_bad.mp4",
                 }

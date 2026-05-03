@@ -6,6 +6,7 @@ import pytest
 
 from backend.app.manifests.models import BlockManifest
 from backend.app.rendering.service import (
+    render_block,
     probe_render,
     render_project,
     source_has_audio_stream,
@@ -202,7 +203,7 @@ def test_source_clip_without_audio_stream_still_renders_with_audio_output(tmp_pa
                     "video_duration": 0.5,
                     "tts_asset": None,
                     "tts_duration": None,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/001_clip.mp4",
                 }
@@ -350,3 +351,91 @@ def test_render_project_wraps_block_failures_with_block_id(tmp_path, monkeypatch
 
     with pytest.raises(RuntimeError, match="001_title"):
         render_project(tmp_path)
+
+
+def test_render_block_prefers_motion_asset_for_text_blocks(tmp_path, monkeypatch):
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "motion_project",
+            "version": 1,
+            "render_settings": {},
+            "blocks": [
+                {
+                    "block_id": "001_title",
+                    "type": "title",
+                    "background_asset": None,
+                    "text": "DirectorLoop",
+                    "duration": 1.0,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "motion_asset": {
+                        "kind": "remotion_scene",
+                        "runtime_template": "hero-reveal",
+                        "scene_spec_path": "assets/remotion/001_title/scene.json",
+                    },
+                    "rendered_path": "blocks/001_title.mp4",
+                }
+            ],
+        }
+    )
+    block = manifest.block_by_id("001_title")
+
+    import backend.app.rendering.service as service
+
+    called: dict[str, object] = {}
+
+    def fake_render_generated(project_path, block, settings):
+        called["generated"] = block.block_id
+        output = Path(project_path) / block.rendered_path
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"video")
+        return output
+
+    monkeypatch.setattr(service, "render_generated_remotion_scene", fake_render_generated)
+
+    output = render_block(tmp_path, block, manifest.render_settings)
+
+    assert output == tmp_path / "blocks" / "001_title.mp4"
+    assert called["generated"] == "001_title"
+
+
+def test_render_block_falls_back_to_static_title_render_on_motion_failure(tmp_path, monkeypatch):
+    manifest = BlockManifest.model_validate(
+        {
+            "project_id": "motion_fallback_project",
+            "version": 1,
+            "render_settings": {},
+            "blocks": [
+                {
+                    "block_id": "001_title",
+                    "type": "title",
+                    "background_asset": None,
+                    "text": "DirectorLoop",
+                    "duration": 1.0,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "background_mode": "color",
+                    "background_color": "#000000",
+                    "motion_asset": {
+                        "kind": "remotion_scene",
+                        "runtime_template": "hero-reveal",
+                        "scene_spec_path": "assets/remotion/001_title/scene.json",
+                    },
+                    "rendered_path": "blocks/001_title.mp4",
+                }
+            ],
+        }
+    )
+    block = manifest.block_by_id("001_title")
+
+    import backend.app.rendering.service as service
+
+    monkeypatch.setattr(
+        service,
+        "render_generated_remotion_scene",
+        lambda project_path, block, settings: (_ for _ in ()).throw(RuntimeError("broken remotion asset")),
+    )
+    monkeypatch.setattr(service, "build_title_block_command", lambda root, block, settings: ["ffmpeg", "-version"])
+    monkeypatch.setattr(service, "_run", lambda command, log_path: None)
+
+    output = render_block(tmp_path, block, manifest.render_settings)
+
+    assert output == tmp_path / "blocks" / "001_title.mp4"

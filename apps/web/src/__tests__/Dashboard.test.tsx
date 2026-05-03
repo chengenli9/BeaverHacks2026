@@ -97,6 +97,12 @@ const mockManifest = {
       text: 'DirectorLoop',
       duration: 3,
       fontfile: 'assets/fonts/Inter-Bold.ttf',
+      motion_asset: {
+        kind: 'remotion_scene' as const,
+        runtime_template: 'hero-reveal',
+        scene_spec_path: 'assets/remotion/001_title/scene.json',
+        preview_frame_path: 'assets/remotion/001_title/preview.png',
+      },
       rendered_path: 'blocks/001_title.mp4',
     },
     {
@@ -108,7 +114,7 @@ const mockManifest = {
       video_duration: 4,
       tts_asset: null,
       tts_duration: null,
-      source_audio_volume: 0.15,
+      source_audio_volume: 1,
       tts_fade_seconds: 0.5,
       rendered_path: 'blocks/002_clip_without_tts.mp4',
     },
@@ -153,6 +159,28 @@ const mockRenderQa = {
   issues: [],
 }
 
+const fullArtifacts = {
+  media_probe: true,
+  shot_index: true,
+  scene_index: true,
+  plan: true,
+  manifest: true,
+  critic: true,
+  render_qa: true,
+  render: true,
+}
+
+const emptyArtifacts = {
+  media_probe: false,
+  shot_index: false,
+  scene_index: false,
+  plan: false,
+  manifest: false,
+  critic: false,
+  render_qa: false,
+  render: false,
+}
+
 function mockApi() {
   const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>
   return m
@@ -189,7 +217,7 @@ describe('Dashboard', () => {
   it('opens demo project and populates artifact panels', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/', artifacts: fullArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockResolvedValue(mockSceneIndex)
     m.getPlan.mockResolvedValue(mockPlan)
@@ -216,7 +244,7 @@ describe('Dashboard', () => {
   it('polls a running job and updates progress', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -247,7 +275,7 @@ describe('Dashboard', () => {
   it('renders failed job retry state', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -278,7 +306,7 @@ describe('Dashboard', () => {
   it('renders critic suggestions with approve/reject controls', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getMediaProbe.mockResolvedValue(mockMediaProbe)
     m.getRenderQa.mockResolvedValue(mockRenderQa)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
@@ -302,10 +330,32 @@ describe('Dashboard', () => {
     expect(screen.getByText(/repeated frames/i)).toBeInTheDocument()
   })
 
+  it('shows remotion metadata for generated text blocks', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/', artifacts: fullArtifacts })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
+    m.getSceneIndex.mockResolvedValue(mockSceneIndex)
+    m.getPlan.mockResolvedValue(mockPlan)
+    m.getManifest.mockResolvedValue(mockManifest)
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    expect(await screen.findByText('Demo Project')).toBeInTheDocument()
+
+    const centerPanel = document.querySelector('#center-panel') as HTMLElement
+    await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
+
+    expect(within(centerPanel).getByText('remotion')).toBeInTheDocument()
+    expect(within(centerPanel).getByText('hero-reveal')).toBeInTheDocument()
+  })
+
   it('submits approved and rejected critic suggestion ids', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -319,7 +369,7 @@ describe('Dashboard', () => {
     await user.click(screen.getByText('Output'))
     await user.click(await screen.findByRole('button', { name: /Approve s001/i }))
     await user.click(screen.getByRole('button', { name: /Reject s002/i }))
-    await user.click(screen.getByRole('button', { name: /Apply Changes/i }))
+    await user.click(screen.getByRole('button', { name: /Apply 1 Approved/i }))
 
     expect(m.applyApprovedPatches).toHaveBeenCalledWith({
       project_id: 'demo_project',
@@ -331,7 +381,7 @@ describe('Dashboard', () => {
   it('renders render preview when render summary exists', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -355,7 +405,7 @@ describe('Dashboard', () => {
   it('creates and loads a new empty project', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.createProject.mockResolvedValue({ project_id: 'new-project', display_name: 'New Project', artifacts: {} })
+    m.createProject.mockResolvedValue({ project_id: 'new-project', display_name: 'New Project', artifacts: emptyArtifacts })
     m.getProjectMedia.mockResolvedValue({ project_id: 'new-project', files: [] })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -373,7 +423,7 @@ describe('Dashboard', () => {
   it('renders backend media files and previews a selected video', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -397,7 +447,7 @@ describe('Dashboard', () => {
     const user = userEvent.setup()
     const m = mockApi()
     const file = new File(['fake'], 'dropped.mp4', { type: 'video/mp4' })
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getProjectMedia
       .mockResolvedValueOnce({ project_id: 'demo_project', files: [] })
       .mockResolvedValueOnce({
@@ -427,7 +477,7 @@ describe('Dashboard', () => {
   it('renders the timeline inside the center panel', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: fullArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
@@ -450,7 +500,7 @@ describe('Dashboard', () => {
   it('renders the review stage after render', async () => {
     const user = userEvent.setup()
     const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '', artifacts: emptyArtifacts })
     m.getProjectMedia.mockResolvedValue(mockMedia)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))

@@ -15,6 +15,11 @@ def test_build_manifest_from_plan_creates_deterministic_blocks(tmp_path):
     project = tmp_path
     (project / "cache").mkdir()
     (project / "manifests").mkdir()
+    (project / "assets" / "remotion" / "001_title").mkdir(parents=True)
+    (project / "assets" / "remotion" / "001_title" / "scene.json").write_text("{}", encoding="utf-8")
+    (project / "assets" / "remotion" / "001_title" / "preview.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (project / "assets" / "remotion" / "005_end").mkdir(parents=True)
+    (project / "assets" / "remotion" / "005_end" / "scene.json").write_text("{}", encoding="utf-8")
     (project / "cache" / "scene_index.json").write_text(
         """
         {
@@ -67,6 +72,9 @@ def test_build_manifest_from_plan_creates_deterministic_blocks(tmp_path):
     ]
     assert manifest.block_by_id("001_title").background_asset == "assets/backgrounds/bg_001.png"
     assert manifest.block_by_id("001_title").fontfile == "assets/fonts/Inter-Bold.ttf"
+    assert manifest.block_by_id("001_title").motion_asset.kind == "remotion_scene"
+    assert manifest.block_by_id("001_title").motion_asset.scene_spec_path == "assets/remotion/001_title/scene.json"
+    assert manifest.block_by_id("001_title").motion_asset.preview_frame_path == "assets/remotion/001_title/preview.png"
 
     beat_002 = manifest.block_by_id("002_beat_002")
     assert beat_002.source == "source/demo_footage.mp4"
@@ -84,6 +92,8 @@ def test_build_manifest_from_plan_creates_deterministic_blocks(tmp_path):
     end = manifest.block_by_id("005_end")
     assert end.type == "end_card"
     assert end.text == "Gemini plans. FFmpeg renders."
+    assert end.motion_asset.kind == "remotion_scene"
+    assert end.motion_asset.scene_spec_path == "assets/remotion/005_end/scene.json"
 
 
 def test_build_manifest_writes_block_manifest_json(tmp_path):

@@ -272,7 +272,7 @@ def test_invalid_approved_suggestion_is_skipped_while_valid_one_applies():
                     "source_start": 0.0,
                     "source_end": 3.0,
                     "video_duration": 3.0,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": "blocks/002_demo.mp4",
                 },

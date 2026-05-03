@@ -8,9 +8,10 @@ export function CriticPanel() {
   if (!criticSuggestions) return null
 
   const decisions = Object.values(approvalState)
-  const allDecided = decisions.length > 0 && decisions.every((value) => value !== 'pending')
   const approvedCount = decisions.filter((value) => value === 'approved').length
   const rejectedCount = decisions.filter((value) => value === 'rejected').length
+  const skippedCount = decisions.filter((value) => value === 'pending').length
+  const hasAnyDecision = approvedCount + rejectedCount > 0
 
   return (
     <div id="critic-section">
@@ -104,11 +105,12 @@ export function CriticPanel() {
       <button
         className="apply-btn"
         onClick={submitApprovals}
-        disabled={!allDecided}
+        disabled={!hasAnyDecision}
         id="apply-patches-btn"
       >
         <Send size={14} />
-        Apply Changes ({approvedCount} approved, {rejectedCount} rejected)
+        Apply {approvedCount} Approved{rejectedCount > 0 ? `, ${rejectedCount} Rejected` : ''}
+        {skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}
       </button>
     </div>
   )

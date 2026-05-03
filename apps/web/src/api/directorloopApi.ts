@@ -9,7 +9,6 @@ import type {
   MediaTree,
   PipelineJobKind,
   Plan,
-  ProjectListItem,
   ProjectSummary,
   RenderQa,
   RenderSummary,
@@ -117,8 +116,8 @@ export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStar
   })
 }
 
-export async function listProjects(): Promise<ProjectListItem[]> {
-  return request<ProjectListItem[]>('/projects')
+export async function listProjects(): Promise<ProjectSummary[]> {
+  return request<ProjectSummary[]>('/projects')
 }
 
 export function updateProject(projectId: string, name: string, description: string, starred?: boolean): Promise<ProjectSummary> {

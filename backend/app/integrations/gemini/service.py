@@ -12,7 +12,9 @@ from .settings import GEMINI_IMAGE_MODEL
 from ...manifests.models import BlockManifest, CriticSuggestions, Plan, SceneIndex
 from ...manifests.service import _suggestion_is_actionable
 from ...media.models import MediaProbe, RenderQa, ShotIndex
-from ...media.service import build_render_qa, detect_shots, find_primary_video, inspect_source_media
+from ...media.service import _extract_frame, build_render_qa, detect_shots, find_primary_video, inspect_source_media
+from ...remotion.models import GeneratedTextSceneBundle, GeneratedTextSceneSpec
+from ...rendering.remotion_bridge import render_remotion_preview
 
 
 _PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
@@ -70,11 +72,24 @@ def analyze_scenes(project_path: Path, progress_callback=None) -> dict:
 
     result["project_id"] = project_id
     result["source"] = media_probe.source
+    result["source_duration"] = media_probe.duration_seconds
+    result = _normalize_scene_index_result(result, media_probe.duration_seconds)
     scene_index = SceneIndex.model_validate(result)
 
     out_path = project_path / "cache" / "scene_index.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(scene_index.model_dump_json(indent=2), encoding="utf-8")
+
+    if video_file:
+        frames_dir = project_path / "cache" / "frames"
+        frames_dir.mkdir(parents=True, exist_ok=True)
+        for scene in scene_index.scenes:
+            mid = (scene.start + scene.end) / 2
+            frame_out = frames_dir / f"{scene.scene_id}_mid.jpg"
+            try:
+                _extract_frame(video_file, mid, frame_out)
+            except Exception:
+                pass
 
     _log_call(
         project_path=project_path,
@@ -109,7 +124,7 @@ def generate_plan(project_path: Path) -> dict:
         "Media probe:\n"
         f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
         "Generate a plan response matching the API contract. "
-        "For title and end_card beats, provide a style object when it helps the demo feel more distinctive. "
+        "For title, scene_card, and end_card beats, provide a style object when it helps the demo feel more distinctive. "
         "Narration should stay concise, but TTS precision is not the priority for this demo."
     )
 
@@ -186,14 +201,20 @@ def generate_background_assets(project_path: Path) -> list[dict]:
     project_path = Path(project_path)
     project_id = project_path.name
     plan = json.loads((project_path / "manifests" / "plan.json").read_text(encoding="utf-8"))
+    scene_index = _maybe_load(SceneIndex, project_path / "cache" / "scene_index.json")
+    shot_index = _maybe_load(ShotIndex, project_path / "cache" / "shot_index.json")
 
     bg_dir = project_path / "assets" / "backgrounds"
     bg_dir.mkdir(parents=True, exist_ok=True)
+    remotion_dir = project_path / "assets" / "remotion"
+    remotion_dir.mkdir(parents=True, exist_ok=True)
     results = []
 
     for idx, beat in enumerate(plan.get("beats", []), start=1):
-        if beat.get("type") not in ("title", "end_card"):
+        if beat.get("type") not in ("title", "end_card", "scene_card"):
             continue
+        btype = beat.get("type")
+        block_id = f"{idx:03d}_end" if btype == "end_card" else f"{idx:03d}_{btype}"
         style = beat.get("style") or {}
         background_mode = style.get("background_mode") or "gradient"
         bg_filename = f"bg_{idx:03d}.png"
@@ -212,7 +233,44 @@ def generate_background_assets(project_path: Path) -> list[dict]:
                 style=style,
             )
         relative_asset = f"assets/backgrounds/{bg_filename}"
-        results.append({"beat_id": beat["beat_id"], "background_asset": relative_asset})
+        bundle = _generate_text_scene_bundle(
+            project_path=project_path,
+            plan=plan,
+            beat=beat,
+            beat_index=idx - 1,
+            block_id=block_id,
+            scene_index=scene_index,
+            shot_index=shot_index,
+            background_asset=relative_asset,
+        )
+        scene_dir = remotion_dir / block_id
+        scene_dir.mkdir(parents=True, exist_ok=True)
+        scene_spec_path = scene_dir / "scene.json"
+        scene_spec_path.write_text(bundle.scene_spec.model_dump_json(indent=2), encoding="utf-8")
+        decorator_path = None
+        if bundle.decorator_code:
+            decorator_path = scene_dir / "decorator.tsx"
+            decorator_path.write_text(bundle.decorator_code, encoding="utf-8")
+        preview_path = scene_dir / "preview.png"
+        try:
+            render_remotion_preview(
+                project_path,
+                scene_spec_path,
+                decorator_path,
+                preview_path,
+                _default_render_settings(),
+            )
+        except Exception:
+            _write_preview_stub(preview_path, beat.get("onscreen_text") or beat.get("goal") or block_id)
+        results.append(
+            {
+                "beat_id": beat["beat_id"],
+                "background_asset": relative_asset,
+                "scene_spec_path": f"assets/remotion/{block_id}/scene.json",
+                "decorator_module_path": f"assets/remotion/{block_id}/decorator.tsx" if decorator_path else None,
+                "preview_frame_path": f"assets/remotion/{block_id}/preview.png",
+            }
+        )
 
         _log_call(
             project_path=project_path,
@@ -466,3 +524,198 @@ def _build_background_prompt(*, goal: str, text: str, style: dict) -> str:
         f"Base palette around {background} with accent notes around {accent}. "
         "No words, no logos, no UI screenshots, no watermarks."
     )
+
+
+def _normalize_scene_index_result(result: dict, source_duration: float) -> dict:
+    normalized = dict(result)
+    scenes = []
+    for index, scene in enumerate(result.get("scenes", []), start=1):
+        item = dict(scene)
+        start = max(0.0, float(item.get("start", 0.0)))
+        end = min(float(item.get("end", source_duration)), source_duration)
+        if end <= start:
+            end = min(source_duration, start + 0.05)
+        if end <= start:
+            continue
+        item["scene_id"] = item.get("scene_id") or f"scene_{index:03d}"
+        item["start"] = round(start, 4)
+        item["end"] = round(end, 4)
+        scenes.append(item)
+    normalized["scenes"] = scenes
+    return normalized
+
+
+def _generate_text_scene_bundle(
+    *,
+    project_path: Path,
+    plan: dict,
+    beat: dict,
+    beat_index: int,
+    block_id: str,
+    scene_index: SceneIndex | None,
+    shot_index: ShotIndex | None,
+    background_asset: str,
+) -> GeneratedTextSceneBundle:
+    system_prompt = _load_prompt("remotion_text_scene")
+    user_prompt = _build_remotion_generation_prompt(
+        project_id=project_path.name,
+        plan=plan,
+        beat=beat,
+        beat_index=beat_index,
+        block_id=block_id,
+        scene_index=scene_index,
+        shot_index=shot_index,
+        background_asset=background_asset,
+    )
+    try:
+        result, _usage = _client.complete_json(
+            user_prompt,
+            system=system_prompt,
+            schema=GeneratedTextSceneBundle.model_json_schema(),
+        )
+        return GeneratedTextSceneBundle.model_validate(result)
+    except Exception:
+        return _fallback_text_scene_bundle(beat=beat, block_id=block_id, background_asset=background_asset)
+
+
+def _build_remotion_generation_prompt(
+    *,
+    project_id: str,
+    plan: dict,
+    beat: dict,
+    beat_index: int,
+    block_id: str,
+    scene_index: SceneIndex | None,
+    shot_index: ShotIndex | None,
+    background_asset: str,
+) -> str:
+    neighbors = []
+    beats = plan.get("beats", [])
+    if beat_index > 0:
+        neighbors.append({"position": "previous", **_neighbor_summary(beats[beat_index - 1])})
+    if beat_index + 1 < len(beats):
+        neighbors.append({"position": "next", **_neighbor_summary(beats[beat_index + 1])})
+    nearby_scenes = scene_index.model_dump(mode="json")["scenes"][:3] if scene_index else []
+    nearby_shots = shot_index.model_dump(mode="json")["shots"][:4] if shot_index else []
+    payload = {
+        "project_id": project_id,
+        "project_title": plan.get("title"),
+        "block_id": block_id,
+        "block_type": beat.get("type"),
+        "duration_seconds": beat.get("duration"),
+        "goal": beat.get("goal"),
+        "onscreen_text": beat.get("onscreen_text") or plan.get("title"),
+        "style": beat.get("style") or {},
+        "background_asset": background_asset,
+        "neighboring_beats": neighbors,
+        "nearby_scenes": nearby_scenes,
+        "nearby_shots": nearby_shots,
+        "remotion_rules": [
+            "Use useCurrentFrame(), interpolate(), and Sequence for timing.",
+            "Do not use CSS transitions or CSS animations.",
+            "Keep rendering deterministic and local-asset friendly.",
+            "Stay within a readable 16:9 title-card composition.",
+            "Return only the approved structured JSON contract.",
+            "Reuse the same accent_color and background_color across all title and end_card blocks in a project for brand consistency.",
+            "Never use filler text like 'Initializing Project' or 'Setting Up'. Use the project title or a compelling hook.",
+        ],
+    }
+    return (
+        f"Project title: {plan.get('title')}\n"
+        f"Current block ID: {block_id}\n"
+        "Neighboring beats:\n"
+        f"{json.dumps(neighbors, indent=2)}\n\n"
+        "Generation context:\n"
+        f"{json.dumps(payload, indent=2)}"
+    )
+
+
+def _neighbor_summary(beat: dict) -> dict:
+    return {
+        "beat_id": beat.get("beat_id"),
+        "type": beat.get("type"),
+        "goal": beat.get("goal"),
+        "duration": beat.get("duration"),
+        "onscreen_text": beat.get("onscreen_text"),
+    }
+
+
+def _fallback_text_scene_bundle(*, beat: dict, block_id: str, background_asset: str) -> GeneratedTextSceneBundle:
+    style = beat.get("style") or {}
+    background_mode = style.get("background_mode") or "gradient"
+    runtime_template = _runtime_template_from_style(style)
+    scene_spec = GeneratedTextSceneSpec.model_validate(
+        {
+            "version": 1,
+            "block_type": beat.get("type"),
+            "text": beat.get("onscreen_text") or beat.get("goal") or block_id,
+            "duration_seconds": beat.get("duration") or 3.0,
+            "runtime_template": runtime_template,
+            "layout_preset": style.get("layout_preset") or "centered",
+            "text_alignment": style.get("text_alignment") or "center",
+            "font_family": style.get("font_family") or "display-sans",
+            "font_variant": style.get("font_variant") or "bold",
+            "text_color": style.get("text_color") or "#F9FAFB",
+            "accent_color": style.get("accent_color") or _default_accent_color(beat.get("goal", "")),
+            "background_mode": background_mode,
+            "background_color": style.get("background_color") or _default_background_color(beat.get("goal", "")),
+            "background_image_path": background_asset if background_mode in {"image", "image_tint"} else None,
+            "animation_preset": "fade-in",
+            "show_glass_panel": True,
+            "show_accent_bar": True,
+        }
+    )
+    decorator_code = _fallback_decorator_code(runtime_template)
+    return GeneratedTextSceneBundle.model_validate(
+        {
+            "runtime_template": runtime_template,
+            "scene_spec": scene_spec.model_dump(mode="json"),
+            "decorator_code": decorator_code,
+            "background_requirements": {"mode": "generated_image" if background_mode in {"image", "image_tint"} else "local", "prompt": None},
+        }
+    )
+
+
+def _runtime_template_from_style(style: dict) -> str:
+    layout = style.get("layout_preset") or "centered"
+    if layout in {"hero-left", "hero-right"}:
+        return "split-panel"
+    if layout == "stacked":
+        return "stacked-pulse"
+    return "hero-reveal"
+
+
+def _fallback_decorator_code(runtime_template: str) -> str:
+    if runtime_template == "split-panel":
+        return (
+            "import React from 'react';\n"
+            "export default function Decorator() {\n"
+            "  return <div style={{position:'absolute', inset:0, border:'1px solid rgba(255,255,255,0.06)'}} />;\n"
+            "}\n"
+        )
+    if runtime_template == "stacked-pulse":
+        return (
+            "import React from 'react';\n"
+            "export default function Decorator() {\n"
+            "  return <div style={{position:'absolute', inset:32, borderRadius:28, boxShadow:'0 0 120px rgba(91,140,255,0.12) inset'}} />;\n"
+            "}\n"
+        )
+    return (
+        "import React from 'react';\n"
+        "export default function Decorator() {\n"
+        "  return <div style={{position:'absolute', inset:0, pointerEvents:'none'}} />;\n"
+        "}\n"
+    )
+
+
+def _default_render_settings() -> dict:
+    return {"fps": 30, "width": 1920, "height": 1080}
+
+
+def _write_preview_stub(path: Path, label: str) -> None:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (1280, 720), "#111827")
+    draw = ImageDraw.Draw(image)
+    draw.text((64, 64), label, fill="#F9FAFB")
+    image.save(path, "PNG")

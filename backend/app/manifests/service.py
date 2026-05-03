@@ -15,6 +15,7 @@ from .models import (
     CriticSuggestions,
     EndCardBlock,
     Plan,
+    SceneCardBlock,
     SceneIndex,
     SourceClipBlock,
     TextBlock,
@@ -67,6 +68,8 @@ def build_manifest_from_plan(
     for index, beat in enumerate(plan.beats, start=1):
         ordinal = f"{index:03d}"
         style = beat.style.model_dump(mode="json", exclude_none=True) if getattr(beat, "style", None) else {}
+        is_text_block = beat.type in {"title", "end_card", "scene_card"}
+        motion_asset = _motion_asset_for_block(project_path, f"{ordinal}_end" if beat.type == "end_card" else f"{ordinal}_{beat.type}") if is_text_block else None
         if beat.type == "title":
             blocks.append(
                 {
@@ -76,8 +79,23 @@ def build_manifest_from_plan(
                     "text": beat.onscreen_text or plan.title,
                     "duration": beat.duration,
                     "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "motion_asset": motion_asset,
                     **style,
                     "rendered_path": f"blocks/{ordinal}_title.mp4",
+                }
+            )
+        elif beat.type == "scene_card":
+            blocks.append(
+                {
+                    "block_id": f"{ordinal}_{beat.beat_id}",
+                    "type": "scene_card",
+                    "background_asset": f"assets/backgrounds/bg_{ordinal}.png",
+                    "text": beat.onscreen_text or beat.goal,
+                    "duration": beat.duration,
+                    "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "motion_asset": motion_asset,
+                    **style,
+                    "rendered_path": f"blocks/{ordinal}_{beat.beat_id}.mp4",
                 }
             )
         elif beat.type == "end_card":
@@ -89,6 +107,7 @@ def build_manifest_from_plan(
                     "text": beat.onscreen_text or plan.title,
                     "duration": beat.duration,
                     "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    "motion_asset": motion_asset,
                     **style,
                     "rendered_path": f"blocks/{ordinal}_end.mp4",
                 }
@@ -112,7 +131,7 @@ def build_manifest_from_plan(
                     "video_duration": video_duration,
                     "tts_asset": tts_asset,
                     "tts_duration": tts_duration if tts_asset else None,
-                    "source_audio_volume": 0.15,
+                    "source_audio_volume": 1.0,
                     "tts_fade_seconds": 0.5,
                     "rendered_path": f"blocks/{ordinal}_{beat.beat_id}.mp4",
                 }
@@ -165,7 +184,7 @@ def validate_project_assets(
     for block in manifest.blocks:
         if isinstance(block, TextBlock):
             _require_file(root, block.fontfile)
-            if require_media:
+            if require_media and block.background_asset:
                 _require_file(root, block.background_asset)
         if isinstance(block, SourceClipBlock) and require_media:
             _require_file(root, block.source)
@@ -338,6 +357,34 @@ def _block_index(blocks: list[Block], block_id: str) -> int:
 
 def _tts_asset_for_beat(beat_id: str) -> str:
     return f"assets/tts/tts_{beat_id}.wav"
+
+
+def _motion_asset_for_block(project_path: str | Path, block_id: str) -> dict | None:
+    root = Path(project_path)
+    scene_spec = root / "assets" / "remotion" / block_id / "scene.json"
+    if not scene_spec.exists():
+        return None
+    decorator = root / "assets" / "remotion" / block_id / "decorator.tsx"
+    preview = root / "assets" / "remotion" / block_id / "preview.png"
+    return {
+        "kind": "remotion_scene",
+        "runtime_template": _runtime_template_for_scene(scene_spec),
+        "scene_spec_path": _relative_project_path(root, scene_spec),
+        "decorator_module_path": _relative_project_path(root, decorator) if decorator.exists() else None,
+        "preview_frame_path": _relative_project_path(root, preview) if preview.exists() else None,
+    }
+
+
+def _runtime_template_for_scene(scene_spec_path: Path) -> str:
+    try:
+        payload = json.loads(scene_spec_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return "hero-reveal"
+    return str(payload.get("runtime_template") or "hero-reveal")
+
+
+def _relative_project_path(project_root: Path, path: Path) -> str:
+    return path.relative_to(project_root).as_posix()
 
 
 def _snap_duration_seconds(value: float) -> float:

@@ -127,6 +127,14 @@ export interface RenderSettings {
   pixel_format: string
 }
 
+export interface MotionAssetRef {
+  kind: 'remotion_scene'
+  runtime_template: 'hero-reveal' | 'split-panel' | 'stacked-pulse'
+  scene_spec_path: string
+  decorator_module_path?: string | null
+  preview_frame_path?: string | null
+}
+
 export interface TitleBlock {
   block_id: string
   type: 'title'
@@ -142,6 +150,7 @@ export interface TitleBlock {
   background_color?: string | null
   text_alignment?: 'left' | 'center' | 'right'
   layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked'
+  motion_asset?: MotionAssetRef | null
   rendered_path: string
 }
 
@@ -156,6 +165,7 @@ export interface SourceClipBlock {
   tts_duration: number | null
   source_audio_volume: number
   tts_fade_seconds: number
+  motion_asset?: MotionAssetRef | null
   rendered_path: string
 }
 
@@ -174,6 +184,7 @@ export interface EndCardBlock {
   background_color?: string | null
   text_alignment?: 'left' | 'center' | 'right'
   layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked'
+  motion_asset?: MotionAssetRef | null
   rendered_path: string
 }
 

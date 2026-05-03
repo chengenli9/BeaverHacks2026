@@ -283,6 +283,7 @@ async function loadIfAvailable(load: () => Promise<void>) {
 
 async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: ProjectSummary) {
   const projectId = project.project_id
+  const artifacts = project.artifacts ?? {}
   dispatch({ type: 'SET_PROJECT', payload: project })
   dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Project: ${project.display_name ?? project.name ?? projectId}`) })
 
@@ -290,44 +291,60 @@ async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: Proje
     const data = await api.getProjectMedia(projectId)
     dispatch({ type: 'SET_MEDIA_TREE', payload: data })
   })
-  await loadIfAvailable(async () => {
-    const data = await api.getSceneIndex(projectId)
-    dispatch({ type: 'SET_SCENE_INDEX', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'analyze-scenes', status: 'succeeded' } })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getMediaProbe(projectId)
-    dispatch({ type: 'SET_MEDIA_PROBE', payload: data })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getShotIndex(projectId)
-    dispatch({ type: 'SET_SHOT_INDEX', payload: data })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getPlan(projectId)
-    dispatch({ type: 'SET_PLAN', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'generate-plan', status: 'succeeded' } })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getManifest(projectId)
-    dispatch({ type: 'SET_MANIFEST', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'build-manifest', status: 'succeeded' } })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getRender(projectId)
-    dispatch({ type: 'SET_RENDER_SUMMARY', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'render', status: 'succeeded' } })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getRenderQa(projectId)
-    dispatch({ type: 'SET_RENDER_QA', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'review-render', status: 'succeeded' } })
-  })
-  await loadIfAvailable(async () => {
-    const data = await api.getCriticSuggestions(projectId)
-    dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'review-render', status: 'succeeded' } })
-  })
+  if (artifacts.scene_index) {
+    await loadIfAvailable(async () => {
+      const data = await api.getSceneIndex(projectId)
+      dispatch({ type: 'SET_SCENE_INDEX', payload: data })
+      dispatch({ type: 'SET_STAGE', payload: { stage: 'analyze-scenes', status: 'succeeded' } })
+    })
+  }
+  if (artifacts.media_probe) {
+    await loadIfAvailable(async () => {
+      const data = await api.getMediaProbe(projectId)
+      dispatch({ type: 'SET_MEDIA_PROBE', payload: data })
+    })
+  }
+  if (artifacts.shot_index) {
+    await loadIfAvailable(async () => {
+      const data = await api.getShotIndex(projectId)
+      dispatch({ type: 'SET_SHOT_INDEX', payload: data })
+    })
+  }
+  if (artifacts.plan) {
+    await loadIfAvailable(async () => {
+      const data = await api.getPlan(projectId)
+      dispatch({ type: 'SET_PLAN', payload: data })
+      dispatch({ type: 'SET_STAGE', payload: { stage: 'generate-plan', status: 'succeeded' } })
+    })
+  }
+  if (artifacts.manifest) {
+    await loadIfAvailable(async () => {
+      const data = await api.getManifest(projectId)
+      dispatch({ type: 'SET_MANIFEST', payload: data })
+      dispatch({ type: 'SET_STAGE', payload: { stage: 'build-manifest', status: 'succeeded' } })
+    })
+  }
+  if (artifacts.render) {
+    await loadIfAvailable(async () => {
+      const data = await api.getRender(projectId)
+      dispatch({ type: 'SET_RENDER_SUMMARY', payload: data })
+      dispatch({ type: 'SET_STAGE', payload: { stage: 'render', status: 'succeeded' } })
+    })
+  }
+  if (artifacts.render_qa) {
+    await loadIfAvailable(async () => {
+      const data = await api.getRenderQa(projectId)
+      dispatch({ type: 'SET_RENDER_QA', payload: data })
+      dispatch({ type: 'SET_STAGE', payload: { stage: 'review-render', status: 'succeeded' } })
+    })
+  }
+  if (artifacts.critic) {
+    await loadIfAvailable(async () => {
+      const data = await api.getCriticSuggestions(projectId)
+      dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
+      dispatch({ type: 'SET_STAGE', payload: { stage: 'review-render', status: 'succeeded' } })
+    })
+  }
 }
 
 export function useJobPoller() {
@@ -486,7 +503,7 @@ export function usePipelineActions() {
     const rejected: string[] = []
     for (const [id, value] of Object.entries(state.approvalState)) {
       if (value === 'approved') approved.push(id)
-      if (value === 'rejected') rejected.push(id)
+      else if (value === 'rejected') rejected.push(id)
     }
 
     try {
@@ -513,13 +530,14 @@ export function usePipelineActions() {
   const loadProject = useCallback(async (projectId: string) => {
     try {
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Loading project ${projectId}...`) })
-      // Create a minimal ProjectSummary to hydrate from
-      const project: ProjectSummary = {
+      const projects = await api.listProjects().catch(() => [])
+      const project = projects.find((entry) => entry.project_id === projectId) ?? {
         project_id: projectId,
         name: projectId,
         display_name: projectId.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-        status: 'empty',
+        status: 'empty' as const,
         updated_at: new Date().toISOString(),
+        artifacts: {},
       }
       await hydrateProject(dispatch, project)
     } catch (error) {

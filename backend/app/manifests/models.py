@@ -17,6 +17,21 @@ class RenderSettings(BaseModel):
     pixel_format: str = "yuv420p"
 
 
+class MotionAssetRef(BaseModel):
+    kind: Literal["remotion_scene"]
+    runtime_template: Literal["hero-reveal", "split-panel", "stacked-pulse"]
+    scene_spec_path: str
+    decorator_module_path: str | None = None
+    preview_frame_path: str | None = None
+
+    @field_validator("scene_spec_path", "decorator_module_path", "preview_frame_path")
+    @classmethod
+    def motion_asset_paths_must_be_project_relative(cls, value: str | None) -> str | None:
+        if value is not None:
+            _validate_project_relative_path(value)
+        return value
+
+
 class BeatStyle(BaseModel):
     font_family: str | None = None
     font_variant: str | None = None
@@ -79,7 +94,7 @@ class SceneIndex(BaseModel):
 
 class PlanBeat(BaseModel):
     beat_id: str
-    type: Literal["title", "source_clip", "end_card"]
+    type: Literal["title", "source_clip", "scene_card", "end_card"]
     goal: str
     scene_id: str | None = None
     duration: float = Field(gt=0)
@@ -133,6 +148,7 @@ class BaseBlock(BaseModel):
     block_id: str
     type: str
     rendered_path: str
+    motion_asset: MotionAssetRef | None = None
 
     @field_validator("rendered_path")
     @classmethod
@@ -164,7 +180,7 @@ class TextBlock(BaseBlock):
 
     @model_validator(mode="after")
     def validate_background_requirements(self) -> "TextBlock":
-        if self.background_mode in {"image", "image_tint"} and not self.background_asset:
+        if self.background_mode in {"image", "image_tint"} and not self.background_asset and self.motion_asset is None:
             raise ValueError("background_asset is required for image-based text blocks")
         return self
 
@@ -177,6 +193,10 @@ class EndCardBlock(TextBlock):
     type: Literal["end_card"]
 
 
+class SceneCardBlock(TextBlock):
+    type: Literal["scene_card"]
+
+
 class SourceClipBlock(BaseBlock):
     type: Literal["source_clip"]
     source: str
@@ -185,7 +205,7 @@ class SourceClipBlock(BaseBlock):
     video_duration: float = Field(gt=0)
     tts_asset: str | None = None
     tts_duration: float | None = Field(default=None, ge=0)
-    source_audio_volume: float = Field(default=0.15, ge=0, le=1)
+    source_audio_volume: float = Field(default=1.0, ge=0, le=1)
     tts_fade_seconds: float = Field(default=0.5, ge=0)
 
     @field_validator("source", "tts_asset")
@@ -208,7 +228,7 @@ class SourceClipBlock(BaseBlock):
 
 
 Block = Annotated[
-    Union[TitleBlock, SourceClipBlock, EndCardBlock],
+    Union[TitleBlock, SourceClipBlock, SceneCardBlock, EndCardBlock],
     Field(discriminator="type"),
 ]
 

@@ -15,8 +15,7 @@ from .commands import (
 )
 from .remotion_bridge import (
     RemotionNotAvailableError,
-    is_remotion_available,
-    render_remotion_card,
+    render_generated_remotion_scene,
 )
 
 
@@ -34,14 +33,13 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
     output = root / block.rendered_path
     output.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(block, TextBlock):
-        # Try Remotion first for animated title/end-card blocks
-        if is_remotion_available():
+        if block.motion_asset:
             try:
-                return render_remotion_card(root, block, settings)
+                return render_generated_remotion_scene(root, block, settings)
             except Exception as exc:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Remotion render failed, falling back to Pillow+FFmpeg: %s", exc
+                    "Generated Remotion render failed, falling back to Pillow+FFmpeg: %s", exc
                 )
         # Fallback: static Pillow + FFmpeg
         command = build_title_block_command(root, block, settings)

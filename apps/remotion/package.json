@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "studio": "remotion studio",
-    "render": "remotion render",
-    "build": "tsc -b",
-    "render-card": "tsx scripts/render-card.ts"
+    "studio": "node ./node_modules/@remotion/cli/remotion-cli.js studio",
+    "render": "node ./node_modules/@remotion/cli/remotion-cli.js render",
+    "build": "node ./node_modules/typescript/bin/tsc -b",
+    "render-card": "node ./node_modules/tsx/dist/cli.mjs scripts/render-card.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.261",
