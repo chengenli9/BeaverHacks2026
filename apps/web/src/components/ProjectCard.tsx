@@ -145,9 +145,12 @@ export function ProjectCard({ project, onEdit, onDelete, onToggleStar }: Props) 
 
   return (
     <div className="project-card-wrapper">
-      <button
+      <div
         className="project-card"
         onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter') handleClick() }}
         id={`project-card-${project.project_id}`}
       >
         {/* Thumbnail */}
@@ -179,7 +182,7 @@ export function ProjectCard({ project, onEdit, onDelete, onToggleStar }: Props) 
             <span>Edited {timeAgo(project.updated_at)}</span>
           </div>
         </div>
-      </button>
+      </div>
 
       {/* Context menu button */}
       <div className="project-card-menu-area" ref={menuRef}>
