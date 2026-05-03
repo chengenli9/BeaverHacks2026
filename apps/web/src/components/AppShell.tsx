@@ -1,4 +1,4 @@
-import { Clapperboard } from 'lucide-react'
+import { Clapperboard, ArrowLeft } from 'lucide-react'
 import { usePipeline } from '../state/pipelineStore'
 import { PipelineControls } from './PipelineControls'
 import { MediaBrowser } from './MediaBrowser'
@@ -6,14 +6,23 @@ import { CenterPanel } from './CenterPanel'
 import { OutputPanel } from './OutputPanel'
 import { Timeline } from './Timeline'
 
-export function AppShell() {
+interface Props {
+  onBack?: () => void
+}
+
+export function AppShell({ onBack }: Props) {
   const { projectId, projectName } = usePipeline()
 
   return (
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
-        <div className="app-logo">
+        {onBack && (
+          <button className="tl-tool-btn" onClick={onBack} title="Back to Projects" style={{ marginRight: 4 }}>
+            <ArrowLeft size={16} />
+          </button>
+        )}
+        <div className="app-logo" onClick={onBack} style={onBack ? { cursor: 'pointer' } : undefined}>
           <Clapperboard size={20} />
           DirectorLoop
         </div>

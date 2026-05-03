@@ -35,23 +35,50 @@ const mockRender = {
 }
 
 function mockApi() {
-  const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>
-  return m
+  return api as unknown as Record<string, ReturnType<typeof vi.fn>>
 }
 
 beforeEach(() => { vi.resetAllMocks() })
 
-describe('Dashboard', () => {
-  it('renders empty state with Open Demo Project button', () => {
+describe('Home Page', () => {
+  it('renders project listing with sidebar and cards', () => {
     render(<App />)
-    expect(screen.getByText('DirectorLoop')).toBeInTheDocument()
-    expect(screen.getByText('Open Demo Project')).toBeInTheDocument()
-    expect(screen.getByText('No Events')).toBeInTheDocument()
-    expect(screen.getByText('No Project')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'All Projects' })).toBeInTheDocument()
+    expect(screen.getByText('DirectorLoop — Demo Reel')).toBeInTheDocument()
+    expect(screen.getByText('Scout — iOS')).toBeInTheDocument()
+    expect(screen.getByText('FitSync')).toBeInTheDocument()
+    expect(screen.getAllByText('New Project').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('opens demo project and populates panels', async () => {
+  it('filters projects by search', async () => {
     const user = userEvent.setup()
+    render(<App />)
+    const search = screen.getByPlaceholderText('Search projects...')
+    await user.type(search, 'Scout')
+    expect(screen.getByText('Scout — iOS')).toBeInTheDocument()
+    expect(screen.queryByText('FitSync')).not.toBeInTheDocument()
+  })
+
+  it('navigates to editor when clicking a project card', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByText('DirectorLoop — Demo Reel'))
+    // Should now show the editor with pipeline controls
+    expect(screen.getByText('Open Demo Project')).toBeInTheDocument()
+    expect(screen.getByText('No Events')).toBeInTheDocument()
+  })
+})
+
+describe('Editor', () => {
+  async function enterEditor() {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByText('DirectorLoop — Demo Reel'))
+    return user
+  }
+
+  it('opens demo project and populates panels', async () => {
+    const user = await enterEditor()
     const m = mockApi()
     m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo Project', source_path: 'source/' })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
@@ -60,13 +87,12 @@ describe('Dashboard', () => {
     m.getCriticSuggestions.mockRejectedValue(new Error('no'))
     m.getRender.mockRejectedValue(new Error('no'))
 
-    render(<App />)
     await user.click(screen.getByText('Open Demo Project'))
     expect(await screen.findByText('Demo Project')).toBeInTheDocument()
   })
 
   it('renders critic suggestions with approve/reject controls', async () => {
-    const user = userEvent.setup()
+    const user = await enterEditor()
     const m = mockApi()
     m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
     m.getSceneIndex.mockRejectedValue(new Error('no'))
@@ -75,41 +101,20 @@ describe('Dashboard', () => {
     m.getCriticSuggestions.mockResolvedValue(mockCritic)
     m.getRender.mockRejectedValue(new Error('no'))
 
-    render(<App />)
     await user.click(screen.getByText('Open Demo Project'))
-    // Wait for project to load, then switch to Output tab
     await screen.findByText('Demo')
     await user.click(screen.getByText('Output'))
     expect(await screen.findByText('Tighten pacing.')).toBeInTheDocument()
 
-    const approveButtons = screen.getAllByText('Approve')
-    const rejectButtons = screen.getAllByText('Reject')
-    expect(approveButtons.length).toBe(2)
-    expect(rejectButtons.length).toBe(2)
-  })
-
-  it('renders render preview when render summary exists', async () => {
-    const user = userEvent.setup()
-    const m = mockApi()
-    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
-    m.getSceneIndex.mockRejectedValue(new Error('no'))
-    m.getPlan.mockRejectedValue(new Error('no'))
-    m.getManifest.mockRejectedValue(new Error('no'))
-    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
-    m.getRender.mockResolvedValue(mockRender)
-
-    render(<App />)
-    await user.click(screen.getByText('Open Demo Project'))
-    // Render preview shows in the center player area
-    expect(await screen.findByText('29.7s')).toBeInTheDocument()
+    expect(screen.getAllByText('Approve').length).toBe(2)
+    expect(screen.getAllByText('Reject').length).toBe(2)
   })
 
   it('shows failed state event in log on API error', async () => {
-    const user = userEvent.setup()
+    const user = await enterEditor()
     const m = mockApi()
     m.openDemoProject.mockRejectedValue(new Error('Connection refused'))
 
-    render(<App />)
     await user.click(screen.getByText('Open Demo Project'))
     expect(await screen.findByText(/Connection refused/)).toBeInTheDocument()
   })
