@@ -1,17 +1,44 @@
-import { Clapperboard } from 'lucide-react'
-import { usePipeline } from '../state/pipelineStore'
+import { useEffect } from 'react'
+import { Clapperboard, ArrowLeft } from 'lucide-react'
+import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import { navigate } from '../router'
 import { PipelineControls } from './PipelineControls'
 import { MediaBrowser } from './MediaBrowser'
 import { CenterPanel } from './CenterPanel'
 import { OutputPanel } from './OutputPanel'
 
-export function AppShell() {
+interface Props {
+  projectId?: string
+}
+
+export function AppShell({ projectId: routeProjectId }: Props) {
   const { projectId, projectName } = usePipeline()
+  const { openDemo, loadProject } = usePipelineActions()
+
+  // Auto-load the project when navigating from home page
+  useEffect(() => {
+    if (routeProjectId && !projectId) {
+      if (routeProjectId === 'demo_project') {
+        openDemo()
+      } else {
+        loadProject(routeProjectId)
+      }
+    }
+  }, [routeProjectId, projectId, openDemo, loadProject])
 
   return (
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
+        <button
+          className="back-to-projects"
+          onClick={() => navigate('/')}
+          id="back-to-projects"
+          aria-label="Back to projects"
+        >
+          <ArrowLeft size={16} />
+        </button>
+
         <div className="app-logo">
           <Clapperboard size={20} />
           DirectorLoop

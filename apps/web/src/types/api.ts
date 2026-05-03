@@ -40,6 +40,18 @@ export interface ProjectSummary {
   artifacts?: Record<string, boolean>
 }
 
+export interface ProjectListItem {
+  project_id: string
+  name: string
+  display_name?: string
+  description?: string
+  status: 'active' | 'draft' | 'empty'
+  progress?: number
+  updated_at: string
+  thumbnail_type?: string
+  starred?: boolean
+}
+
 export type MediaFileType = 'folder' | 'video' | 'image' | 'audio' | 'json' | 'file'
 
 export interface MediaNode {

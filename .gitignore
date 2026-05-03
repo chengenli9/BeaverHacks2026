@@ -42,3 +42,6 @@ samples/**/logs/*.jsonl
 # Keep scaffold placeholders
 !samples/**/.gitkeep
 !samples/**/README.md
+
+# Local runtime data
+/projects/

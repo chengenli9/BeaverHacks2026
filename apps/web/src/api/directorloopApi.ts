@@ -8,10 +8,12 @@ import type {
   MediaTree,
   PipelineJobKind,
   Plan,
+  ProjectListItem,
   ProjectSummary,
   RenderSummary,
   SceneIndex,
 } from '../types/api'
+import { MOCK_PROJECTS } from './mockProjects'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 
@@ -98,4 +100,13 @@ export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStar
     method: 'POST',
     body: JSON.stringify(body),
   })
+}
+
+export async function listProjects(): Promise<ProjectListItem[]> {
+  try {
+    return await request<ProjectListItem[]>('/projects')
+  } catch {
+    // Backend has no list endpoint yet — return mock data for demo
+    return MOCK_PROJECTS
+  }
 }
