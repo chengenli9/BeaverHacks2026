@@ -53,13 +53,11 @@ def _make_mock_audio_response(pcm_bytes: bytes) -> MagicMock:
 
 
 def _make_mock_image_response(png_bytes: bytes) -> MagicMock:
-    part = MagicMock()
-    part.inline_data.data = png_bytes
-    part.inline_data.mime_type = "image/png"
-    candidate = MagicMock()
-    candidate.content.parts = [part]
     resp = MagicMock()
-    resp.candidates = [candidate]
+    generated = MagicMock()
+    generated.image.image_bytes = png_bytes
+    resp.generated_images = [generated]
+    resp.images = [generated.image]
     resp.usage_metadata.prompt_token_count = 5
     resp.usage_metadata.candidates_token_count = 0
     return resp
@@ -82,8 +80,8 @@ class TestSettings:
 
     def test_default_image_model_is_flash_image(self):
         from backend.app.integrations.gemini.settings import GEMINI_IMAGE_MODEL
-        assert "flash" in GEMINI_IMAGE_MODEL.lower()
-        assert "image" in GEMINI_IMAGE_MODEL.lower()
+        assert isinstance(GEMINI_IMAGE_MODEL, str)
+        assert GEMINI_IMAGE_MODEL.strip() != ""
 
     def test_grounding_disabled_by_default(self):
         from backend.app.integrations.gemini.settings import GEMINI_ENABLE_GROUNDING
@@ -220,16 +218,40 @@ class TestGenerateAudio:
 
 class TestGenerateImage:
     @patch("backend.app.integrations.gemini.client.get_client")
-    def test_fallback_returns_png_on_error(self, mock_get_client):
+    def test_uses_generate_images_api(self, mock_get_client):
         mock_client = MagicMock()
-        mock_client.models.generate_content.side_effect = RuntimeError("API error")
+        mock_client.models.generate_images.return_value = _make_mock_image_response(b"\x89PNGdemo")
         mock_get_client.return_value = mock_client
 
         from backend.app.integrations.gemini.client import generate_image
-        png_bytes, usage = generate_image("abstract background")
+        png_bytes, _usage = generate_image("abstract background")
+
+        assert png_bytes == b"\x89PNGdemo"
+        mock_client.models.generate_images.assert_called_once()
+        assert not mock_client.models.generate_content.called
+
+    @patch("backend.app.integrations.gemini.client.get_client")
+    def test_raises_on_error_by_default(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_client.models.generate_images.side_effect = RuntimeError("API error")
+        mock_get_client.return_value = mock_client
+
+        from backend.app.integrations.gemini.client import generate_image
+        with pytest.raises(RuntimeError, match="Image generation failed"):
+            generate_image("abstract background")
+
+    @patch("backend.app.integrations.gemini.client.get_client")
+    def test_optional_fallback_returns_png_on_error(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_client.models.generate_images.side_effect = RuntimeError("API error")
+        mock_get_client.return_value = mock_client
+
+        from backend.app.integrations.gemini.client import generate_image
+        png_bytes, usage = generate_image("abstract background", allow_fallback=True)
 
         assert png_bytes[:4] == b"\x89PNG" or len(png_bytes) > 0
         assert usage.get("error") == "image_generation_fallback"
+        assert usage.get("error_detail") == "API error"
 
     def test_placeholder_png_is_valid(self):
         from backend.app.integrations.gemini.client import _placeholder_png

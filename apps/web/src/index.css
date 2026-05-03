@@ -717,6 +717,7 @@ body,
 
 /* ═══ CARDS ═══════════════════════════════════ */
 .card {
+  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -911,6 +912,30 @@ body,
   outline-offset: -1px;
   z-index: 2;
   filter: brightness(1.25);
+}
+
+.card-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.card:hover .card-dismiss {
+  opacity: 1;
+}
+.card-dismiss:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .approval-controls {

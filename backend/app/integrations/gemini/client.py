@@ -214,11 +214,13 @@ def measure_wav_duration(wav_path: Path) -> float:
 # ---------------------------------------------------------------------------
 
 
-def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dict]:
+def generate_image(
+    prompt: str,
+    *,
+    model: str | None = None,
+    allow_fallback: bool = False,
+) -> tuple[bytes, dict]:
     """Generate a textless background PNG image.
-
-    Falls back to a solid-colour placeholder if the model call fails so the
-    renderer can always proceed.
 
     Returns:
         (png_bytes, usage_metadata_dict)
@@ -231,32 +233,36 @@ def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dic
     elapsed_ms = 0
 
     try:
-        response = client.models.generate_content(
+        response = client.models.generate_images(
             model=target_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
+            prompt=prompt,
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                output_mime_type="image/png",
             ),
         )
         elapsed_ms = int((time.monotonic() - t0) * 1000)
 
         png_bytes = b""
-        for part in response.candidates[0].content.parts:
-            if part.inline_data and part.inline_data.mime_type == "image/png":
-                png_bytes = part.inline_data.data
-                break
-            if part.inline_data and part.inline_data.mime_type == "image/jpeg":
-                png_bytes = part.inline_data.data
-                break
-
+        if getattr(response, "generated_images", None):
+            first = response.generated_images[0]
+            image = getattr(first, "image", None)
+            png_bytes = getattr(image, "image_bytes", b"") if image else b""
+        if not png_bytes and getattr(response, "images", None):
+            first_image = response.images[0]
+            png_bytes = getattr(first_image, "image_bytes", b"")
         if not png_bytes:
             raise RuntimeError("No image data in response")
 
         usage = _extract_usage(response, target_model, elapsed_ms)
         return png_bytes, usage
 
-    except Exception:  # noqa: BLE001 — fallback per model policy
+    except Exception as exc:  # noqa: BLE001
         elapsed_ms = int((time.monotonic() - t0) * 1000)
+        if not allow_fallback:
+            raise RuntimeError(
+                f"Image generation failed for model '{target_model}': {exc}"
+            ) from exc
         png_bytes = _placeholder_png()
         usage = {
             "elapsed_ms": elapsed_ms,
@@ -264,6 +270,7 @@ def generate_image(prompt: str, *, model: str | None = None) -> tuple[bytes, dic
             "input_token_count": 0,
             "output_token_count": 0,
             "error": "image_generation_fallback",
+            "error_detail": str(exc),
         }
         return png_bytes, usage
 

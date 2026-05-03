@@ -29,7 +29,7 @@ import type {
 } from '../types/api'
 
 type StageRunStatus = 'idle' | 'running' | 'succeeded' | 'failed'
-type ApprovalValue = 'approved' | 'rejected' | 'pending'
+type ApprovalValue = 'approved' | 'rejected' | 'pending' | 'dismissed'
 
 interface UndoSnapshot {
   plan: Plan | null
@@ -637,9 +637,13 @@ export function usePipelineActions() {
       else if (value === 'rejected') rejected.push(id)
     }
 
-    // All rejected (or all pending) — nothing to apply, just dismiss suggestions
+    if (approved.length === 0 && rejected.length === 0) return
+
     if (approved.length === 0) {
-      dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+      // Only rejections — just mark them dismissed, don't clear the whole panel
+      for (const id of rejected) {
+        dispatch({ type: 'SET_APPROVAL', payload: { id, value: 'dismissed' } })
+      }
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Dismissed ${rejected.length} suggestion${rejected.length === 1 ? '' : 's'}`) })
       return
     }
@@ -650,6 +654,9 @@ export function usePipelineActions() {
         approved_suggestion_ids: approved,
         rejected_suggestion_ids: rejected,
       })
+      // Dismiss the handled suggestions
+      for (const id of approved) dispatch({ type: 'SET_APPROVAL', payload: { id, value: 'dismissed' } })
+      for (const id of rejected) dispatch({ type: 'SET_APPROVAL', payload: { id, value: 'dismissed' } })
       dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'apply-approved-patches') })
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Applying ${approved.length} approved, ${rejected.length} rejected`) })
       startPolling(job_id, 'apply-approved-patches', state.projectId)
@@ -663,6 +670,10 @@ export function usePipelineActions() {
 
   const setApproval = useCallback((id: string, value: ApprovalValue) => {
     dispatch({ type: 'SET_APPROVAL', payload: { id, value } })
+  }, [dispatch])
+
+  const dismissSuggestion = useCallback((id: string) => {
+    dispatch({ type: 'SET_APPROVAL', payload: { id, value: 'dismissed' } })
   }, [dispatch])
 
   const highlightBlock = useCallback((blockId: string | null) => {
@@ -786,6 +797,7 @@ export function usePipelineActions() {
     runStage,
     submitApprovals,
     setApproval,
+    dismissSuggestion,
     selectMedia,
     importMedia,
     highlightBlock,
