@@ -95,6 +95,19 @@ const mockManifest = {
       fontfile: 'assets/fonts/Inter-Bold.ttf',
       rendered_path: 'blocks/001_title.mp4',
     },
+    {
+      block_id: '002_clip_without_tts',
+      type: 'source_clip' as const,
+      source: 'source/demo_footage.mp4',
+      source_start: 0,
+      source_end: 4,
+      video_duration: 4,
+      tts_asset: null,
+      tts_duration: null,
+      source_audio_volume: 0.15,
+      tts_fade_seconds: 0.5,
+      rendered_path: 'blocks/002_clip_without_tts.mp4',
+    },
   ],
 }
 

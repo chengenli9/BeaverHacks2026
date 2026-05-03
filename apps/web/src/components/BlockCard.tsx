@@ -7,6 +7,7 @@ interface Props {
 
 export function BlockCard({ block }: Props) {
   const isClip = block.type === 'source_clip'
+  const ttsDuration = isClip && Number.isFinite(block.tts_duration) ? block.tts_duration : null
 
   return (
     <div className="card" id={`block-${block.block_id}`}>
@@ -37,18 +38,20 @@ export function BlockCard({ block }: Props) {
               <Film size={10} />
               {block.source_start.toFixed(1)}s - {block.source_end.toFixed(1)}s
             </span>
-            <span className="card-meta-item">
-              <Mic size={10} />
-              TTS {block.tts_duration.toFixed(1)}s
-            </span>
+            {ttsDuration != null && (
+              <span className="card-meta-item">
+                <Mic size={10} />
+                TTS {ttsDuration.toFixed(1)}s
+              </span>
+            )}
           </>
         )}
       </div>
 
-      {isClip && block.tts_duration > block.video_duration && (
+      {isClip && ttsDuration != null && ttsDuration > block.video_duration && (
         <div className="timing-warning">
           <AlertTriangle size={12} />
-          TTS ({block.tts_duration.toFixed(1)}s) exceeds video ({block.video_duration.toFixed(1)}s)
+          TTS ({ttsDuration.toFixed(1)}s) exceeds video ({block.video_duration.toFixed(1)}s)
         </div>
       )}
     </div>

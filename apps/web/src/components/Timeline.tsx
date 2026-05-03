@@ -27,6 +27,11 @@ function getBlockDuration(b: Block): number {
   return b.type === 'source_clip' ? b.video_duration : b.duration
 }
 
+function getTtsDuration(block: Block): number {
+  if (block.type !== 'source_clip') return 0
+  return Number.isFinite(block.tts_duration) ? block.tts_duration : 0
+}
+
 export function Timeline() {
   const { manifest } = usePipeline()
   const [zoom, setZoom] = useState(1)
@@ -169,13 +174,15 @@ export function Timeline() {
                 {blocks.filter(b => b.type === 'source_clip').map((block) => {
                   if (block.type !== 'source_clip') return null
                   const offset = blocks.slice(0, blocks.indexOf(block)).reduce((s, b) => s + getBlockDuration(b), 0)
-                  const w = block.tts_duration * pixelsPerSecond
+                  const ttsDuration = getTtsDuration(block)
+                  if (ttsDuration <= 0) return null
+                  const w = ttsDuration * pixelsPerSecond
                   return (
                     <div
                       key={`audio-${block.block_id}`}
                       className="tl-clip tl-clip-audio"
-                      style={{ width: w, marginLeft: offset * pixelsPerSecond - (blocks.slice(0, blocks.indexOf(block)).filter(b => b.type === 'source_clip').reduce((s, b) => s + (b.type === 'source_clip' ? b.tts_duration : 0), 0)) * pixelsPerSecond + offset * pixelsPerSecond * 0 }}
-                      title={`TTS: ${block.tts_duration.toFixed(1)}s`}
+                      style={{ width: w, marginLeft: offset * pixelsPerSecond - (blocks.slice(0, blocks.indexOf(block)).filter(b => b.type === 'source_clip').reduce((s, b) => s + getTtsDuration(b), 0)) * pixelsPerSecond + offset * pixelsPerSecond * 0 }}
+                      title={`TTS: ${ttsDuration.toFixed(1)}s`}
                     >
                       <Mic size={10} />
                       <span className="tl-clip-label">TTS {block.block_id.split('_')[0]}</span>

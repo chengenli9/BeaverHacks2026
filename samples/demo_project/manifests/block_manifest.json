@@ -14,60 +14,59 @@
     {
       "block_id": "001_title",
       "type": "title",
+      "rendered_path": "blocks/001_title.mp4",
       "background_asset": "assets/backgrounds/bg_001.png",
       "text": "DirectorLoop",
       "duration": 3.0,
-      "fontfile": "assets/fonts/Inter-Bold.ttf",
-      "rendered_path": "blocks/001_title.mp4"
+      "fontfile": "assets/fonts/Inter-Bold.ttf"
     },
     {
-      "block_id": "002_problem",
+      "block_id": "002_beat_002",
       "type": "source_clip",
+      "rendered_path": "blocks/002_beat_002.mp4",
       "source": "source/demo_footage.mp4",
       "source_start": 0.0,
       "source_end": 6.5,
       "video_duration": 6.5,
-      "tts_asset": "assets/tts/tts_002.wav",
-      "tts_duration": 6.1,
+      "tts_asset": null,
+      "tts_duration": null,
       "source_audio_volume": 0.15,
-      "tts_fade_seconds": 0.5,
-      "rendered_path": "blocks/002_problem.mp4"
+      "tts_fade_seconds": 0.5
     },
     {
-      "block_id": "003_pipeline",
+      "block_id": "003_beat_003",
       "type": "source_clip",
+      "rendered_path": "blocks/003_beat_003.mp4",
       "source": "source/demo_footage.mp4",
       "source_start": 8.0,
       "source_end": 16.0,
       "video_duration": 8.0,
-      "tts_asset": "assets/tts/tts_003.wav",
-      "tts_duration": 7.4,
-      "source_audio_volume": 0.12,
-      "tts_fade_seconds": 0.5,
-      "rendered_path": "blocks/003_pipeline.mp4"
+      "tts_asset": null,
+      "tts_duration": null,
+      "source_audio_volume": 0.15,
+      "tts_fade_seconds": 0.5
     },
     {
-      "block_id": "004_approval",
+      "block_id": "004_beat_004",
       "type": "source_clip",
+      "rendered_path": "blocks/004_beat_004.mp4",
       "source": "source/demo_footage.mp4",
       "source_start": 19.0,
       "source_end": 26.0,
       "video_duration": 7.0,
-      "tts_asset": "assets/tts/tts_004.wav",
-      "tts_duration": 6.6,
-      "source_audio_volume": 0.12,
-      "tts_fade_seconds": 0.5,
-      "rendered_path": "blocks/004_approval.mp4"
+      "tts_asset": null,
+      "tts_duration": null,
+      "source_audio_volume": 0.15,
+      "tts_fade_seconds": 0.5
     },
     {
       "block_id": "005_end",
       "type": "end_card",
+      "rendered_path": "blocks/005_end.mp4",
       "background_asset": "assets/backgrounds/bg_005.png",
       "text": "Gemini plans. FFmpeg renders.",
       "duration": 3.0,
-      "fontfile": "assets/fonts/Inter-Bold.ttf",
-      "rendered_path": "blocks/005_end.mp4"
+      "fontfile": "assets/fonts/Inter-Bold.ttf"
     }
   ]
 }
-
