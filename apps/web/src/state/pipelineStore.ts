@@ -85,6 +85,7 @@ export const initialState: PipelineState = {
 
 export const PipelineContext = createContext<PipelineState>(initialState)
 export const DispatchContext = createContext<Dispatch<PipelineAction>>(() => undefined)
+export const VideoRefContext = createContext<React.RefObject<HTMLVideoElement | null>>({ current: null })
 
 export function reducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
@@ -146,6 +147,10 @@ export function usePipeline() {
 
 export function useDispatch() {
   return useContext(DispatchContext)
+}
+
+export function useVideoRef() {
+  return useContext(VideoRefContext)
 }
 
 let eventCounter = 0

@@ -8,13 +8,12 @@ from ..manifests.models import BlockManifest, RenderSettings, SourceClipBlock, T
 def build_title_block_command(project_path: str | Path, block: TextBlock, settings: RenderSettings) -> list[str]:
     root = Path(project_path)
     output = root / block.rendered_path
+    # Pre-render text onto the background using Pillow to avoid FFmpeg drawtext/fontconfig crashes.
+    composited = _render_text_overlay(root, block, settings)
     video_filter = (
         f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,"
         f"crop={settings.width}:{settings.height},"
-        f"fps={settings.fps},format={settings.pixel_format},"
-        f"drawtext=fontfile='{_ffmpeg_path(root / block.fontfile)}':"
-        f"text='{_escape_drawtext(block.text)}':"
-        "fontcolor=white:fontsize=96:x=(w-text_w)/2:y=(h-text_h)/2"
+        f"fps={settings.fps},format={settings.pixel_format}"
     )
     return [
         "ffmpeg",
@@ -24,7 +23,7 @@ def build_title_block_command(project_path: str | Path, block: TextBlock, settin
         "-t",
         _seconds(block.duration),
         "-i",
-        str(root / block.background_asset),
+        str(composited),
         "-f",
         "lavfi",
         "-t",
@@ -137,6 +136,7 @@ def build_source_clip_command(
 
 def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> list[str]:
     root = Path(project_path)
+    s = manifest.render_settings
     return [
         "ffmpeg",
         "-y",
@@ -146,18 +146,65 @@ def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> l
         "0",
         "-i",
         str(root / "concat.txt"),
-        "-c",
-        "copy",
+        "-c:v",
+        s.video_codec,
+        "-c:a",
+        s.audio_codec,
+        "-ar",
+        str(s.sample_rate),
+        "-pix_fmt",
+        s.pixel_format,
         str(root / "renders" / "final_render.mp4"),
     ]
 
 
+def _render_text_overlay(root: Path, block: TextBlock, settings: RenderSettings) -> Path:
+    """Render text onto the background image using Pillow, return composited path."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    bg_path = root / block.background_asset
+    font_path = root / block.fontfile
+
+    # Load or create background
+    if bg_path.exists():
+        img = Image.open(bg_path).convert("RGBA")
+    else:
+        img = Image.new("RGBA", (settings.width, settings.height), (30, 30, 46, 255))
+
+    # Resize to target if needed
+    if img.size != (settings.width, settings.height):
+        img = img.resize((settings.width, settings.height), Image.LANCZOS)
+
+    # Load font
+    font_size = 96
+    if font_path.exists():
+        font = ImageFont.truetype(str(font_path), font_size)
+    else:
+        font = ImageFont.load_default()
+
+    draw = ImageDraw.Draw(img)
+
+    # Calculate text position (centered)
+    bbox = draw.textbbox((0, 0), block.text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+    x = (settings.width - text_w) // 2
+    y = (settings.height - text_h) // 2
+
+    # Draw white text with subtle shadow for readability
+    draw.text((x + 2, y + 2), block.text, fill=(0, 0, 0, 180), font=font)
+    draw.text((x, y), block.text, fill=(255, 255, 255, 255), font=font)
+
+    # Save composited image in cache dir
+    cache_dir = root / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    out_path = cache_dir / f"{block.block_id}_composited.png"
+    img.save(str(out_path), "PNG")
+    return out_path
+
+
 def _seconds(value: float) -> str:
     return f"{value:.3f}".rstrip("0").rstrip(".")
-
-
-def _escape_drawtext(value: str) -> str:
-    return value.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
 
 
 def _ffmpeg_path(path: Path) -> str:

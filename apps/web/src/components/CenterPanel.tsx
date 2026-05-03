@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
 import { getProjectFileUrl } from '../api/directorloopApi'
-import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
 import { BlockCard } from './BlockCard'
 import { ProgressBar } from './ProgressBar'
 import { SceneCard } from './SceneCard'
@@ -14,6 +14,7 @@ type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 export function CenterPanel() {
   const { sceneIndex, plan, manifest, renderSummary, activeJobs, projectId, selectedMedia } = usePipeline()
   const { selectMedia } = usePipelineActions()
+  const videoRef = useVideoRef()
   const [tab, setTab] = useState<CenterTab>('player')
 
   const visibleJobs = Object.values(activeJobs).filter((job) => job.status === 'queued' || job.status === 'running')
@@ -48,58 +49,31 @@ export function CenterPanel() {
       </div>
 
       <div className="panel-content center-content">
-        <Group orientation="vertical" id="center-vertical" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
-          <Panel id="player" defaultSize={70} minSize={30} maxSize={85} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-            {tab === 'player' && (
-              <div className="player-area">
-                {selectedVideoUrl ? (
-                  <>
-                    <div className="video-viewport">
-                      <video src={selectedVideoUrl} controls preload="metadata" id="selected-video" />
-                    </div>
-                    <div className="player-info">
-                      <span>{selectedMedia?.name}</span>
-                      {selectedMedia?.size && <span>{(selectedMedia.size / (1024 * 1024)).toFixed(1)} MB</span>}
-                      <span>Source preview</span>
-                      <button className="inline-link-btn" type="button" onClick={() => selectMedia(null)}>
-                        Timeline Preview
-                      </button>
-                    </div>
-                  </>
-                ) : renderSummary ? (
-                  <>
-                    <div className="video-viewport">
-                      <video src={renderSummary.url} controls preload="metadata" id="final-video" />
-                    </div>
-                    <div className="player-info">
-                      <span>{renderSummary.duration.toFixed(1)}s</span>
-                      <span>{(renderSummary.bytes / (1024 * 1024)).toFixed(1)} MB</span>
-                      <span>1920x1080</span>
-                    </div>
-                  </>
-                ) : selectedMedia ? (
-                  <div className="video-viewport video-placeholder">
-                    <FileText size={40} />
-                    <span>{selectedMedia.name}</span>
-                  </div>
-                ) : (
-                  <div className="video-viewport video-placeholder">
-                    <Play size={40} />
-                    <span>{projectId ? 'Select footage or render to preview' : 'Open a project to begin'}</span>
-                  </div>
-                )}
-
-                <div style={{ overflowY: 'auto', flexShrink: 0, maxHeight: '40%' }}>
-                  {visibleJobs.map((job) => (
-                    <div key={job.job_id} className="card" style={{ borderColor: 'var(--blue)', margin: '8px 0' }}>
-                      <div className="card-header">
-                        <span className="card-title" style={{ color: 'var(--blue)' }}>{job.stage}</span>
-                        <StatusBadge status={job.status} />
-                      </div>
-                      {job.message && <div className="card-body">{job.message}</div>}
-                      <div style={{ marginTop: 6 }}><ProgressBar progress={job.progress} /></div>
-                    </div>
-                  ))}
+        {tab === 'player' && (
+          <div className="player-area">
+            {selectedVideoUrl ? (
+              <>
+                <div className="video-viewport">
+                  <video src={selectedVideoUrl} controls preload="metadata" id="selected-video" />
+                </div>
+                <div className="player-info">
+                  <span>{selectedMedia?.name}</span>
+                  {selectedMedia?.size && <span>{(selectedMedia.size / (1024 * 1024)).toFixed(1)} MB</span>}
+                  <span>Source preview</span>
+                  <button className="inline-link-btn" type="button" onClick={() => selectMedia(null)}>
+                    Timeline Preview
+                  </button>
+                </div>
+              </>
+            ) : renderSummary ? (
+              <>
+                <div className="video-viewport">
+                  <video ref={videoRef} src={renderSummary.url} controls preload="metadata" id="final-video" />
+                </div>
+                <div className="player-info">
+                  <span>{renderSummary.duration.toFixed(1)}s</span>
+                  <span>{(renderSummary.bytes / (1024 * 1024)).toFixed(1)} MB</span>
+                  <span>1920x1080</span>
                 </div>
               </div>
             )}

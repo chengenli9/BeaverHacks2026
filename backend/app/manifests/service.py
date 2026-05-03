@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import struct
+
 from pydantic import TypeAdapter
 
 from .models import (
@@ -260,8 +262,36 @@ def _load_json(path: Path) -> dict:
 
 def _require_file(project_root: Path, relative_path: str) -> None:
     path = project_root / relative_path
-    if not path.is_file():
-        raise FileNotFoundError(f"Missing required project asset: {relative_path}")
+    if path.is_file():
+        return
+    # Auto-generate a placeholder solid-color PNG for missing backgrounds
+    if relative_path.startswith("assets/backgrounds/") and relative_path.endswith(".png"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _write_placeholder_png(path)
+        return
+    raise FileNotFoundError(f"Missing required project asset: {relative_path}")
+
+
+def _write_placeholder_png(path: Path) -> None:
+    """Write a 1920x1080 dark grey PNG. Uses Pillow if available, falls back to raw PNG."""
+    w, h = 1920, 1080
+    try:
+        from PIL import Image
+        img = Image.new("RGB", (w, h), (30, 30, 46))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        img.save(str(path), "PNG")
+    except ImportError:
+        import zlib
+        # Raw filter byte (0) + RGB pixels per row, no trailing byte
+        row = bytes([0]) + bytes([30, 30, 46]) * w
+        raw = row * h
+        def _chunk(ctype, data):
+            c = ctype + data
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
+        ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)  # 8-bit RGB
+        compressed = zlib.compress(raw)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", compressed) + _chunk(b"IEND", b""))
 
 
 def _block_duration(block: Block) -> float:

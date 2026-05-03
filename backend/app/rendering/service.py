@@ -149,14 +149,36 @@ def source_has_audio_stream(path: str | Path) -> bool:
 
 
 def _run(command: list[str], log_path: Path) -> None:
+    import os
+    import sys
+    import tempfile
+
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(command, capture_output=True, text=True)
+    env = os.environ.copy()
+    # Fix fontconfig on Windows: drawtext crashes without a fonts.conf
+    if sys.platform == "win32" or "win" in sys.platform.lower():
+        _fc_dir = Path(tempfile.gettempdir()) / "directorloop-fontconfig"
+        _fc_dir.mkdir(exist_ok=True)
+        _fc_file = _fc_dir / "fonts.conf"
+        _fc_file.write_text(
+            '<?xml version="1.0"?>\n'
+            '<!DOCTYPE fontconfig SYSTEM "fonts.dtd">\n'
+            '<fontconfig>\n'
+            f'  <dir>{os.environ.get("WINDIR", r"C:\\Windows")}\\Fonts</dir>\n'
+            '</fontconfig>\n',
+            encoding="utf-8",
+        )
+        env["FONTCONFIG_FILE"] = str(_fc_file)
+    completed = subprocess.run(command, capture_output=True, text=True, env=env)
     with log_path.open("a", encoding="utf-8") as log:
         log.write("COMMAND: " + " ".join(command) + "\n")
+        log.write(f"RETURN_CODE: {completed.returncode}\n")
         if completed.stdout:
-            log.write(completed.stdout + "\n")
+            log.write("STDOUT:\n" + completed.stdout + "\n")
         if completed.stderr:
-            log.write(completed.stderr + "\n")
+            log.write("STDERR:\n" + completed.stderr + "\n")
+        if not completed.stdout and not completed.stderr:
+            log.write("(no output captured)\n")
     if completed.returncode != 0:
         raise RuntimeError(f"FFmpeg command failed; see {log_path}")
 

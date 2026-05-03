@@ -87,7 +87,7 @@ export function HomePage() {
       setProjects((prev) =>
         prev.map((p) =>
           p.project_id === projectId
-            ? updatedProject
+            ? { ...p, ...updatedProject }
             : p
         )
       )
