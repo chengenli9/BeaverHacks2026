@@ -18,7 +18,7 @@ export function AppShell({ projectId: routeProjectId }: Props) {
 
   // Auto-load the project when navigating from home page
   useEffect(() => {
-    if (routeProjectId && !projectId) {
+    if (routeProjectId && routeProjectId !== projectId) {
       if (routeProjectId === 'demo_project') {
         openDemo()
       } else {

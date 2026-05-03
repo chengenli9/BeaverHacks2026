@@ -42,7 +42,7 @@ export interface ProjectListItem {
   name: string
   display_name?: string
   description?: string
-  status: 'active' | 'draft' | 'empty'
+  status: 'active' | 'in_progress' | 'empty'
   progress?: number
   updated_at: string
   thumbnail_type?: string

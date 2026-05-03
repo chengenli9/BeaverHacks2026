@@ -54,7 +54,9 @@ body,
   color: var(--text-primary);
   background: var(--bg-base);
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  overflow: auto;
+  min-width: 960px;
+  min-height: 640px;
 }
 
 ::-webkit-scrollbar {
@@ -1837,7 +1839,7 @@ body,
   color: var(--bg-base);
 }
 
-.project-badge-draft {
+.project-badge-in_progress {
   background: var(--bg-card-hover);
   color: var(--text-secondary);
   border: 1px solid var(--border);

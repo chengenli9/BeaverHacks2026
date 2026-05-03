@@ -29,7 +29,7 @@ def create_project(project_id: str, display_name: str | None = None):
             "name": display_name or project_id,
             "display_name": display_name or project_id,
             "description": "",
-            "status": "empty",
+            "status": "in_progress",
             "progress": 0,
             "thumbnail_type": "empty",
             "starred": False,
