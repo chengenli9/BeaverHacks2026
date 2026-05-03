@@ -65,7 +65,6 @@ export function OutputPanel() {
   const runningJobs = Object.values(activeJobs).filter(
     (job) => job.status === 'queued' || job.status === 'running',
   )
-  const renderJob = runningJobs.find((job) => job.stage === 'render')
 
   const hasOutput = Boolean(
     criticSuggestions ||
@@ -98,18 +97,21 @@ export function OutputPanel() {
 
       {visibleJobs.length > 0 && (
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          {visibleJobs.map(({ job, done }) => (
-            <div key={job.job_id} className="card" style={{ borderColor: done ? 'var(--emerald)' : 'var(--blue)', marginBottom: 4 }}>
-              <div className="card-header" style={{ marginBottom: 4 }}>
-                <span className="card-title" style={{ color: done ? 'var(--emerald)' : 'var(--blue)', fontSize: 11 }}>
-                  {job.stage?.replace(/-/g, ' ') ?? 'Processing'}
-                </span>
-                <StatusBadge status={job.status} />
+          {visibleJobs.map(({ job, done }) => {
+            const hasRealProgress = typeof job.progress === 'number' && job.progress > 0
+            return (
+              <div key={job.job_id} className="card" style={{ borderColor: done ? 'var(--emerald)' : 'var(--blue)', marginBottom: 4 }}>
+                <div className="card-header" style={{ marginBottom: 4 }}>
+                  <span className="card-title" style={{ color: done ? 'var(--emerald)' : 'var(--blue)', fontSize: 11 }}>
+                    {job.stage?.replace(/-/g, ' ') ?? 'Processing'}
+                  </span>
+                  <StatusBadge status={job.status} />
+                </div>
+                {job.message && <div className="card-body" style={{ fontSize: 10, marginBottom: 4 }}>{job.message}</div>}
+                <ProgressBar progress={done ? 1 : hasRealProgress ? job.progress : undefined} durationMs={15000} />
               </div>
-              {job.message && <div className="card-body" style={{ fontSize: 10, marginBottom: 4 }}>{job.message}</div>}
-              <ProgressBar progress={done ? 1 : undefined} durationMs={15000} />
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
@@ -125,16 +127,6 @@ export function OutputPanel() {
             <Separator className="resize-handle-y" />
 
             <Panel id="output-details" defaultSize={60} minSize={20} maxSize={80} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
-      {renderJob && (
-  <div className="card" style={{ borderColor: 'var(--blue)' }}>
-    <div className="card-header">
-      <span className="card-title" style={{ color: 'var(--blue)' }}>Rendering</span>
-      <StatusBadge status={renderJob.status} />
-    </div>
-    {renderJob.message && <div className="card-body">{renderJob.message}</div>}
-    <div style={{ marginTop: 6 }}><ProgressBar progress={renderJob.progress} /></div>
-  </div>
-)}
 {(mediaProbe || renderQa) && (
   <div className="card">
     <div className="card-header">
