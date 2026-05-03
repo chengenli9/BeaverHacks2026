@@ -1,5 +1,5 @@
 import {
-  FolderKanban, Clock, Star, Users,
+  FolderKanban,
   LayoutTemplate, Package, Archive,
   UsersRound, Mail,
 } from 'lucide-react'
@@ -20,9 +20,6 @@ const SECTIONS: SidebarSection[] = [
     title: 'Workspace',
     items: [
       { icon: <FolderKanban size={15} />, label: 'All Projects', id: 'all' },
-      { icon: <Clock size={15} />, label: 'Recent', id: 'recent' },
-      { icon: <Star size={15} />, label: 'Starred', id: 'starred' },
-      { icon: <Users size={15} />, label: 'Shared with me', id: 'shared' },
     ],
   },
   {
