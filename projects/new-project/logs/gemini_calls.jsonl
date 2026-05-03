@@ -1,0 +1,1 @@
+{"timestamp": "2026-05-03T02:35:06.149684+00:00", "project_id": "new-project", "stage": "scene_analysis", "model": "gemini-2.5-flash-lite", "elapsed_ms": 10224, "input_token_count": 1882, "output_token_count": 451, "artifact_path": "cache\\scene_index.json", "error": null}

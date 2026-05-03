@@ -1,0 +1,2 @@
+{"timestamp": "2026-05-03T02:21:00.322708+00:00", "project_id": "new-project-5", "stage": "scene_analysis", "model": "gemini-2.5-flash-lite", "elapsed_ms": 10218, "input_token_count": 1884, "output_token_count": 629, "artifact_path": "cache\\scene_index.json", "error": null}
+{"timestamp": "2026-05-03T02:21:28.640462+00:00", "project_id": "new-project-5", "stage": "plan_generation", "model": "gemini-2.5-flash-lite", "elapsed_ms": 2115, "input_token_count": 1173, "output_token_count": 622, "artifact_path": "manifests\\plan.json", "error": null}

@@ -1,0 +1,70 @@
+{
+  "project_id": "new-project-5",
+  "source": "hackathon-raw-footage.mp4",
+  "source_duration": 5.2,
+  "scenes": [
+    {
+      "scene_id": "scene_001",
+      "start": 0.0,
+      "end": 1.1,
+      "summary": "A person smiles at the camera, with a laptop and some papers in the background.",
+      "visual_tags": [
+        "person",
+        "laptop",
+        "desk"
+      ],
+      "audio_notes": "Clear audio, slight background noise.",
+      "demo_relevance": 0.7
+    },
+    {
+      "scene_id": "scene_002",
+      "start": 1.1,
+      "end": 2.1,
+      "summary": "A person in a black hoodie smiles at the camera.",
+      "visual_tags": [
+        "person",
+        "close-up"
+      ],
+      "audio_notes": "Clear audio, slight background noise.",
+      "demo_relevance": 0.6
+    },
+    {
+      "scene_id": "scene_003",
+      "start": 2.1,
+      "end": 3.2,
+      "summary": "A person wearing glasses makes a hand gesture, showing a ring on their finger.",
+      "visual_tags": [
+        "person",
+        "hand-gesture"
+      ],
+      "audio_notes": "Clear audio, slight background noise.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_004",
+      "start": 3.2,
+      "end": 4.2,
+      "summary": "Close-up of hands, one wearing a ring, holding what looks like a card or tag.",
+      "visual_tags": [
+        "close-up",
+        "hands",
+        "ring"
+      ],
+      "audio_notes": "Clear audio, slight background noise.",
+      "demo_relevance": 0.5
+    },
+    {
+      "scene_id": "scene_005",
+      "start": 4.2,
+      "end": 5.2,
+      "summary": "A blurry shot of a window with greenery outside, and a wall with some cables.",
+      "visual_tags": [
+        "blurry",
+        "window",
+        "indoor-plant"
+      ],
+      "audio_notes": "Clear audio, slight background noise.",
+      "demo_relevance": 0.2
+    }
+  ]
+}

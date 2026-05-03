@@ -306,6 +306,18 @@ export function useJobPoller() {
           dispatch({ type: 'SET_STAGE', payload: { stage: frontendStage, status: 'succeeded' } })
           dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Completed: ${frontendStage}`, { jobId }) })
           await fetchArtifact(dispatch, frontendStage, projectId)
+
+          // Auto-render preview after manifest is built (like a real video editor)
+          if (frontendStage === 'build-manifest') {
+            try {
+              const { job_id: renderJobId } = await api.startJob('render', projectId)
+              dispatch({ type: 'SET_JOB', payload: makeQueuedJob(renderJobId, projectId, 'render') })
+              startPolling(renderJobId, 'render', projectId)
+              dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', 'Auto-rendering preview...') })
+            } catch {
+              // Render can still be triggered manually
+            }
+          }
         } else if (job.status === 'failed') {
           stopPolling(jobId)
           dispatch({ type: 'SET_STAGE', payload: { stage: frontendStage, status: 'failed' } })

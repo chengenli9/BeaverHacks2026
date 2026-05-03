@@ -102,9 +102,20 @@ def complete_json_with_file(
     t0 = time.monotonic()
 
     uploaded = client.files.upload(
-        path=str(file_path),
+        file=str(file_path),
         config=types.UploadFileConfig(mime_type=mime_type) if mime_type else None,
     )
+
+    # Poll until the file is ACTIVE (uploads are async for large files)
+    while uploaded.state.name == "PROCESSING":
+        time.sleep(2)
+        uploaded = client.files.get(name=uploaded.name)
+
+    if uploaded.state.name != "ACTIVE":
+        raise RuntimeError(
+            f"File upload failed — final state: {uploaded.state.name}. "
+            "The file may be too large or an unsupported format."
+        )
 
     full_prompt = f"{system}\n\n{prompt}".strip() if system else prompt
     contents = [
