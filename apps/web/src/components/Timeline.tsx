@@ -3,7 +3,7 @@ import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
   Play, Pause, SkipBack, SkipForward, Mic, Film, Type
 } from 'lucide-react'
-import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import { usePipeline } from '../state/pipelineStore'
 import type { Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
@@ -34,7 +34,7 @@ function getTtsDuration(block: Block): number {
 }
 
 export function Timeline() {
-  const { manifest, renderSummary } = usePipeline()
+  const { manifest } = usePipeline()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
   const [playing, setPlaying] = useState(false)

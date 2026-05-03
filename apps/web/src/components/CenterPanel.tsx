@@ -1,23 +1,17 @@
 import { useState } from 'react'
-import { Panel, Group, Separator } from 'react-resizable-panels'
 import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
 import { getProjectFileUrl } from '../api/directorloopApi'
-import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
+import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 import { BlockCard } from './BlockCard'
-import { ProgressBar } from './ProgressBar'
 import { SceneCard } from './SceneCard'
-import { StatusBadge } from './StatusBadge'
 import { Timeline } from './Timeline'
 
 type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 
 export function CenterPanel() {
-  const { sceneIndex, plan, manifest, renderSummary, activeJobs, projectId, selectedMedia } = usePipeline()
+  const { sceneIndex, plan, manifest, renderSummary, projectId, selectedMedia } = usePipeline()
   const { selectMedia } = usePipelineActions()
-  const videoRef = useVideoRef()
   const [tab, setTab] = useState<CenterTab>('player')
-
-  const visibleJobs = Object.values(activeJobs).filter((job) => job.status === 'queued' || job.status === 'running')
   const selectedVideoUrl = projectId && selectedMedia?.type === 'video'
     ? getProjectFileUrl(projectId, selectedMedia.path)
     : null
@@ -68,84 +62,85 @@ export function CenterPanel() {
             ) : renderSummary ? (
               <>
                 <div className="video-viewport">
-                  <video ref={videoRef} src={renderSummary.url} controls preload="metadata" id="final-video" />
+                  <video src={renderSummary.url} controls preload="metadata" id="final-video" />
                 </div>
                 <div className="player-info">
                   <span>{renderSummary.duration.toFixed(1)}s</span>
                   <span>{(renderSummary.bytes / (1024 * 1024)).toFixed(1)} MB</span>
                   <span>1920x1080</span>
                 </div>
+              </>
+            ) : (
+              <div className="video-viewport video-placeholder">
+                <Layers size={48} />
+                <p>Run the pipeline to generate a preview</p>
               </div>
             )}
+          </div>
+        )}
 
-            {tab === 'scenes' && sceneIndex && (
-              <div className="artifact-scroll">
-                <div className="section-header"><Map size={12} /> Scenes ({sceneIndex.scenes.length})</div>
-                {sceneIndex.scenes.map((scene) => <SceneCard key={scene.scene_id} scene={scene} />)}
-              </div>
-            )}
+        {tab === 'scenes' && sceneIndex && (
+          <div className="artifact-scroll">
+            <div className="section-header"><Map size={12} /> Scenes ({sceneIndex.scenes.length})</div>
+            {sceneIndex.scenes.map((scene) => <SceneCard key={scene.scene_id} scene={scene} />)}
+          </div>
+        )}
 
-            {tab === 'plan' && plan && (
-              <div className="artifact-scroll">
-                <div className="section-header"><FileText size={12} /> {plan.title}</div>
-                <div className="story-arc">
-                  {plan.story_arc.map((step, index) => (
-                    <div key={step} className="arc-step"><span className="arc-number">{index + 1}</span>{step}</div>
-                  ))}
+        {tab === 'plan' && plan && (
+          <div className="artifact-scroll">
+            <div className="section-header"><FileText size={12} /> {plan.title}</div>
+            <div className="story-arc">
+              {plan.story_arc.map((step, index) => (
+                <div key={step} className="arc-step"><span className="arc-number">{index + 1}</span>{step}</div>
+              ))}
+            </div>
+            {plan.beats.map((beat) => (
+              <div key={beat.beat_id} className="card">
+                <div className="card-header">
+                  <span className="card-title">{beat.beat_id}</span>
+                  <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
                 </div>
-                {plan.beats.map((beat) => (
-                  <div key={beat.beat_id} className="card">
-                    <div className="card-header">
-                      <span className="card-title">{beat.beat_id}</span>
-                      <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
+                <div className="card-body">
+                  <strong>{beat.goal}</strong>
+                  {beat.narration && (
+                    <div style={{ marginTop: 4, fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                      "{beat.narration}"
                     </div>
-                    <div className="card-body">
-                      <strong>{beat.goal}</strong>
-                      {beat.narration && (
-                        <div style={{ marginTop: 4, fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                          "{beat.narration}"
-                        </div>
-                      )}
-                      {beat.onscreen_text && (
-                        <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
-                      )}
-                    </div>
-                    <div className="card-meta">
-                      <span className="card-meta-item">{beat.duration.toFixed(1)}s</span>
-                      {beat.scene_id && <span className="card-meta-item">- {beat.scene_id}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {tab === 'manifest' && manifest && (
-              <div className="artifact-scroll">
-                <div className="section-header"><Boxes size={12} /> Block Manifest v{manifest.version}</div>
-                <div className="card-meta" style={{ marginBottom: 8, padding: '0 4px' }}>
-                  <span className="card-meta-item">{manifest.render_settings.width}x{manifest.render_settings.height}</span>
-                  <span className="card-meta-item">{manifest.render_settings.fps}fps</span>
+                  )}
+                  {beat.onscreen_text && (
+                    <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
+                  )}
                 </div>
-                {manifest.blocks.map((block) => <BlockCard key={block.block_id} block={block} />)}
+                <div className="card-meta">
+                  <span className="card-meta-item">{beat.duration.toFixed(1)}s</span>
+                  {beat.scene_id && <span className="card-meta-item">- {beat.scene_id}</span>}
+                </div>
               </div>
-            )}
+            ))}
+          </div>
+        )}
 
-            {!projectId && tab !== 'player' && (
-              <div className="empty-state">
-                <Layers size={36} />
-                <h3>No Data</h3>
-                <p>Open a project and run pipeline stages</p>
-              </div>
-            )}
-          </Panel>
-          
-          <Separator className="resize-handle-y" />
-          
-          <Panel id="timeline" defaultSize={30} minSize={15} maxSize={60}>
-            <Timeline />
-          </Panel>
-        </Group>
+        {tab === 'manifest' && manifest && (
+          <div className="artifact-scroll">
+            <div className="section-header"><Boxes size={12} /> Block Manifest v{manifest.version}</div>
+            <div className="card-meta" style={{ marginBottom: 8, padding: '0 4px' }}>
+              <span className="card-meta-item">{manifest.render_settings.width}x{manifest.render_settings.height}</span>
+              <span className="card-meta-item">{manifest.render_settings.fps}fps</span>
+            </div>
+            {manifest.blocks.map((block) => <BlockCard key={block.block_id} block={block} />)}
+          </div>
+        )}
+
+        {!projectId && tab !== 'player' && (
+          <div className="empty-state">
+            <Layers size={36} />
+            <h3>No Data</h3>
+            <p>Open a project and run pipeline stages</p>
+          </div>
+        )}
       </div>
+
+      <Timeline />
     </div>
   )
 }

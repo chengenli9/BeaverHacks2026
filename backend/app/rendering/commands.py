@@ -88,7 +88,7 @@ def build_source_clip_command(
             f"[{tts_input_index}:a]afade=t=in:st=0:d={block.tts_fade_seconds},"
             f"afade=t=out:st={max((block.tts_duration or 0) - block.tts_fade_seconds, 0)}:"
             f"d={block.tts_fade_seconds}[ttsa];"
-            "[srca][ttsa]amix=inputs=2:duration=longest[a]"
+            "[srca][ttsa]amix=inputs=2:duration=longest:normalize=0[a]"
         )
         command.extend(["-filter_complex", filter_complex, "-map", "[v]", "-map", "[a]"])
     else:
