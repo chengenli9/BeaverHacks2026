@@ -8,7 +8,7 @@ interface Props {
 export function BlockCard({ block }: Props) {
   const isClip = block.type === 'source_clip'
   const ttsDuration = isClip && Number.isFinite(block.tts_duration) ? block.tts_duration : null
-  const textBlock = block.type === 'title' || block.type === 'end_card' ? block : null
+  const textBlock = block.type === 'title' || block.type === 'end_card' || block.type === 'scene_card' ? block : null
 
   return (
     <div className="card" id={`block-${block.block_id}`}>
@@ -16,6 +16,7 @@ export function BlockCard({ block }: Props) {
         <span className="card-title">
           {block.type === 'title' && <Type size={12} />}
           {block.type === 'source_clip' && <Film size={12} />}
+          {block.type === 'scene_card' && <Type size={12} />}
           {block.type === 'end_card' && <Type size={12} />}
           {block.block_id}
         </span>

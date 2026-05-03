@@ -74,6 +74,9 @@ export function OutputPanel() {
     renderQa ||
     runningJobs.length > 0
   )
+  const primarySource = mediaProbe?.sources?.[0] ?? null
+  const sourceCount = mediaProbe?.sources?.length ?? 0
+  const hasAnySourceAudio = mediaProbe?.sources?.some((source) => source.has_audio) ?? false
 
   return (
     <div className="panel" id="output-panel">
@@ -122,7 +125,7 @@ export function OutputPanel() {
             <Separator className="resize-handle-y" />
 
             <Panel id="output-details" defaultSize={60} minSize={20} maxSize={80} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
-{renderJob && (
+      {renderJob && (
   <div className="card" style={{ borderColor: 'var(--blue)' }}>
     <div className="card-header">
       <span className="card-title" style={{ color: 'var(--blue)' }}>Rendering</span>
@@ -141,10 +144,18 @@ export function OutputPanel() {
       {mediaProbe && (
         <>
           <span className="card-meta-item">
-            {mediaProbe.video_stream.width}x{mediaProbe.video_stream.height}
+            {sourceCount} source{sourceCount === 1 ? '' : 's'}
           </span>
-          <span className="card-meta-item">{mediaProbe.video_stream.fps.toFixed(1)}fps</span>
-          <span className="card-meta-item">{mediaProbe.has_audio ? 'Source audio' : 'No source audio'}</span>
+          <span className="card-meta-item">{mediaProbe.total_duration_seconds.toFixed(1)}s total</span>
+          {primarySource && (
+            <>
+              <span className="card-meta-item">
+                {primarySource.video_stream.width}x{primarySource.video_stream.height}
+              </span>
+              <span className="card-meta-item">{primarySource.video_stream.fps.toFixed(1)}fps</span>
+            </>
+          )}
+          <span className="card-meta-item">{hasAnySourceAudio ? 'Source audio' : 'No source audio'}</span>
         </>
       )}
       {renderQa && (

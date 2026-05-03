@@ -123,3 +123,81 @@ def test_build_manifest_writes_block_manifest_json(tmp_path):
 
     assert path == project / "manifests" / "block_manifest.json"
     assert loaded.block_by_id("002_beat_003").tts_asset is None
+
+
+def test_build_manifest_uses_per_scene_source_and_local_bounds(tmp_path):
+    project = tmp_path
+    (project / "cache").mkdir()
+    (project / "manifests").mkdir()
+    (project / "cache" / "scene_index.json").write_text(
+        """
+        {
+          "project_id": "demo_project",
+          "total_duration_seconds": 12.0,
+          "sources": [
+            {
+              "path": "source/001_intro.mp4",
+              "duration_seconds": 5.0,
+              "start_offset_seconds": 0.0,
+              "end_offset_seconds": 5.0
+            },
+            {
+              "path": "source/002_demo.mp4",
+              "duration_seconds": 7.0,
+              "start_offset_seconds": 5.0,
+              "end_offset_seconds": 12.0
+            }
+          ],
+          "scenes": [
+            {
+              "scene_id": "scene_001",
+              "source": "source/001_intro.mp4",
+              "start": 1.0,
+              "end": 4.0,
+              "summary": "Intro clip",
+              "visual_tags": [],
+              "audio_notes": "",
+              "demo_relevance": 0.8
+            },
+            {
+              "scene_id": "scene_002",
+              "source": "source/002_demo.mp4",
+              "start": 6.5,
+              "end": 11.5,
+              "summary": "Demo clip",
+              "visual_tags": [],
+              "audio_notes": "",
+              "demo_relevance": 0.9
+            }
+          ]
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+    (project / "manifests" / "plan.json").write_text(
+        """
+        {
+          "project_id": "demo_project",
+          "title": "DirectorLoop Demo Cut",
+          "target_duration": 8.0,
+          "story_arc": ["Hook", "Proof"],
+          "beats": [
+            {"beat_id": "beat_001", "type": "source_clip", "goal": "Use intro", "scene_id": "scene_001", "duration": 3.0, "narration": null, "onscreen_text": null},
+            {"beat_id": "beat_002", "type": "source_clip", "goal": "Use demo", "scene_id": "scene_002", "duration": 6.0, "narration": null, "onscreen_text": null}
+          ]
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    manifest = build_manifest_from_plan(project)
+
+    intro = manifest.block_by_id("001_beat_001")
+    assert intro.source == "source/001_intro.mp4"
+    assert intro.source_start == pytest.approx(1.0)
+    assert intro.source_end == pytest.approx(4.0)
+
+    demo = manifest.block_by_id("002_beat_002")
+    assert demo.source == "source/002_demo.mp4"
+    assert demo.source_start == pytest.approx(1.5)
+    assert demo.source_end == pytest.approx(6.5)

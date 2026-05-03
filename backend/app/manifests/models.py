@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
@@ -43,14 +43,43 @@ class BeatStyle(BaseModel):
     layout_preset: Literal["centered", "hero-left", "hero-right", "stacked"] | None = None
 
 
+class TimelineSource(BaseModel):
+    path: str
+    duration_seconds: float = Field(gt=0)
+    start_offset_seconds: float = Field(ge=0)
+    end_offset_seconds: float = Field(gt=0)
+
+    @field_validator("path")
+    @classmethod
+    def path_must_be_project_relative(cls, value: str) -> str:
+        _validate_project_relative_path(value)
+        return value
+
+    @model_validator(mode="after")
+    def offsets_must_match_duration(self) -> "TimelineSource":
+        if self.end_offset_seconds <= self.start_offset_seconds:
+            raise ValueError("source end offset must be greater than start offset")
+        expected = round(self.end_offset_seconds - self.start_offset_seconds, 6)
+        if abs(expected - self.duration_seconds) > 0.01:
+            raise ValueError("source offset range must match duration_seconds")
+        return self
+
+
 class Scene(BaseModel):
     scene_id: str
+    source: str
     start: float = Field(ge=0)
     end: float = Field(gt=0)
     summary: str
     visual_tags: list[str] = Field(default_factory=list)
     audio_notes: str
     demo_relevance: float = Field(ge=0, le=1)
+
+    @field_validator("source")
+    @classmethod
+    def scene_source_must_be_project_relative(cls, value: str) -> str:
+        _validate_project_relative_path(value)
+        return value
 
     @model_validator(mode="after")
     def end_must_follow_start(self) -> Scene:
@@ -61,28 +90,65 @@ class Scene(BaseModel):
 
 class SceneIndex(BaseModel):
     project_id: str
-    source: str
-    source_duration: float = Field(gt=0)
+    total_duration_seconds: float = Field(gt=0)
+    sources: list[TimelineSource]
     scenes: list[Scene]
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_shape(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        legacy_source = payload.pop("source", None)
+        legacy_duration = payload.pop("source_duration", None)
+        if "sources" not in payload:
+            if legacy_source is None or legacy_duration is None:
+                return payload
+            payload["sources"] = [
+                {
+                    "path": legacy_source,
+                    "duration_seconds": legacy_duration,
+                    "start_offset_seconds": 0.0,
+                    "end_offset_seconds": legacy_duration,
+                }
+            ]
+        if "total_duration_seconds" not in payload:
+            payload["total_duration_seconds"] = sum(
+                float(source.get("duration_seconds", 0) or 0) for source in payload.get("sources", [])
+            )
+        if payload.get("sources"):
+            default_source = payload["sources"][0]["path"]
+            for scene in payload.get("scenes", []):
+                scene.setdefault("source", default_source)
+        return payload
 
     @classmethod
     def from_file(cls, path: str | Path) -> SceneIndex:
         return cls.model_validate(json.loads(Path(path).read_text(encoding="utf-8")))
-
-    @field_validator("source")
-    @classmethod
-    def source_must_be_project_relative(cls, value: str) -> str:
-        _validate_project_relative_path(value)
-        return value
 
     @model_validator(mode="after")
     def scenes_must_be_unique_and_within_source(self) -> SceneIndex:
         scene_ids = [scene.scene_id for scene in self.scenes]
         if len(scene_ids) != len(set(scene_ids)):
             raise ValueError("scene_id values must be unique")
+        source_ranges = {source.path: source for source in self.sources}
+        if len(source_ranges) != len(self.sources):
+            raise ValueError("source path values must be unique")
+        if not source_ranges:
+            raise ValueError("scene index must include at least one source")
+        if abs(sum(source.duration_seconds for source in self.sources) - self.total_duration_seconds) > 0.01:
+            raise ValueError("total_duration_seconds must equal the sum of source durations")
+        previous_start = -1.0
         for scene in self.scenes:
-            if scene.end > self.source_duration:
+            source = source_ranges.get(scene.source)
+            if source is None:
+                raise ValueError(f"scene {scene.scene_id} references unknown source {scene.source}")
+            if scene.start < source.start_offset_seconds or scene.end > source.end_offset_seconds:
                 raise ValueError("scene ranges must be within source_duration")
+            if scene.start < previous_start:
+                raise ValueError("scene ranges must be in non-decreasing order")
+            previous_start = scene.start
         return self
 
     def scene_by_id(self, scene_id: str) -> Scene:
@@ -90,6 +156,23 @@ class SceneIndex(BaseModel):
             if scene.scene_id == scene_id:
                 return scene
         raise KeyError(f"Unknown scene_id: {scene_id}")
+
+    def source_by_path(self, source_path: str) -> TimelineSource:
+        for source in self.sources:
+            if source.path == source_path:
+                return source
+        raise KeyError(f"Unknown source path: {source_path}")
+
+    def source_duration_map(self) -> dict[str, float]:
+        return {source.path: source.duration_seconds for source in self.sources}
+
+    @property
+    def source(self) -> str:
+        return self.sources[0].path
+
+    @property
+    def source_duration(self) -> float:
+        return self.sources[0].duration_seconds
 
 
 class PlanBeat(BaseModel):

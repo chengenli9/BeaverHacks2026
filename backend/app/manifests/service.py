@@ -114,9 +114,11 @@ def build_manifest_from_plan(
             )
         elif beat.type == "source_clip":
             scene = scene_index.scene_by_id(beat.scene_id or "")
-            source_start = scene.start
+            source_meta = scene_index.source_by_path(scene.source)
+            source_start = round(scene.start - source_meta.start_offset_seconds, 3)
+            scene_local_end = round(scene.end - source_meta.start_offset_seconds, 3)
             requested_end = source_start + _snap_duration_seconds(beat.duration)
-            source_end = min(requested_end, scene.end, scene_index.source_duration)
+            source_end = min(requested_end, scene_local_end, source_meta.duration_seconds)
             source_end = _quantize_source_end(source_start, source_end)
             video_duration = source_end - source_start
             tts_duration = tts_durations.get(beat.beat_id)
@@ -125,7 +127,7 @@ def build_manifest_from_plan(
                 {
                     "block_id": f"{ordinal}_{beat.beat_id}",
                     "type": "source_clip",
-                    "source": scene_index.source,
+                    "source": scene.source,
                     "source_start": source_start,
                     "source_end": source_end,
                     "video_duration": video_duration,
@@ -145,7 +147,7 @@ def build_manifest_from_plan(
             "blocks": blocks,
         }
     )
-    reconciled = reconcile_durations(manifest, max_source_end=scene_index.source_duration)
+    reconciled = reconcile_durations(manifest, source_duration_by_path=scene_index.source_duration_map())
     validate_manifest_source_bounds(reconciled, scene_index)
     return reconciled
 
@@ -153,7 +155,7 @@ def build_manifest_from_plan(
 def reconcile_durations(
     manifest: BlockManifest,
     *,
-    max_source_end: float | None = None,
+    source_duration_by_path: dict[str, float] | None = None,
 ) -> BlockManifest:
     updated_blocks: list[Block] = []
     adapter = TypeAdapter(Block)
@@ -164,7 +166,8 @@ def reconcile_durations(
             tts_duration = block.tts_duration or 0
             if tts_duration > video_duration:
                 desired_end = block.source_start + tts_duration
-                block_data["source_end"] = min(desired_end, max_source_end) if max_source_end else desired_end
+                max_source_end = source_duration_by_path.get(block.source) if source_duration_by_path else None
+                block_data["source_end"] = min(desired_end, max_source_end) if max_source_end is not None else desired_end
                 block_data["video_duration"] = block_data["source_end"] - block.source_start
             else:
                 block_data["video_duration"] = video_duration
@@ -196,15 +199,14 @@ def validate_manifest_source_bounds(manifest: BlockManifest, scene_index: SceneI
     for block in manifest.blocks:
         if not isinstance(block, SourceClipBlock):
             continue
-        if block.source != scene_index.source:
-            raise ValueError(
-                f"source_clip block {block.block_id} source {block.source} "
-                f"does not match scene index source {scene_index.source}"
-            )
-        if block.source_end > scene_index.source_duration:
+        try:
+            source_meta = scene_index.source_by_path(block.source)
+        except KeyError as exc:
+            raise ValueError(f"source_clip block {block.block_id} references unknown source {block.source}") from exc
+        if block.source_end > source_meta.duration_seconds:
             raise ValueError(
                 f"source_clip block {block.block_id} exceeds source_duration "
-                f"{scene_index.source_duration}"
+                f"{source_meta.duration_seconds}"
             )
 
 
@@ -274,8 +276,10 @@ def apply_suggestions_to_manifest(
 def apply_approved_patches(project_path: str | Path, request: ApplyPatchesRequest) -> BlockManifest:
     root = Path(project_path)
     manifest = load_manifest(root)
+    scene_index = load_scene_index(root)
     suggestions = CriticSuggestions.from_file(root / "manifests" / "critic_suggestions.json")
     patched = apply_suggestions_to_manifest(manifest, suggestions, request)
+    validate_manifest_source_bounds(patched, scene_index)
     write_manifest(root, patched)
     return patched
 

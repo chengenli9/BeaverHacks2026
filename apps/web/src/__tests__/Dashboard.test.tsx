@@ -44,11 +44,19 @@ const mockRender = {
 
 const mockSceneIndex = {
   project_id: 'demo_project',
-  source: 'source/demo_footage.mp4',
-  source_duration: 42,
+  total_duration_seconds: 42,
+  sources: [
+    {
+      path: 'source/demo_footage.mp4',
+      duration_seconds: 42,
+      start_offset_seconds: 0,
+      end_offset_seconds: 42,
+    },
+  ],
   scenes: [
     {
       scene_id: 'scene_001',
+      source: 'source/demo_footage.mp4',
       start: 0,
       end: 8,
       summary: 'Opening shot of the team explaining the project.',
@@ -143,11 +151,18 @@ const mockMedia = {
 
 const mockMediaProbe = {
   project_id: 'demo_project',
-  source: 'source/demo_footage.mp4',
-  duration_seconds: 42,
-  has_audio: true,
-  video_stream: { codec: 'h264', width: 1920, height: 1080, fps: 30 },
-  audio_stream: { codec: 'aac', sample_rate: 48000 },
+  total_duration_seconds: 42,
+  sources: [
+    {
+      path: 'source/demo_footage.mp4',
+      duration_seconds: 42,
+      has_audio: true,
+      video_stream: { codec: 'h264', width: 1920, height: 1080, fps: 30 },
+      audio_stream: { codec: 'aac', sample_rate: 48000 },
+      start_offset_seconds: 0,
+      end_offset_seconds: 42,
+    },
+  ],
 }
 
 const mockRenderQa = {

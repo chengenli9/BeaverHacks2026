@@ -12,7 +12,7 @@ from .settings import GEMINI_IMAGE_MODEL
 from ...manifests.models import BlockManifest, CriticSuggestions, Plan, SceneIndex
 from ...manifests.service import _suggestion_is_actionable
 from ...media.models import MediaProbe, RenderQa, ShotIndex
-from ...media.service import _extract_frame, build_render_qa, detect_shots, find_primary_video, inspect_source_media
+from ...media.service import _extract_frame, build_render_qa, detect_shots, find_primary_video, find_source_videos, inspect_source_media
 from ...remotion.models import GeneratedTextSceneBundle, GeneratedTextSceneSpec
 from ...rendering.remotion_bridge import render_remotion_preview
 
@@ -27,9 +27,9 @@ def _load_prompt(name: str) -> str:
 def analyze_scenes(project_path: Path, progress_callback=None) -> dict:
     project_path = Path(project_path)
     project_id = project_path.name
-    video_file = find_primary_video(project_path)
+    video_files = find_source_videos(project_path)
 
-    if video_file:
+    if video_files:
         if progress_callback:
             progress_callback(0.1, "Inspecting source media")
         media_probe = inspect_source_media(project_path)
@@ -42,52 +42,110 @@ def analyze_scenes(project_path: Path, progress_callback=None) -> dict:
         shot_index = _fallback_shot_index(project_path, media_probe)
 
     system_prompt = _load_prompt("scene_analysis")
-    user_prompt = (
-        f"Project ID: {project_id}\n\n"
-        "Source media probe:\n"
-        f"{media_probe.model_dump_json(indent=2)}\n\n"
-        "Detected shots:\n"
-        f"{shot_index.model_dump_json(indent=2)}\n\n"
-        "Label the footage into a scene_index response. Reuse the measured shot boundaries unless there is a very strong reason not to. "
-        "Do not invent file paths or durations beyond the measured source duration."
-    )
+    merged_scenes: list[dict] = []
+    last_usage = {"model": "offline", "elapsed_ms": 0, "input_token_count": 0, "output_token_count": 0}
 
     if progress_callback:
-        progress_callback(0.65, "Generating scene index")
+        progress_callback(0.55, "Generating scene index")
 
-    if video_file:
-        result, usage = _client.complete_json_with_file(
-            user_prompt,
-            video_file,
-            mime_type="video/mp4",
-            system=system_prompt,
-            schema=SceneIndex.model_json_schema(),
-        )
+    if video_files:
+        for index, source in enumerate(media_probe.sources, start=1):
+            video_file = project_path / source.path
+            local_probe = MediaProbe.model_validate(
+                {
+                    "project_id": project_id,
+                    "total_duration_seconds": source.duration_seconds,
+                    "sources": [
+                        {
+                            "path": source.path,
+                            "duration_seconds": source.duration_seconds,
+                            "has_audio": source.has_audio,
+                            "video_stream": source.video_stream.model_dump(mode="json"),
+                            "audio_stream": source.audio_stream.model_dump(mode="json") if source.audio_stream else None,
+                            "start_offset_seconds": 0.0,
+                            "end_offset_seconds": source.duration_seconds,
+                        }
+                    ],
+                }
+            )
+            local_shot_index = _local_shot_index_for_source(project_id, shot_index, source.path)
+            user_prompt = (
+                f"Project ID: {project_id}\n\n"
+                f"Current source file: {source.path}\n\n"
+                "Current source media probe:\n"
+                f"{local_probe.model_dump_json(indent=2)}\n\n"
+                "Detected shots for the current source file:\n"
+                f"{local_shot_index.model_dump_json(indent=2)}\n\n"
+                "Label the current source file into a scene_index response. Reuse the measured shot boundaries unless there is a very strong reason not to. "
+                "Do not invent file paths or durations beyond the measured current source duration."
+            )
+            result, usage = _client.complete_json_with_file(
+                user_prompt,
+                video_file,
+                mime_type="video/mp4",
+                system=system_prompt,
+                schema=SceneIndex.model_json_schema(),
+            )
+            last_usage = usage
+            normalized_local = _normalize_scene_index_result(result, source.path, source.duration_seconds)
+            merged_scenes.extend(
+                _offset_scenes(
+                    normalized_local.get("scenes", []),
+                    source_path=source.path,
+                    offset_seconds=source.start_offset_seconds,
+                    start_index=len(merged_scenes) + 1,
+                )
+            )
+            if progress_callback:
+                progress_callback(0.55 + (0.3 * index / max(len(media_probe.sources), 1)), f"Analyzed {source.path}")
     else:
+        user_prompt = (
+            f"Project ID: {project_id}\n\n"
+            "Source media probe:\n"
+            f"{media_probe.model_dump_json(indent=2)}\n\n"
+            "Detected shots:\n"
+            f"{shot_index.model_dump_json(indent=2)}\n\n"
+            "Label the footage into a scene_index response."
+        )
         result, usage = _client.complete_json(
             user_prompt,
             system=system_prompt,
             schema=SceneIndex.model_json_schema(),
         )
+        last_usage = usage
+        merged_scenes = _normalize_scene_index_result(result, media_probe.source, media_probe.duration_seconds).get("scenes", [])
 
-    result["project_id"] = project_id
-    result["source"] = media_probe.source
-    result["source_duration"] = media_probe.duration_seconds
-    result = _normalize_scene_index_result(result, media_probe.duration_seconds)
-    scene_index = SceneIndex.model_validate(result)
+    scene_index = SceneIndex.model_validate(
+        {
+            "project_id": project_id,
+            "total_duration_seconds": media_probe.total_duration_seconds,
+            "sources": [
+                {
+                    "path": source.path,
+                    "duration_seconds": source.duration_seconds,
+                    "start_offset_seconds": source.start_offset_seconds,
+                    "end_offset_seconds": source.end_offset_seconds,
+                }
+                for source in media_probe.sources
+            ],
+            "scenes": merged_scenes,
+        }
+    )
 
     out_path = project_path / "cache" / "scene_index.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(scene_index.model_dump_json(indent=2), encoding="utf-8")
 
-    if video_file:
+    if video_files:
         frames_dir = project_path / "cache" / "frames"
         frames_dir.mkdir(parents=True, exist_ok=True)
         for scene in scene_index.scenes:
-            mid = (scene.start + scene.end) / 2
+            source_meta = scene_index.source_by_path(scene.source)
+            source_path = project_path / scene.source
+            mid = max(((scene.start + scene.end) / 2) - source_meta.start_offset_seconds, 0.0)
             frame_out = frames_dir / f"{scene.scene_id}_mid.jpg"
             try:
-                _extract_frame(video_file, mid, frame_out)
+                _extract_frame(source_path, mid, frame_out)
             except Exception:
                 pass
 
@@ -95,10 +153,10 @@ def analyze_scenes(project_path: Path, progress_callback=None) -> dict:
         project_path=project_path,
         project_id=project_id,
         stage="scene_analysis",
-        model=usage["model"],
-        elapsed_ms=usage["elapsed_ms"],
-        input_tokens=usage["input_token_count"],
-        output_tokens=usage["output_token_count"],
+        model=last_usage["model"],
+        elapsed_ms=last_usage["elapsed_ms"],
+        input_tokens=last_usage["input_token_count"],
+        output_tokens=last_usage["output_token_count"],
         artifact_path=str(out_path.relative_to(project_path)),
     )
 
@@ -411,11 +469,18 @@ def _fallback_media_probe(project_path: Path) -> MediaProbe:
     probe = MediaProbe.model_validate(
         {
             "project_id": project_path.name,
-            "source": "source/placeholder.mp4",
-            "duration_seconds": 30.0,
-            "has_audio": False,
-            "video_stream": {"codec": "unknown", "width": 1920, "height": 1080, "fps": 30.0},
-            "audio_stream": None,
+            "total_duration_seconds": 30.0,
+            "sources": [
+                {
+                    "path": "source/placeholder.mp4",
+                    "duration_seconds": 30.0,
+                    "has_audio": False,
+                    "video_stream": {"codec": "unknown", "width": 1920, "height": 1080, "fps": 30.0},
+                    "audio_stream": None,
+                    "start_offset_seconds": 0.0,
+                    "end_offset_seconds": 30.0,
+                }
+            ],
         }
     )
     out_path = project_path / "cache" / "media_probe.json"
@@ -428,10 +493,19 @@ def _fallback_shot_index(project_path: Path, media_probe: MediaProbe) -> ShotInd
     shot_index = ShotIndex.model_validate(
         {
             "project_id": project_path.name,
-            "source": media_probe.source,
+            "total_duration_seconds": media_probe.total_duration_seconds,
+            "sources": [
+                {
+                    "path": media_probe.source,
+                    "duration_seconds": media_probe.duration_seconds,
+                    "start_offset_seconds": 0.0,
+                    "end_offset_seconds": media_probe.duration_seconds,
+                }
+            ],
             "shots": [
                 {
                     "shot_id": "shot_001",
+                    "source": media_probe.source,
                     "start": 0.0,
                     "end": media_probe.duration_seconds,
                     "duration": media_probe.duration_seconds,
@@ -526,7 +600,7 @@ def _build_background_prompt(*, goal: str, text: str, style: dict) -> str:
     )
 
 
-def _normalize_scene_index_result(result: dict, source_duration: float) -> dict:
+def _normalize_scene_index_result(result: dict, source_path: str, source_duration: float) -> dict:
     normalized = dict(result)
     scenes = []
     for index, scene in enumerate(result.get("scenes", []), start=1):
@@ -538,11 +612,59 @@ def _normalize_scene_index_result(result: dict, source_duration: float) -> dict:
         if end <= start:
             continue
         item["scene_id"] = item.get("scene_id") or f"scene_{index:03d}"
+        item["source"] = source_path
         item["start"] = round(start, 4)
         item["end"] = round(end, 4)
         scenes.append(item)
     normalized["scenes"] = scenes
     return normalized
+
+
+def _offset_scenes(scenes: list[dict], *, source_path: str, offset_seconds: float, start_index: int) -> list[dict]:
+    merged: list[dict] = []
+    for index, scene in enumerate(scenes, start=start_index):
+        item = dict(scene)
+        item["scene_id"] = f"scene_{index:03d}"
+        item["source"] = source_path
+        item["start"] = round(float(item.get("start", 0.0)) + offset_seconds, 4)
+        item["end"] = round(float(item.get("end", 0.0)) + offset_seconds, 4)
+        merged.append(item)
+    return merged
+
+
+def _local_shot_index_for_source(project_id: str, shot_index: ShotIndex, source_path: str) -> ShotIndex:
+    source = next(source for source in shot_index.sources if source.path == source_path)
+    local_shots = []
+    for shot in shot_index.shots:
+        if shot.source != source_path:
+            continue
+        local_shots.append(
+            {
+                "shot_id": shot.shot_id,
+                "source": source_path,
+                "start": round(shot.start - source.start_offset_seconds, 4),
+                "end": round(shot.end - source.start_offset_seconds, 4),
+                "duration": shot.duration,
+                "start_frame_path": shot.start_frame_path,
+                "mid_frame_path": shot.mid_frame_path,
+                "end_frame_path": shot.end_frame_path,
+            }
+        )
+    return ShotIndex.model_validate(
+        {
+            "project_id": project_id,
+            "total_duration_seconds": source.duration_seconds,
+            "sources": [
+                {
+                    "path": source.path,
+                    "duration_seconds": source.duration_seconds,
+                    "start_offset_seconds": 0.0,
+                    "end_offset_seconds": source.duration_seconds,
+                }
+            ],
+            "shots": local_shots,
+        }
+    )
 
 
 def _generate_text_scene_bundle(

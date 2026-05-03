@@ -17,6 +17,7 @@ export function SceneCard({ scene, projectId }: Props) {
   const thumbUrl = projectId && !imgError
     ? getProjectFileUrl(projectId, `cache/frames/${scene.scene_id}_mid.jpg`)
     : null
+  const sourceLabel = scene.source.split('/').pop() ?? scene.source
 
   return (
     <div className="card scene-card" id={`scene-${scene.scene_id}`}>
@@ -35,6 +36,7 @@ export function SceneCard({ scene, projectId }: Props) {
               <Clock size={10} />
               {scene.start.toFixed(1)}s - {scene.end.toFixed(1)}s
             </span>
+            <span className="card-meta-item">{sourceLabel}</span>
           </div>
           <div className="tags">
             {scene.visual_tags.map((tag) => (

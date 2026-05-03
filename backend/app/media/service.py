@@ -13,11 +13,13 @@ from .models import (
     AudioStreamInfo,
     FrameCheck,
     MediaProbe,
+    ProbedSource,
     QaIssue,
     RenderQa,
     RenderQaSummary,
     Shot,
     ShotIndex,
+    TimelineSourceRef,
     VideoStreamInfo,
 )
 
@@ -25,47 +27,66 @@ from .models import (
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv")
 
 
-def find_primary_video(project_path: str | Path) -> Path | None:
+def find_source_videos(project_path: str | Path) -> list[Path]:
     source_dir = Path(project_path) / "source"
     if not source_dir.exists():
-        return None
-    for entry in sorted(source_dir.iterdir(), key=lambda item: item.name.lower()):
-        if entry.is_file() and entry.suffix.lower() in VIDEO_EXTENSIONS:
-            return entry
-    return None
+        return []
+    return [
+        entry
+        for entry in sorted(source_dir.iterdir(), key=lambda item: item.name.lower())
+        if entry.is_file() and entry.suffix.lower() in VIDEO_EXTENSIONS
+    ]
+
+
+def find_primary_video(project_path: str | Path) -> Path | None:
+    videos = find_source_videos(project_path)
+    return videos[0] if videos else None
 
 
 def inspect_source_media(project_path: str | Path) -> MediaProbe:
     project_root = Path(project_path)
-    video_path = find_primary_video(project_root)
-    if video_path is None:
+    video_paths = find_source_videos(project_root)
+    if not video_paths:
         raise FileNotFoundError("No source video found in project source/")
-
-    raw_probe = _ffprobe(video_path)
-    video_stream = next((stream for stream in raw_probe.get("streams", []) if stream.get("codec_type") == "video"), None)
-    if video_stream is None:
-        raise RuntimeError(f"No video stream found in {video_path.name}")
-    audio_stream = next((stream for stream in raw_probe.get("streams", []) if stream.get("codec_type") == "audio"), None)
+    sources: list[ProbedSource] = []
+    offset = 0.0
+    for video_path in video_paths:
+        raw_probe = _ffprobe(video_path)
+        video_stream = next((stream for stream in raw_probe.get("streams", []) if stream.get("codec_type") == "video"), None)
+        if video_stream is None:
+            raise RuntimeError(f"No video stream found in {video_path.name}")
+        audio_stream = next((stream for stream in raw_probe.get("streams", []) if stream.get("codec_type") == "audio"), None)
+        duration_seconds = float(raw_probe.get("format", {}).get("duration", 0) or 0)
+        source = ProbedSource.model_validate(
+            {
+                "path": video_path.relative_to(project_root).as_posix(),
+                "duration_seconds": duration_seconds,
+                "has_audio": audio_stream is not None,
+                "video_stream": {
+                    "codec": video_stream.get("codec_name", "unknown"),
+                    "width": int(video_stream.get("width", 0) or 0),
+                    "height": int(video_stream.get("height", 0) or 0),
+                    "fps": _parse_frame_rate(video_stream.get("avg_frame_rate") or video_stream.get("r_frame_rate") or "0/1"),
+                },
+                "audio_stream": None
+                if audio_stream is None
+                else {
+                    "codec": audio_stream.get("codec_name", "unknown"),
+                    "sample_rate": int(audio_stream.get("sample_rate", 0) or 0),
+                    "channels": int(audio_stream.get("channels", 0) or 0) or None,
+                },
+                "start_offset_seconds": round(offset, 4),
+                "end_offset_seconds": round(offset + duration_seconds, 4),
+            }
+        )
+        sources.append(source)
+        offset += duration_seconds
 
     probe = MediaProbe.model_validate(
         {
             "project_id": project_root.name,
-            "source": video_path.relative_to(project_root).as_posix(),
-            "duration_seconds": float(raw_probe.get("format", {}).get("duration", 0) or 0),
-            "has_audio": audio_stream is not None,
-            "video_stream": {
-                "codec": video_stream.get("codec_name", "unknown"),
-                "width": int(video_stream.get("width", 0) or 0),
-                "height": int(video_stream.get("height", 0) or 0),
-                "fps": _parse_frame_rate(video_stream.get("avg_frame_rate") or video_stream.get("r_frame_rate") or "0/1"),
-            },
-            "audio_stream": None
-            if audio_stream is None
-            else {
-                "codec": audio_stream.get("codec_name", "unknown"),
-                "sample_rate": int(audio_stream.get("sample_rate", 0) or 0),
-                "channels": int(audio_stream.get("channels", 0) or 0) or None,
-            },
+            "total_duration_seconds": round(offset, 4),
+            "sources": [source.model_dump(mode="json") for source in sources],
         }
     )
 
@@ -78,44 +99,58 @@ def inspect_source_media(project_path: str | Path) -> MediaProbe:
 def detect_shots(project_path: str | Path, media_probe: MediaProbe | None = None) -> ShotIndex:
     project_root = Path(project_path)
     probe = media_probe or inspect_source_media(project_root)
-    source_path = project_root / probe.source
     frames_dir = project_root / "cache" / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
-
-    shots = _scenedetect_shots(source_path)
-    if not shots:
-        shots = [(0.0, probe.duration_seconds)]
-
     normalized_shots: list[Shot] = []
-    for index, (start, end) in enumerate(shots, start=1):
-        end = max(end, start + 0.01)
-        duration = max(end - start, 0.01)
-        mid = start + duration / 2
-        shot_id = f"shot_{index:03d}"
-        start_frame = frames_dir / f"{shot_id}_start.jpg"
-        mid_frame = frames_dir / f"{shot_id}_mid.jpg"
-        end_frame = frames_dir / f"{shot_id}_end.jpg"
-        _extract_frame(source_path, start, start_frame)
-        _extract_frame(source_path, mid, mid_frame)
-        _extract_frame(source_path, max(end - 0.05, start), end_frame)
-        normalized_shots.append(
-            Shot.model_validate(
-                {
-                    "shot_id": shot_id,
-                    "start": round(start, 3),
-                    "end": round(end, 3),
-                    "duration": round(duration, 3),
-                    "start_frame_path": start_frame.relative_to(project_root).as_posix(),
-                    "mid_frame_path": mid_frame.relative_to(project_root).as_posix(),
-                    "end_frame_path": end_frame.relative_to(project_root).as_posix(),
-                }
+    shot_counter = 1
+    for source in probe.sources:
+        source_path = project_root / source.path
+        shots = _scenedetect_shots(source_path)
+        if not shots:
+            shots = [(0.0, source.duration_seconds)]
+
+        for start, end in shots:
+            end = max(end, start + 0.01)
+            duration = max(end - start, 0.01)
+            mid = start + duration / 2
+            shot_id = f"shot_{shot_counter:03d}"
+            start_frame = frames_dir / f"{shot_id}_start.jpg"
+            mid_frame = frames_dir / f"{shot_id}_mid.jpg"
+            end_frame = frames_dir / f"{shot_id}_end.jpg"
+            _extract_frame(source_path, start, start_frame)
+            _extract_frame(source_path, mid, mid_frame)
+            _extract_frame(source_path, max(end - 0.05, start), end_frame)
+            normalized_shots.append(
+                Shot.model_validate(
+                    {
+                        "shot_id": shot_id,
+                        "source": source.path,
+                        "start": round(source.start_offset_seconds + start, 3),
+                        "end": round(source.start_offset_seconds + end, 3),
+                        "duration": round(duration, 3),
+                        "start_frame_path": start_frame.relative_to(project_root).as_posix(),
+                        "mid_frame_path": mid_frame.relative_to(project_root).as_posix(),
+                        "end_frame_path": end_frame.relative_to(project_root).as_posix(),
+                    }
+                )
             )
-        )
+            shot_counter += 1
 
     shot_index = ShotIndex.model_validate(
         {
             "project_id": project_root.name,
-            "source": probe.source,
+            "total_duration_seconds": probe.total_duration_seconds,
+            "sources": [
+                TimelineSourceRef.model_validate(
+                    {
+                        "path": source.path,
+                        "duration_seconds": source.duration_seconds,
+                        "start_offset_seconds": source.start_offset_seconds,
+                        "end_offset_seconds": source.end_offset_seconds,
+                    }
+                ).model_dump(mode="json")
+                for source in probe.sources
+            ],
             "shots": [shot.model_dump(mode="json") for shot in normalized_shots],
         }
     )

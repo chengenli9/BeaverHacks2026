@@ -244,6 +244,143 @@ class TestGenerateImage:
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeScenes:
+    def test_merges_multiple_source_files_into_virtual_timeline(self, tmp_path, monkeypatch):
+        from backend.app.integrations.gemini import service
+        from backend.app.media.models import MediaProbe, ShotIndex
+
+        (tmp_path / "source").mkdir()
+        (tmp_path / "cache").mkdir()
+        (tmp_path / "logs").mkdir()
+        first = tmp_path / "source" / "a.mp4"
+        second = tmp_path / "source" / "b.mp4"
+        first.write_bytes(b"a")
+        second.write_bytes(b"b")
+
+        monkeypatch.setattr(service, "find_source_videos", lambda project_path: [first, second])
+        monkeypatch.setattr(
+            service,
+            "inspect_source_media",
+            lambda project_path: MediaProbe.model_validate(
+                {
+                    "project_id": "demo",
+                    "total_duration_seconds": 10.0,
+                    "sources": [
+                        {
+                            "path": "source/a.mp4",
+                            "duration_seconds": 4.0,
+                            "has_audio": False,
+                            "video_stream": {"codec": "h264", "width": 1920, "height": 1080, "fps": 30.0},
+                            "audio_stream": None,
+                            "start_offset_seconds": 0.0,
+                            "end_offset_seconds": 4.0,
+                        },
+                        {
+                            "path": "source/b.mp4",
+                            "duration_seconds": 6.0,
+                            "has_audio": False,
+                            "video_stream": {"codec": "h264", "width": 1920, "height": 1080, "fps": 30.0},
+                            "audio_stream": None,
+                            "start_offset_seconds": 4.0,
+                            "end_offset_seconds": 10.0,
+                        },
+                    ],
+                }
+            ),
+        )
+        monkeypatch.setattr(
+            service,
+            "detect_shots",
+            lambda project_path, media_probe: ShotIndex.model_validate(
+                {
+                    "project_id": "demo",
+                    "total_duration_seconds": 10.0,
+                    "sources": [
+                        {
+                            "path": "source/a.mp4",
+                            "duration_seconds": 4.0,
+                            "start_offset_seconds": 0.0,
+                            "end_offset_seconds": 4.0,
+                        },
+                        {
+                            "path": "source/b.mp4",
+                            "duration_seconds": 6.0,
+                            "start_offset_seconds": 4.0,
+                            "end_offset_seconds": 10.0,
+                        },
+                    ],
+                    "shots": [],
+                }
+            ),
+        )
+
+        responses = iter(
+            [
+                (
+                    {
+                        "project_id": "demo",
+                        "total_duration_seconds": 4.0,
+                        "sources": [
+                            {
+                                "path": "source/a.mp4",
+                                "duration_seconds": 4.0,
+                                "start_offset_seconds": 0.0,
+                                "end_offset_seconds": 4.0,
+                            }
+                        ],
+                        "scenes": [
+                            {
+                                "scene_id": "scene_local_001",
+                                "source": "source/a.mp4",
+                                "start": 0.0,
+                                "end": 4.0,
+                                "summary": "First clip",
+                                "visual_tags": [],
+                                "audio_notes": "",
+                                "demo_relevance": 0.7,
+                            }
+                        ],
+                    },
+                    {"model": "test", "elapsed_ms": 1, "input_token_count": 1, "output_token_count": 1},
+                ),
+                (
+                    {
+                        "project_id": "demo",
+                        "total_duration_seconds": 6.0,
+                        "sources": [
+                            {
+                                "path": "source/b.mp4",
+                                "duration_seconds": 6.0,
+                                "start_offset_seconds": 0.0,
+                                "end_offset_seconds": 6.0,
+                            }
+                        ],
+                        "scenes": [
+                            {
+                                "scene_id": "scene_local_001",
+                                "source": "source/b.mp4",
+                                "start": 0.0,
+                                "end": 6.0,
+                                "summary": "Second clip",
+                                "visual_tags": [],
+                                "audio_notes": "",
+                                "demo_relevance": 0.8,
+                            }
+                        ],
+                    },
+                    {"model": "test", "elapsed_ms": 1, "input_token_count": 1, "output_token_count": 1},
+                ),
+            ]
+        )
+        monkeypatch.setattr(service._client, "complete_json_with_file", lambda *args, **kwargs: next(responses))
+
+        result = service.analyze_scenes(tmp_path)
+
+        assert result["total_duration_seconds"] == 10.0
+        assert len(result["sources"]) == 2
+        assert [scene["source"] for scene in result["scenes"]] == ["source/a.mp4", "source/b.mp4"]
+        assert result["scenes"][1]["start"] == pytest.approx(4.0)
+        assert result["scenes"][1]["end"] == pytest.approx(10.0)
+
     @patch("backend.app.integrations.gemini.client.get_client")
     def test_writes_scene_index_json(self, mock_get_client, tmp_path):
         scene_index = {
@@ -346,7 +483,8 @@ class TestAnalyzeScenes:
 
         result = service.analyze_scenes(tmp_path)
 
-        assert result["source_duration"] == pytest.approx(5.3867)
+        assert result["total_duration_seconds"] == pytest.approx(5.3867)
+        assert result["sources"][0]["duration_seconds"] == pytest.approx(5.3867)
         assert result["scenes"][0]["end"] == pytest.approx(5.3867)
 
 

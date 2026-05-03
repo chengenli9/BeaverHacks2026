@@ -72,6 +72,7 @@ export interface ImportMediaResponse {
 
 export interface Scene {
   scene_id: string
+  source: string
   start: number
   end: number
   summary: string
@@ -80,16 +81,23 @@ export interface Scene {
   demo_relevance: number
 }
 
+export interface TimelineSource {
+  path: string
+  duration_seconds: number
+  start_offset_seconds: number
+  end_offset_seconds: number
+}
+
 export interface SceneIndex {
   project_id: string
-  source: string
-  source_duration: number
+  total_duration_seconds: number
+  sources: TimelineSource[]
   scenes: Scene[]
 }
 
 export interface Beat {
   beat_id: string
-  type: 'title' | 'source_clip' | 'end_card'
+  type: 'title' | 'source_clip' | 'scene_card' | 'end_card'
   goal: string
   scene_id: string | null
   duration: number
@@ -188,7 +196,26 @@ export interface EndCardBlock {
   rendered_path: string
 }
 
-export type Block = TitleBlock | SourceClipBlock | EndCardBlock
+export interface SceneCardBlock {
+  block_id: string
+  type: 'scene_card'
+  background_asset?: string | null
+  text: string
+  duration: number
+  fontfile: string
+  font_family?: string | null
+  font_variant?: string | null
+  text_color?: string | null
+  accent_color?: string | null
+  background_mode?: 'image' | 'color' | 'gradient' | 'image_tint'
+  background_color?: string | null
+  text_alignment?: 'left' | 'center' | 'right'
+  layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked'
+  motion_asset?: MotionAssetRef | null
+  rendered_path: string
+}
+
+export type Block = TitleBlock | SourceClipBlock | SceneCardBlock | EndCardBlock
 
 export interface BlockManifest {
   project_id: string
@@ -245,15 +272,21 @@ export interface AudioStreamInfo {
 
 export interface MediaProbe {
   project_id: string
-  source: string
-  duration_seconds: number
-  has_audio: boolean
-  video_stream: VideoStreamInfo
-  audio_stream?: AudioStreamInfo | null
+  total_duration_seconds: number
+  sources: Array<{
+    path: string
+    duration_seconds: number
+    has_audio: boolean
+    video_stream: VideoStreamInfo
+    audio_stream?: AudioStreamInfo | null
+    start_offset_seconds: number
+    end_offset_seconds: number
+  }>
 }
 
 export interface Shot {
   shot_id: string
+  source: string
   start: number
   end: number
   duration: number
@@ -264,7 +297,8 @@ export interface Shot {
 
 export interface ShotIndex {
   project_id: string
-  source: string
+  total_duration_seconds: number
+  sources: TimelineSource[]
   shots: Shot[]
 }
 
