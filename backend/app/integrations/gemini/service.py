@@ -264,11 +264,37 @@ def generate_background_assets(project_path: Path) -> list[dict]:
 
     bg_dir = project_path / "assets" / "backgrounds"
     bg_dir.mkdir(parents=True, exist_ok=True)
+    image_dir = project_path / "assets" / "images"
+    image_dir.mkdir(parents=True, exist_ok=True)
     remotion_dir = project_path / "assets" / "remotion"
     remotion_dir.mkdir(parents=True, exist_ok=True)
     results = []
 
     for idx, beat in enumerate(plan.get("beats", []), start=1):
+        if beat.get("type") == "image_card":
+            image_prompt = beat.get("image_prompt") or beat.get("goal") or "cinematic product illustration"
+            relative_asset = _image_asset_for_prompt(image_prompt)
+            image_path = project_path / relative_asset
+            png_bytes, usage = _client.generate_image(image_prompt, model=GEMINI_IMAGE_MODEL)
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            image_path.write_bytes(png_bytes)
+            results.append(
+                {
+                    "beat_id": beat["beat_id"],
+                    "image_asset": relative_asset,
+                }
+            )
+            _log_call(
+                project_path=project_path,
+                project_id=project_id,
+                stage="image_generation",
+                model=usage.get("model", GEMINI_IMAGE_MODEL),
+                elapsed_ms=usage.get("elapsed_ms", 0),
+                input_tokens=usage.get("input_token_count", 0),
+                output_tokens=usage.get("output_token_count", 0),
+                artifact_path=relative_asset,
+            )
+            continue
         if beat.get("type") not in ("title", "end_card", "scene_card"):
             continue
         btype = beat.get("type")
@@ -428,6 +454,64 @@ def review_render(project_path: Path, progress_callback=None) -> dict:
     if progress_callback:
         progress_callback(1.0, "Render review complete")
     return critique.model_dump(mode="json")
+
+
+def edit_plan_with_prompt(project_path: Path, prompt: str, progress_callback=None) -> dict:
+    project_path = Path(project_path)
+    project_id = project_path.name
+    current_plan = Plan.from_file(project_path / "manifests" / "plan.json")
+    scene_index = SceneIndex.from_file(project_path / "cache" / "scene_index.json")
+    media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
+
+    if progress_callback:
+        progress_callback(0.15, "Preparing plan edit request")
+    system_prompt = _load_prompt("plan_edit")
+    user_prompt = (
+        f"Project ID: {project_id}\n\n"
+        "Current plan:\n"
+        f"{current_plan.model_dump_json(indent=2)}\n\n"
+        "Scene index:\n"
+        f"{scene_index.model_dump_json(indent=2)}\n\n"
+        "Media probe:\n"
+        f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
+        "User instruction:\n"
+        f"{prompt}\n"
+    )
+
+    if progress_callback:
+        progress_callback(0.4, "Editing plan with Gemini")
+    result, usage = _client.complete_json(
+        user_prompt,
+        system=system_prompt,
+        schema=Plan.model_json_schema(),
+    )
+    result["project_id"] = current_plan.project_id
+    result.setdefault("title", current_plan.title)
+    result.setdefault("target_duration", current_plan.target_duration)
+    result.setdefault("story_arc", current_plan.story_arc)
+    result["beats"] = _renumber_plan_result(result.get("beats", []))
+
+    edited = Plan.model_validate(result)
+    edited.validate_against_scene_index(scene_index)
+
+    from ...manifests.service import _nested_progress, _regenerate_after_plan_mutation, write_plan
+
+    write_plan(project_path, edited)
+    if progress_callback:
+        progress_callback(0.6, "Regenerating assets and preview")
+    _regenerate_after_plan_mutation(project_path, progress_callback=_nested_progress(progress_callback, 0.6, 1.0) if progress_callback else None)
+
+    _log_call(
+        project_path=project_path,
+        project_id=project_id,
+        stage="plan_edit",
+        model=usage["model"],
+        elapsed_ms=usage["elapsed_ms"],
+        input_tokens=usage["input_token_count"],
+        output_tokens=usage["output_token_count"],
+        artifact_path="manifests/plan.json",
+    )
+    return edited.model_dump(mode="json")
 
 
 def _log_call(
@@ -598,6 +682,13 @@ def _build_background_prompt(*, goal: str, text: str, style: dict) -> str:
         f"Base palette around {background} with accent notes around {accent}. "
         "No words, no logos, no UI screenshots, no watermarks."
     )
+
+
+def _image_asset_for_prompt(image_prompt: str) -> str:
+    import hashlib
+
+    digest = hashlib.sha1(image_prompt.encode("utf-8")).hexdigest()[:12]
+    return f"assets/images/image_{digest}.png"
 
 
 def _normalize_scene_index_result(result: dict, source_path: str, source_duration: float) -> dict:
@@ -841,3 +932,12 @@ def _write_preview_stub(path: Path, label: str) -> None:
     draw = ImageDraw.Draw(image)
     draw.text((64, 64), label, fill="#F9FAFB")
     image.save(path, "PNG")
+
+
+def _renumber_plan_result(beats: list[dict]) -> list[dict]:
+    normalized: list[dict] = []
+    for index, beat in enumerate(beats, start=1):
+        item = dict(beat)
+        item["beat_id"] = f"beat_{index:03d}"
+        normalized.append(item)
+    return normalized

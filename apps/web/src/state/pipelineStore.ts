@@ -10,6 +10,7 @@ import * as api from '../api/directorloopApi'
 import type {
   BlockManifest,
   CriticSuggestions,
+  CreateBeatRequest,
   EventLogEntry,
   JobKind,
   JobStatus,
@@ -46,6 +47,7 @@ export interface PipelineState {
   eventLog: EventLogEntry[]
   approvalState: Record<string, ApprovalValue>
   pipelineStages: Record<PipelineStageKey, StageRunStatus>
+  highlightedBlockId: string | null
 }
 
 export type PipelineAction =
@@ -65,6 +67,8 @@ export type PipelineAction =
   | { type: 'ADD_EVENT'; payload: EventLogEntry }
   | { type: 'SET_APPROVAL'; payload: { id: string; value: ApprovalValue } }
   | { type: 'SET_STAGE'; payload: { stage: PipelineStageKey; status: StageRunStatus } }
+  | { type: 'SET_HIGHLIGHTED_BLOCK'; payload: string | null }
+  | { type: 'CLEAR_REVIEW_ARTIFACTS' }
   | { type: 'RESET' }
 
 export const initialState: PipelineState = {
@@ -92,7 +96,12 @@ export const initialState: PipelineState = {
     render: 'idle',
     'review-render': 'idle',
     'apply-approved-patches': 'idle',
+    'reorder-plan': 'idle',
+    'delete-beat': 'idle',
+    'edit-plan': 'idle',
+    'create-beat': 'idle',
   },
+  highlightedBlockId: null,
 }
 
 export const PipelineContext = createContext<PipelineState>(initialState)
@@ -152,6 +161,10 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
         ...state,
         pipelineStages: { ...state.pipelineStages, [action.payload.stage]: action.payload.status },
       }
+    case 'SET_HIGHLIGHTED_BLOCK':
+      return { ...state, highlightedBlockId: action.payload }
+    case 'CLEAR_REVIEW_ARTIFACTS':
+      return { ...state, criticSuggestions: null, renderQa: null, approvalState: {} }
     case 'RESET':
       return initialState
     default:
@@ -196,6 +209,10 @@ const BACKEND_STAGE_TO_FRONTEND: Record<string, PipelineStageKey> = {
   rendering: 'render',
   review_render: 'review-render',
   apply_patches: 'apply-approved-patches',
+  reordering_plan: 'reorder-plan',
+  deleting_plan_beat: 'delete-beat',
+  editing_plan: 'edit-plan',
+  creating_plan_beat: 'create-beat',
 }
 
 function normalizeStage(stage: string | null, fallback: PipelineStageKey): PipelineStageKey {
@@ -215,6 +232,21 @@ function makeQueuedJob(jobId: string, projectId: string, stage: PipelineStageKey
     created_at: now,
     updated_at: now,
   }
+}
+
+function optimisticManifestReorder(plan: Plan | null, manifest: BlockManifest | null, beatOrder: string[]): BlockManifest | null {
+  if (!plan || !manifest || plan.beats.length !== manifest.blocks.length) return manifest
+  const blockByBeatId = new Map(plan.beats.map((beat, index) => [beat.beat_id, manifest.blocks[index]]))
+  const reorderedBlocks = beatOrder.map((beatId) => blockByBeatId.get(beatId)).filter(Boolean) as BlockManifest['blocks']
+  if (reorderedBlocks.length !== manifest.blocks.length) return manifest
+  return { ...manifest, blocks: reorderedBlocks }
+}
+
+function optimisticManifestDelete(plan: Plan | null, manifest: BlockManifest | null, beatId: string): BlockManifest | null {
+  if (!plan || !manifest || plan.beats.length !== manifest.blocks.length) return manifest
+  const index = plan.beats.findIndex((beat) => beat.beat_id === beatId)
+  if (index < 0) return manifest
+  return { ...manifest, blocks: manifest.blocks.filter((_, blockIndex) => blockIndex !== index) }
 }
 
 async function fetchArtifact(
@@ -263,6 +295,17 @@ async function fetchArtifact(
       const data = await api.getManifest(projectId)
       dispatch({ type: 'SET_MANIFEST', payload: data })
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', 'Manifest updated') })
+    } else if (stage === 'reorder-plan' || stage === 'delete-beat' || stage === 'edit-plan' || stage === 'create-beat') {
+      const [plan, manifest, render] = await Promise.all([
+        api.getPlan(projectId),
+        api.getManifest(projectId),
+        api.getRender(projectId),
+      ])
+      dispatch({ type: 'SET_PLAN', payload: plan })
+      dispatch({ type: 'SET_MANIFEST', payload: manifest })
+      dispatch({ type: 'SET_RENDER_SUMMARY', payload: render })
+      dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Plan updated: ${plan.beats.length} beats`) })
     }
   } catch (error) {
     dispatch({
@@ -527,6 +570,90 @@ export function usePipelineActions() {
     dispatch({ type: 'SET_APPROVAL', payload: { id, value } })
   }, [dispatch])
 
+  const highlightBlock = useCallback((blockId: string | null) => {
+    dispatch({ type: 'SET_HIGHLIGHTED_BLOCK', payload: blockId })
+  }, [dispatch])
+
+  const reorderPlanBeats = useCallback(async (beatOrder: string[]) => {
+    if (!state.projectId || !state.plan) return
+
+    const reorderedBeats = beatOrder
+      .map((beatId) => state.plan?.beats.find((beat) => beat.beat_id === beatId))
+      .filter(Boolean) as Plan['beats']
+    if (reorderedBeats.length === state.plan.beats.length) {
+      dispatch({ type: 'SET_PLAN', payload: { ...state.plan, beats: reorderedBeats } })
+      const optimisticManifest = optimisticManifestReorder(state.plan, state.manifest, beatOrder)
+      if (optimisticManifest) {
+        dispatch({ type: 'SET_MANIFEST', payload: optimisticManifest })
+      }
+      dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+    }
+
+    try {
+      const { job_id } = await api.reorderPlanBeats(state.projectId, beatOrder)
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'reorder-plan') })
+      startPolling(job_id, 'reorder-plan', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Reorder failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch, startPolling, state.manifest, state.plan, state.projectId])
+
+  const deleteBeat = useCallback(async (beatId: string) => {
+    if (!state.projectId || !state.plan) return
+
+    dispatch({ type: 'SET_PLAN', payload: { ...state.plan, beats: state.plan.beats.filter((beat) => beat.beat_id !== beatId) } })
+    const optimisticManifest = optimisticManifestDelete(state.plan, state.manifest, beatId)
+    if (optimisticManifest) {
+      dispatch({ type: 'SET_MANIFEST', payload: optimisticManifest })
+    }
+    dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+
+    try {
+      const { job_id } = await api.deletePlanBeat(state.projectId, beatId)
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'delete-beat') })
+      startPolling(job_id, 'delete-beat', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Delete beat failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch, startPolling, state.manifest, state.plan, state.projectId])
+
+  const editPlanPrompt = useCallback(async (prompt: string) => {
+    if (!state.projectId || !prompt.trim()) return
+    dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+    try {
+      const { job_id } = await api.editPlanWithPrompt(state.projectId, prompt.trim())
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'edit-plan') })
+      startPolling(job_id, 'edit-plan', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Plan edit failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch, startPolling, state.projectId])
+
+  const createBeat = useCallback(async (payload: CreateBeatRequest) => {
+    if (!state.projectId) return
+    dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+    try {
+      const { job_id } = await api.createPlanBeat(state.projectId, payload)
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'create-beat') })
+      startPolling(job_id, 'create-beat', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Create beat failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+      throw error
+    }
+  }, [dispatch, startPolling, state.projectId])
+
   const loadProject = useCallback(async (projectId: string) => {
     try {
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Loading project ${projectId}...`) })
@@ -548,7 +675,21 @@ export function usePipelineActions() {
     }
   }, [dispatch])
 
-  return { openDemo, createNewProject, loadProject, runStage, submitApprovals, setApproval, selectMedia, importMedia }
+  return {
+    openDemo,
+    createNewProject,
+    loadProject,
+    runStage,
+    submitApprovals,
+    setApproval,
+    selectMedia,
+    importMedia,
+    highlightBlock,
+    reorderPlanBeats,
+    deleteBeat,
+    editPlanPrompt,
+    createBeat,
+  }
 }
 
 export type { ApprovalValue, JobKind, PipelineJobKind, PipelineStageKey, StageRunStatus }

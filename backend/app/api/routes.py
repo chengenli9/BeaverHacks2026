@@ -6,7 +6,7 @@ import re
 
 from ..jobs.store import create_job, get_job
 from ..jobs.runner import run_job
-from ..manifests.models import ApplyPatchesRequest
+from ..manifests.models import ApplyPatchesRequest, CreateBeatRequest, PlanEditPromptRequest, PlanReorderRequest
 from ..projects.service import (
     ProjectNotFoundError,
     create_local_project,
@@ -194,6 +194,26 @@ def get_shot_index(project_id: str):
 @router.get("/projects/{project_id}/plan")
 def get_plan(project_id: str):
     return _json_or_404(_project_path_or_404(project_id) / "manifests/plan.json")
+
+
+@router.put("/projects/{project_id}/plan/reorder")
+def reorder_plan(project_id: str, request: PlanReorderRequest, bg: BackgroundTasks):
+    return _enqueue(bg, project_id, "reordering_plan", svc.reorder_plan_beats, request)
+
+
+@router.delete("/projects/{project_id}/plan/beats/{beat_id}")
+def delete_plan_beat(project_id: str, beat_id: str, bg: BackgroundTasks):
+    return _enqueue(bg, project_id, "deleting_plan_beat", svc.delete_plan_beat, beat_id)
+
+
+@router.post("/projects/{project_id}/plan/edit-prompt")
+def edit_plan_prompt(project_id: str, request: PlanEditPromptRequest, bg: BackgroundTasks):
+    return _enqueue(bg, project_id, "editing_plan", svc.edit_plan_with_prompt, request.prompt)
+
+
+@router.post("/projects/{project_id}/plan/beats")
+def create_plan_beat(project_id: str, request: CreateBeatRequest, bg: BackgroundTasks):
+    return _enqueue(bg, project_id, "creating_plan_beat", svc.insert_plan_beat, request)
 
 
 @router.get("/projects/{project_id}/manifest")

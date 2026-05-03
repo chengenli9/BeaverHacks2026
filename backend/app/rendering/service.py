@@ -6,10 +6,11 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
-from ..manifests.models import Block, BlockManifest, SourceClipBlock, TextBlock
+from ..manifests.models import Block, BlockManifest, ImageCardBlock, SourceClipBlock, TextBlock
 from ..manifests.service import load_manifest, validate_project_assets
 from .commands import (
     build_concat_command,
+    build_image_card_command,
     build_source_clip_command,
     build_title_block_command,
 )
@@ -43,6 +44,8 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
                 )
         # Fallback: static Pillow + FFmpeg
         command = build_title_block_command(root, block, settings)
+    elif isinstance(block, ImageCardBlock):
+        command = build_image_card_command(root, block, settings)
     elif isinstance(block, SourceClipBlock):
         command = build_source_clip_command(
             root,

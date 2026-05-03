@@ -1,19 +1,21 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
-  Play, Pause, SkipBack, SkipForward, Mic, Film, Type
+  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon
 } from 'lucide-react'
-import { usePipeline, useVideoRef } from '../state/pipelineStore'
+import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
 import type { Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
   title: '#8b5cf6',
   source_clip: '#3b82f6',
+  scene_card: '#f97316',
   end_card: '#2dd4bf',
+  image_card: '#ec4899',
 }
 
 const TRACK_ICONS: Record<string, typeof Film> = {
-  title: Type, source_clip: Film, end_card: Type,
+  title: Type, source_clip: Film, scene_card: Type, end_card: Type, image_card: ImageIcon,
 }
 
 function formatTime(seconds: number): string {
@@ -34,7 +36,8 @@ function getTtsDuration(block: Block): number {
 }
 
 export function Timeline() {
-  const { manifest } = usePipeline()
+  const { manifest, highlightedBlockId, plan } = usePipeline()
+  const { reorderPlanBeats } = usePipelineActions()
   const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
   const [playheadPos, setPlayheadPos] = useState(0)
@@ -113,6 +116,25 @@ export function Timeline() {
     e.preventDefault(); setDragOverIndex(idx)
   }
   const handleDragEnd = () => { setDraggingBlock(null); setDragOverIndex(null) }
+  const handleDrop = async (idx: number) => {
+    if (!manifest || !plan || !draggingBlock) {
+      setDraggingBlock(null)
+      setDragOverIndex(null)
+      return
+    }
+    const fromIndex = manifest.blocks.findIndex((block) => block.block_id === draggingBlock)
+    if (fromIndex < 0 || fromIndex === idx) {
+      setDraggingBlock(null)
+      setDragOverIndex(null)
+      return
+    }
+    const nextBeats = [...plan.beats]
+    const [moved] = nextBeats.splice(fromIndex, 1)
+    nextBeats.splice(idx, 0, moved)
+    setDraggingBlock(null)
+    setDragOverIndex(null)
+    await reorderPlanBeats(nextBeats.map((beat) => beat.beat_id))
+  }
 
   // Time ruler marks
   const rulerMarks: number[] = []
@@ -179,15 +201,17 @@ export function Timeline() {
                   const Icon = TRACK_ICONS[block.type] ?? Film
                   const isDragging = draggingBlock === block.block_id
                   const isOver = dragOverIndex === idx
+                  const isHighlighted = highlightedBlockId === block.block_id
 
                   return (
                     <div
                       key={block.block_id}
-                      className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''}`}
+                      className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''} ${isHighlighted ? 'tl-clip-highlight' : ''}`}
                       style={{ width: w, '--clip-color': color } as React.CSSProperties}
                       draggable
                       onDragStart={() => handleDragStart(block.block_id)}
                       onDragOver={(e) => handleDragOver(e, idx)}
+                      onDrop={(e) => { e.preventDefault(); void handleDrop(idx) }}
                       onDragEnd={handleDragEnd}
                       title={`${block.block_id} (${dur.toFixed(1)}s)`}
                       id={`tl-clip-${block.block_id}`}

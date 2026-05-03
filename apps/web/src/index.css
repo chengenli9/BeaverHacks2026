@@ -879,6 +879,40 @@ body,
 }
 
 /* ═══ CRITIC / APPROVAL ═══════════════════════ */
+.suggestion-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.suggestion-block-id {
+  font-weight: 600;
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.suggestion-block-type {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.block-highlight {
+  border-color: var(--amber) !important;
+  box-shadow: 0 0 0 1px var(--amber), 0 0 12px rgba(245, 158, 11, 0.15);
+}
+
+.tl-clip-highlight {
+  outline: 2px solid var(--amber);
+  outline-offset: -1px;
+  z-index: 2;
+  filter: brightness(1.25);
+}
+
 .approval-controls {
   display: flex;
   gap: 4px;

@@ -2,6 +2,7 @@ import type {
   ApplyPatchesRequest,
   BlockManifest,
   CriticSuggestions,
+  CreateBeatRequest,
   ImportMediaResponse,
   JobStartResponse,
   JobStatus,
@@ -111,6 +112,33 @@ export function getRenderQa(projectId: string): Promise<RenderQa> {
 
 export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStartResponse> {
   return request<JobStartResponse>('/jobs/apply-approved-patches', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function reorderPlanBeats(projectId: string, beatOrder: string[]): Promise<JobStartResponse> {
+  return request<JobStartResponse>(`/projects/${projectId}/plan/reorder`, {
+    method: 'PUT',
+    body: JSON.stringify({ beat_order: beatOrder }),
+  })
+}
+
+export function deletePlanBeat(projectId: string, beatId: string): Promise<JobStartResponse> {
+  return request<JobStartResponse>(`/projects/${projectId}/plan/beats/${beatId}`, {
+    method: 'DELETE',
+  })
+}
+
+export function editPlanWithPrompt(projectId: string, prompt: string): Promise<JobStartResponse> {
+  return request<JobStartResponse>(`/projects/${projectId}/plan/edit-prompt`, {
+    method: 'POST',
+    body: JSON.stringify({ prompt }),
+  })
+}
+
+export function createPlanBeat(projectId: string, body: CreateBeatRequest): Promise<JobStartResponse> {
+  return request<JobStartResponse>(`/projects/${projectId}/plan/beats`, {
     method: 'POST',
     body: JSON.stringify(body),
   })

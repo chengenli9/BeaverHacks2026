@@ -1,4 +1,6 @@
 import type { Block } from '../types/api'
+import { getProjectFileUrl } from '../api/directorloopApi'
+import { usePipeline } from '../state/pipelineStore'
 import { Clock, Film, Type, Mic, AlertTriangle } from 'lucide-react'
 
 interface Props {
@@ -6,18 +8,23 @@ interface Props {
 }
 
 export function BlockCard({ block }: Props) {
+  const { highlightedBlockId, projectId } = usePipeline()
+  const isHighlighted = highlightedBlockId === block.block_id
   const isClip = block.type === 'source_clip'
   const ttsDuration = isClip && Number.isFinite(block.tts_duration) ? block.tts_duration : null
   const textBlock = block.type === 'title' || block.type === 'end_card' || block.type === 'scene_card' ? block : null
+  const imageBlock = block.type === 'image_card' ? block : null
+  const imageUrl = projectId && imageBlock ? getProjectFileUrl(projectId, imageBlock.image_asset) : null
 
   return (
-    <div className="card" id={`block-${block.block_id}`}>
+    <div className={`card${isHighlighted ? ' block-highlight' : ''}`} id={`block-${block.block_id}`}>
       <div className="card-header">
         <span className="card-title">
           {block.type === 'title' && <Type size={12} />}
           {block.type === 'source_clip' && <Film size={12} />}
           {block.type === 'scene_card' && <Type size={12} />}
           {block.type === 'end_card' && <Type size={12} />}
+          {block.type === 'image_card' && <Film size={12} />}
           {block.block_id}
         </span>
         <span className={`type-badge ${block.type}`}>{block.type.replace('_', ' ')}</span>
@@ -26,6 +33,20 @@ export function BlockCard({ block }: Props) {
       {textBlock && (
         <div className="card-body">
           <strong style={{ color: 'var(--text-primary)' }}>"{textBlock.text}"</strong>
+        </div>
+      )}
+
+      {imageBlock && (
+        <div className="card-body" style={{ display: 'grid', gap: 8 }}>
+          {imageUrl && (
+            <img
+              src={imageUrl}
+              alt={imageBlock.image_prompt}
+              style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 6 }}
+              loading="lazy"
+            />
+          )}
+          <strong style={{ color: 'var(--text-primary)' }}>{imageBlock.image_prompt}</strong>
         </div>
       )}
 
@@ -55,6 +76,7 @@ export function BlockCard({ block }: Props) {
         {textBlock?.motion_asset?.runtime_template && (
           <span className="card-meta-item">{textBlock.motion_asset.runtime_template}</span>
         )}
+        {imageBlock?.ken_burns && <span className="card-meta-item">ken burns</span>}
       </div>
 
       {isClip && ttsDuration != null && ttsDuration > block.video_duration && (

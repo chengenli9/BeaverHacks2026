@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..manifests.models import BlockManifest, RenderSettings, SourceClipBlock, TextBlock
+from ..manifests.models import BlockManifest, ImageCardBlock, RenderSettings, SourceClipBlock, TextBlock
 
 
 def build_title_block_command(project_path: str | Path, block: TextBlock, settings: RenderSettings) -> list[str]:
@@ -133,6 +133,59 @@ def build_source_clip_command(
         ]
     )
     return command
+
+
+def build_image_card_command(project_path: str | Path, block: ImageCardBlock, settings: RenderSettings) -> list[str]:
+    root = Path(project_path)
+    output = root / block.rendered_path
+    base_filter = (
+        f"scale={settings.width}:{settings.height}:force_original_aspect_ratio=increase,"
+        f"crop={settings.width}:{settings.height}"
+    )
+    if block.ken_burns:
+        total_frames = max(int(round(block.duration * settings.fps)), 1)
+        video_filter = (
+            f"{base_filter},zoompan="
+            f"z='min(zoom+0.0015,1.12)':"
+            f"x='iw/2-(iw/zoom/2)':"
+            f"y='ih/2-(ih/zoom/2)':"
+            f"d={total_frames}:"
+            f"s={settings.width}x{settings.height}:"
+            f"fps={settings.fps},"
+            f"fps={settings.fps},format={settings.pixel_format}"
+        )
+    else:
+        video_filter = f"{base_filter},fps={settings.fps},format={settings.pixel_format}"
+    return [
+        "ffmpeg",
+        "-y",
+        "-loop",
+        "1",
+        "-framerate",
+        str(settings.fps),
+        "-t",
+        _seconds(block.duration),
+        "-i",
+        str(root / block.image_asset),
+        "-f",
+        "lavfi",
+        "-t",
+        _seconds(block.duration),
+        "-i",
+        f"anullsrc=channel_layout=stereo:sample_rate={settings.sample_rate}",
+        "-vf",
+        video_filter,
+        "-r",
+        str(settings.fps),
+        "-c:v",
+        settings.video_codec,
+        "-c:a",
+        settings.audio_codec,
+        "-pix_fmt",
+        settings.pixel_format,
+        "-shortest",
+        str(output),
+    ]
 
 
 def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> list[str]:

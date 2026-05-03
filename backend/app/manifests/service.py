@@ -9,12 +9,17 @@ import struct
 from pydantic import TypeAdapter
 
 from .models import (
+    BeatStyle,
     ApplyPatchesRequest,
     Block,
     BlockManifest,
+    CreateBeatRequest,
     CriticSuggestions,
     EndCardBlock,
     Plan,
+    PlanBeat,
+    PlanEditPromptRequest,
+    PlanReorderRequest,
     SceneCardBlock,
     SceneIndex,
     SourceClipBlock,
@@ -28,6 +33,16 @@ def load_scene_index(project_path: str | Path) -> SceneIndex:
 
 def load_plan(project_path: str | Path) -> Plan:
     return Plan.from_file(Path(project_path) / "manifests" / "plan.json")
+
+
+def write_plan(project_path: str | Path, plan: Plan) -> Path:
+    plan_path = Path(project_path) / "manifests" / "plan.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text(
+        json.dumps(plan.model_dump(mode="json"), indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return plan_path
 
 
 def load_manifest(project_path: str | Path) -> BlockManifest:
@@ -52,6 +67,73 @@ def build_manifest(project_path: str | Path) -> BlockManifest:
     # build_manifest_from_plan already reconciles and validates
     write_manifest(project_path, manifest)
     return manifest
+
+
+def reorder_plan_beats(
+    project_path: str | Path,
+    request: PlanReorderRequest,
+    *,
+    progress_callback=None,
+) -> Plan:
+    root = Path(project_path)
+    plan = load_plan(root)
+    order = request.beat_order
+    existing_ids = [beat.beat_id for beat in plan.beats]
+    if set(order) != set(existing_ids) or len(order) != len(existing_ids):
+        raise ValueError("beat_order must include every existing beat exactly once")
+    beat_map = {beat.beat_id: beat for beat in plan.beats}
+    reordered = [beat_map[beat_id].model_dump(mode="json") for beat_id in order]
+    updated = plan.model_copy(update={"beats": _renumber_plan_beats(reordered)})
+    updated = Plan.model_validate(updated.model_dump(mode="json"))
+    write_plan(root, updated)
+    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    return updated
+
+
+def delete_plan_beat(
+    project_path: str | Path,
+    beat_id: str,
+    *,
+    progress_callback=None,
+) -> Plan:
+    root = Path(project_path)
+    plan = load_plan(root)
+    remaining = [beat.model_dump(mode="json") for beat in plan.beats if beat.beat_id != beat_id]
+    if len(remaining) == len(plan.beats):
+        raise KeyError(f"Unknown beat_id: {beat_id}")
+    if not remaining:
+        raise ValueError("plan must contain at least one beat")
+    updated = plan.model_copy(update={"beats": _renumber_plan_beats(remaining)})
+    updated = Plan.model_validate(updated.model_dump(mode="json"))
+    write_plan(root, updated)
+    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    return updated
+
+
+def insert_plan_beat(
+    project_path: str | Path,
+    request: CreateBeatRequest,
+    *,
+    progress_callback=None,
+) -> Plan:
+    root = Path(project_path)
+    plan = load_plan(root)
+    new_beat = _build_plan_beat_for_insert(request)
+    beats = [beat.model_dump(mode="json") for beat in plan.beats]
+    insert_index = len(beats)
+    if request.insert_after is not None:
+        for index, beat in enumerate(plan.beats):
+            if beat.beat_id == request.insert_after:
+                insert_index = index + 1
+                break
+        else:
+            raise KeyError(f"Unknown beat_id: {request.insert_after}")
+    beats.insert(insert_index, new_beat)
+    updated = plan.model_copy(update={"beats": _renumber_plan_beats(beats)})
+    updated = Plan.model_validate(updated.model_dump(mode="json"))
+    write_plan(root, updated)
+    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    return updated
 
 
 def build_manifest_from_plan(
@@ -110,6 +192,18 @@ def build_manifest_from_plan(
                     "motion_asset": motion_asset,
                     **style,
                     "rendered_path": f"blocks/{ordinal}_end.mp4",
+                }
+            )
+        elif beat.type == "image_card":
+            blocks.append(
+                {
+                    "block_id": f"{ordinal}_{beat.beat_id}",
+                    "type": "image_card",
+                    "image_prompt": beat.image_prompt,
+                    "image_asset": _image_asset_for_prompt(beat.image_prompt or ""),
+                    "duration": beat.duration,
+                    "ken_burns": beat.ken_burns,
+                    "rendered_path": f"blocks/{ordinal}_{beat.beat_id}.mp4",
                 }
             )
         elif beat.type == "source_clip":
@@ -189,6 +283,8 @@ def validate_project_assets(
             _require_file(root, block.fontfile)
             if require_media and block.background_asset:
                 _require_file(root, block.background_asset)
+        if getattr(block, "type", None) == "image_card" and require_media:
+            _require_file(root, block.image_asset)
         if isinstance(block, SourceClipBlock) and require_media:
             _require_file(root, block.source)
             if block.tts_asset:
@@ -406,3 +502,71 @@ def _quantize_source_end(source_start: float, source_end: float) -> float:
     if snapped_duration <= 0:
         return source_end
     return round(source_start + snapped_duration, 3)
+
+
+def _renumber_plan_beats(beats: list[dict]) -> list[dict]:
+    renumbered: list[dict] = []
+    for index, beat in enumerate(beats, start=1):
+        item = dict(beat)
+        item["beat_id"] = f"beat_{index:03d}"
+        renumbered.append(item)
+    return renumbered
+
+
+def _build_plan_beat_for_insert(request: CreateBeatRequest) -> dict:
+    if request.type == "scene_card":
+        return {
+            "beat_id": "beat_pending",
+            "type": "scene_card",
+            "goal": request.text,
+            "scene_id": None,
+            "duration": request.duration,
+            "narration": None,
+            "onscreen_text": request.text,
+            "style": request.style.model_dump(mode="json") if request.style else None,
+            "image_prompt": None,
+            "ken_burns": False,
+        }
+    return {
+        "beat_id": "beat_pending",
+        "type": "image_card",
+        "goal": request.text or "Generated image beat",
+        "scene_id": None,
+        "duration": request.duration,
+        "narration": None,
+        "onscreen_text": request.text,
+        "style": None,
+        "image_prompt": request.image_prompt,
+        "ken_burns": request.ken_burns,
+    }
+
+
+def _regenerate_after_plan_mutation(project_path: Path, *, progress_callback=None) -> None:
+    from ..integrations.gemini.service import generate_background_assets
+    from ..rendering.service import render_project
+
+    if progress_callback:
+        progress_callback(0.15, "Refreshing generated assets")
+    generate_background_assets(project_path)
+    if progress_callback:
+        progress_callback(0.5, "Rebuilding manifest")
+    build_manifest(project_path)
+    if progress_callback:
+        progress_callback(0.7, "Rendering updated cut")
+    render_project(project_path, progress_callback=None if progress_callback is None else _nested_progress(progress_callback, 0.7, 1.0))
+
+
+def _nested_progress(progress_callback, start: float, end: float):
+    span = max(end - start, 0)
+
+    def callback(progress: float, message: str):
+        progress_callback(start + span * progress, message)
+
+    return callback
+
+
+def _image_asset_for_prompt(image_prompt: str) -> str:
+    import hashlib
+
+    digest = hashlib.sha1(image_prompt.encode("utf-8")).hexdigest()[:12]
+    return f"assets/images/image_{digest}.png"

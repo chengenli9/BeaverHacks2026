@@ -177,13 +177,15 @@ class SceneIndex(BaseModel):
 
 class PlanBeat(BaseModel):
     beat_id: str
-    type: Literal["title", "source_clip", "scene_card", "end_card"]
+    type: Literal["title", "source_clip", "scene_card", "end_card", "image_card"]
     goal: str
     scene_id: str | None = None
     duration: float = Field(gt=0)
     narration: str | None = None
     onscreen_text: str | None = None
     style: BeatStyle | None = None
+    image_prompt: str | None = None
+    ken_burns: bool = False
 
     @model_validator(mode="after")
     def source_beats_require_scene_id(self) -> PlanBeat:
@@ -191,6 +193,10 @@ class PlanBeat(BaseModel):
             raise ValueError("source_clip beats require scene_id")
         if self.type != "source_clip" and self.scene_id is not None:
             raise ValueError("non-source beats cannot reference scene_id")
+        if self.type == "image_card" and not self.image_prompt:
+            raise ValueError("image_card beats require image_prompt")
+        if self.type != "image_card" and self.image_prompt is not None:
+            raise ValueError("non-image beats cannot include image_prompt")
         return self
 
 
@@ -280,6 +286,20 @@ class SceneCardBlock(TextBlock):
     type: Literal["scene_card"]
 
 
+class ImageCardBlock(BaseBlock):
+    type: Literal["image_card"]
+    image_prompt: str
+    image_asset: str
+    duration: float = Field(gt=0)
+    ken_burns: bool = False
+
+    @field_validator("image_asset")
+    @classmethod
+    def image_asset_must_be_project_relative(cls, value: str) -> str:
+        _validate_project_relative_path(value)
+        return value
+
+
 class SourceClipBlock(BaseBlock):
     type: Literal["source_clip"]
     source: str
@@ -311,7 +331,7 @@ class SourceClipBlock(BaseBlock):
 
 
 Block = Annotated[
-    Union[TitleBlock, SourceClipBlock, SceneCardBlock, EndCardBlock],
+    Union[TitleBlock, SourceClipBlock, SceneCardBlock, EndCardBlock, ImageCardBlock],
     Field(discriminator="type"),
 ]
 
@@ -398,6 +418,32 @@ class ApplyPatchesRequest(BaseModel):
         overlap = approved & rejected
         if overlap:
             raise ValueError(f"suggestion ids cannot be both approved and rejected: {sorted(overlap)}")
+        return self
+
+
+class PlanReorderRequest(BaseModel):
+    beat_order: list[str] = Field(min_length=1)
+
+
+class PlanEditPromptRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+
+
+class CreateBeatRequest(BaseModel):
+    type: Literal["scene_card", "image_card"]
+    text: str | None = None
+    duration: float = Field(gt=0, le=10)
+    insert_after: str | None = None
+    style: BeatStyle | None = None
+    image_prompt: str | None = None
+    ken_burns: bool = False
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "CreateBeatRequest":
+        if self.type == "scene_card" and not self.text:
+            raise ValueError("scene_card creation requires text")
+        if self.type == "image_card" and not self.image_prompt:
+            raise ValueError("image_card creation requires image_prompt")
         return self
 
 

@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Boxes, FileText, Layers, Map, Play } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Boxes, FileText, Layers, Map, Play, Plus, Send, Trash2 } from 'lucide-react'
 import { getProjectFileUrl } from '../api/directorloopApi'
 import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
+import { BeatFormModal } from './BeatFormModal'
 import { BlockCard } from './BlockCard'
 import { SceneCard } from './SceneCard'
 import { Timeline } from './Timeline'
@@ -9,10 +10,14 @@ import { Timeline } from './Timeline'
 type CenterTab = 'player' | 'scenes' | 'plan' | 'manifest'
 
 export function CenterPanel() {
-  const { sceneIndex, plan, manifest, renderSummary, projectId, selectedMedia } = usePipeline()
-  const { selectMedia } = usePipelineActions()
+  const { activeJobs, sceneIndex, plan, manifest, renderSummary, projectId, selectedMedia } = usePipeline()
+  const { createBeat, deleteBeat, editPlanPrompt, reorderPlanBeats, selectMedia } = usePipelineActions()
   const videoRef = useVideoRef()
   const [tab, setTab] = useState<CenterTab>('player')
+  const [draggingBeatId, setDraggingBeatId] = useState<string | null>(null)
+  const [dragOverBeatIndex, setDragOverBeatIndex] = useState<number | null>(null)
+  const [planPrompt, setPlanPrompt] = useState('')
+  const [insertAfterBeatId, setInsertAfterBeatId] = useState<string | null>(null)
   const selectedVideoUrl = projectId && selectedMedia?.type === 'video'
     ? getProjectFileUrl(projectId, selectedMedia.path)
     : null
@@ -21,6 +26,27 @@ export function CenterPanel() {
       ? `${renderSummary.url}?v=${encodeURIComponent(renderSummary.cache_key)}`
       : renderSummary.url)
     : null
+  const isPlanMutationRunning = useMemo(
+    () => Object.values(activeJobs).some((job) => job.status === 'queued' || job.status === 'running') &&
+      Object.values(activeJobs).some((job) => ['reorder-plan', 'delete-beat', 'edit-plan', 'create-beat'].includes(String(job.stage))),
+    [activeJobs],
+  )
+
+  const handleBeatDrop = async (dropIndex: number) => {
+    if (!plan || !draggingBeatId) return
+    const fromIndex = plan.beats.findIndex((beat) => beat.beat_id === draggingBeatId)
+    if (fromIndex < 0 || fromIndex === dropIndex) {
+      setDraggingBeatId(null)
+      setDragOverBeatIndex(null)
+      return
+    }
+    const next = [...plan.beats]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(dropIndex, 0, moved)
+    setDraggingBeatId(null)
+    setDragOverBeatIndex(null)
+    await reorderPlanBeats(next.map((beat) => beat.beat_id))
+  }
 
   return (
     <div className="panel center-panel" id="center-panel">
@@ -101,17 +127,35 @@ export function CenterPanel() {
 
         {tab === 'plan' && plan && (
           <div className="artifact-scroll">
-            <div className="section-header"><FileText size={12} /> {plan.title}</div>
+            <div className="section-header" style={{ justifyContent: 'space-between' }}>
+              <span><FileText size={12} /> {plan.title}</span>
+              <button className="tl-tool-btn" type="button" onClick={() => setInsertAfterBeatId(plan.beats.at(-1)?.beat_id ?? null)}>
+                <Plus size={14} />
+              </button>
+            </div>
             <div className="story-arc">
               {plan.story_arc.map((step, index) => (
                 <div key={step} className="arc-step"><span className="arc-number">{index + 1}</span>{step}</div>
               ))}
             </div>
-            {plan.beats.map((beat) => (
-              <div key={beat.beat_id} className="card">
+            {plan.beats.map((beat, index) => (
+              <div key={beat.beat_id}>
+              <div
+                className={`card ${draggingBeatId === beat.beat_id ? 'dragging' : ''} ${dragOverBeatIndex === index ? 'drag-over' : ''}`}
+                draggable
+                onDragStart={() => setDraggingBeatId(beat.beat_id)}
+                onDragOver={(event) => { event.preventDefault(); setDragOverBeatIndex(index) }}
+                onDrop={(event) => { event.preventDefault(); void handleBeatDrop(index) }}
+                onDragEnd={() => { setDraggingBeatId(null); setDragOverBeatIndex(null) }}
+              >
                 <div className="card-header">
                   <span className="card-title">{beat.beat_id}</span>
-                  <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span className={`type-badge ${beat.type}`}>{beat.type.replace('_', ' ')}</span>
+                    <button className="tl-tool-btn" type="button" onClick={() => void deleteBeat(beat.beat_id)} title="Delete beat">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
                 <div className="card-body">
                   <strong>{beat.goal}</strong>
@@ -123,13 +167,65 @@ export function CenterPanel() {
                   {beat.onscreen_text && (
                     <div style={{ marginTop: 4, color: 'var(--violet)' }}>Text: "{beat.onscreen_text}"</div>
                   )}
+                  {beat.image_prompt && (
+                    <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>Image prompt: {beat.image_prompt}</div>
+                  )}
                 </div>
                 <div className="card-meta">
                   <span className="card-meta-item">{beat.duration.toFixed(1)}s</span>
                   {beat.scene_id && <span className="card-meta-item">- {beat.scene_id}</span>}
                 </div>
               </div>
+              <button
+                type="button"
+                className="inline-link-btn"
+                style={{ margin: '4px 0 12px 6px' }}
+                onClick={() => setInsertAfterBeatId(beat.beat_id)}
+              >
+                <Plus size={12} /> Insert After
+              </button>
+              </div>
             ))}
+            <form
+              className="card"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (!planPrompt.trim()) return
+                void editPlanPrompt(planPrompt)
+                setPlanPrompt('')
+              }}
+            >
+              <div className="card-header">
+                <span className="card-title">Plan Edit Prompt</span>
+              </div>
+              <div className="card-body" style={{ display: 'grid', gap: 8 }}>
+                <input
+                  className="modal-input"
+                  type="text"
+                  value={planPrompt}
+                  onChange={(event) => setPlanPrompt(event.target.value)}
+                  placeholder="Make the intro shorter and add a scene card about results"
+                  disabled={isPlanMutationRunning}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="submit" className="modal-btn modal-btn-primary" disabled={!planPrompt.trim() || isPlanMutationRunning}>
+                    <Send size={12} />
+                    {isPlanMutationRunning ? 'Working...' : 'Apply Prompt'}
+                  </button>
+                </div>
+              </div>
+            </form>
+            {insertAfterBeatId !== undefined && insertAfterBeatId !== null && (
+              <BeatFormModal
+                insertAfter={insertAfterBeatId}
+                submitting={isPlanMutationRunning}
+                onClose={() => setInsertAfterBeatId(null)}
+                onSubmit={async (payload) => {
+                  await createBeat(payload)
+                  setInsertAfterBeatId(null)
+                }}
+              />
+            )}
           </div>
         )}
 

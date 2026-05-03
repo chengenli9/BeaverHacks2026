@@ -1,9 +1,9 @@
-import { CheckCircle, Send, ShieldCheck, XCircle } from 'lucide-react'
+import { CheckCircle, Send, ShieldCheck, XCircle, Pencil } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 
 export function CriticPanel() {
-  const { criticSuggestions, approvalState } = usePipeline()
-  const { setApproval, submitApprovals } = usePipelineActions()
+  const { criticSuggestions, approvalState, manifest } = usePipeline()
+  const { setApproval, submitApprovals, highlightBlock } = usePipelineActions()
 
   if (!criticSuggestions) return null
 
@@ -13,6 +13,11 @@ export function CriticPanel() {
   const skippedCount = decisions.filter((value) => value === 'pending').length
   const hasAnyDecision = approvedCount + rejectedCount > 0
 
+  const blockTypes: Record<string, string> = {}
+  for (const block of manifest?.blocks ?? []) {
+    blockTypes[block.block_id] = block.type.replace('_', ' ')
+  }
+
   return (
     <div id="critic-section">
       <div className="section-header">
@@ -21,15 +26,21 @@ export function CriticPanel() {
 
       {criticSuggestions.suggestions.map((suggestion) => {
         const state = approvalState[suggestion.suggestion_id] ?? 'pending'
+        const blockLabel = blockTypes[suggestion.block_id] ?? 'block'
 
         return (
-          <div key={suggestion.suggestion_id} className="card" id={`suggestion-${suggestion.suggestion_id}`}>
+          <div
+            key={suggestion.suggestion_id}
+            className="card"
+            id={`suggestion-${suggestion.suggestion_id}`}
+            onMouseEnter={() => highlightBlock(suggestion.block_id)}
+            onMouseLeave={() => highlightBlock(null)}
+          >
             <div className="card-header">
-              <span className="card-title">
-                {suggestion.suggestion_id}
-                <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 }}>
-                  - {suggestion.block_id}
-                </span>
+              <span className="suggestion-target">
+                <Pencil size={10} />
+                <span className="suggestion-block-id">{suggestion.block_id}</span>
+                <span className="suggestion-block-type">{blockLabel}</span>
               </span>
               <span className={`type-badge ${suggestion.action}`}>{suggestion.action.replace('_', ' ')}</span>
             </div>
@@ -52,7 +63,7 @@ export function CriticPanel() {
               )}
               {suggestion.replacement_text && (
                 <span className="card-meta-item" style={{ color: 'var(--violet)' }}>
-                  - "{suggestion.replacement_text}"
+                  &rarr; "{suggestion.replacement_text}"
                 </span>
               )}
             </div>

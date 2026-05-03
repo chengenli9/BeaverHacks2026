@@ -29,7 +29,8 @@ export type PipelineJobKind =
   | 'review-render'
 
 export type PatchJobKind = 'apply-approved-patches'
-export type JobKind = PipelineJobKind | PatchJobKind
+export type PlanMutationJobKind = 'reorder-plan' | 'delete-beat' | 'edit-plan' | 'create-beat'
+export type JobKind = PipelineJobKind | PatchJobKind | PlanMutationJobKind
 export type PipelineStageKey = JobKind
 
 export interface ProjectSummary extends ProjectListItem {
@@ -97,13 +98,15 @@ export interface SceneIndex {
 
 export interface Beat {
   beat_id: string
-  type: 'title' | 'source_clip' | 'scene_card' | 'end_card'
+  type: 'title' | 'source_clip' | 'scene_card' | 'end_card' | 'image_card'
   goal: string
   scene_id: string | null
   duration: number
   narration: string | null
   onscreen_text: string | null
   style?: BeatStyle | null
+  image_prompt?: string | null
+  ken_burns?: boolean
 }
 
 export interface BeatStyle {
@@ -215,7 +218,18 @@ export interface SceneCardBlock {
   rendered_path: string
 }
 
-export type Block = TitleBlock | SourceClipBlock | SceneCardBlock | EndCardBlock
+export interface ImageCardBlock {
+  block_id: string
+  type: 'image_card'
+  image_prompt: string
+  image_asset: string
+  duration: number
+  ken_burns: boolean
+  motion_asset?: MotionAssetRef | null
+  rendered_path: string
+}
+
+export type Block = TitleBlock | SourceClipBlock | SceneCardBlock | EndCardBlock | ImageCardBlock
 
 export interface BlockManifest {
   project_id: string
@@ -343,6 +357,16 @@ export interface ApplyPatchesRequest {
   project_id: string
   approved_suggestion_ids: string[]
   rejected_suggestion_ids: string[]
+}
+
+export interface CreateBeatRequest {
+  type: 'scene_card' | 'image_card'
+  text?: string | null
+  duration: number
+  insert_after?: string | null
+  style?: BeatStyle | null
+  image_prompt?: string | null
+  ken_burns?: boolean
 }
 
 export interface RenderSummary {
