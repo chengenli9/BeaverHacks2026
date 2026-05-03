@@ -435,7 +435,25 @@ export function usePipelineActions() {
     dispatch({ type: 'SET_APPROVAL', payload: { id, value } })
   }, [dispatch])
 
-  return { openDemo, createNewProject, runStage, submitApprovals, setApproval, selectMedia, importMedia }
+  const loadProject = useCallback(async (projectId: string) => {
+    try {
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Loading project ${projectId}...`) })
+      // Create a minimal ProjectSummary to hydrate from
+      const project: ProjectSummary = {
+        project_id: projectId,
+        name: projectId,
+        display_name: projectId.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      }
+      await hydrateProject(dispatch, project)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Load failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch])
+
+  return { openDemo, createNewProject, loadProject, runStage, submitApprovals, setApproval, selectMedia, importMedia }
 }
 
 export type { ApprovalValue, JobKind, PipelineJobKind, PipelineStageKey, StageRunStatus }

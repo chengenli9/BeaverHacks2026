@@ -17,6 +17,7 @@ vi.mock('../api/directorloopApi', () => ({
   getCriticSuggestions: vi.fn(),
   getRender: vi.fn(),
   applyApprovedPatches: vi.fn(),
+  listProjects: vi.fn().mockResolvedValue([]),
 }))
 
 import * as api from '../api/directorloopApi'
@@ -139,14 +140,21 @@ function mockApi() {
 beforeEach(() => {
   vi.useRealTimers()
   vi.resetAllMocks()
+  // Default: render the dashboard (not the home page) for existing tests
+  window.location.hash = '#/project/demo_project'
+  // Re-mock listProjects after resetAllMocks
+  const m = mockApi()
+  m.listProjects.mockResolvedValue([])
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  window.location.hash = ''
 })
 
 describe('Dashboard', () => {
   it('renders empty state with Open Demo Project button', () => {
+    window.location.hash = '#/project'
     render(<App />)
     expect(screen.getByText('DirectorLoop')).toBeInTheDocument()
     expect(screen.getByText('Open Demo Project')).toBeInTheDocument()
@@ -310,12 +318,10 @@ describe('Dashboard', () => {
   })
 
   it('shows failed state event in log on API error', async () => {
-    const user = userEvent.setup()
     const m = mockApi()
     m.openDemoProject.mockRejectedValue(new Error('Connection refused'))
-
+    // The hash route triggers auto-load, which calls openDemo and fails
     render(<App />)
-    await user.click(screen.getByText('Open Demo Project'))
     expect(await screen.findByText(/Connection refused/)).toBeInTheDocument()
   })
 
