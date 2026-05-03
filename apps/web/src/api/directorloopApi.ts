@@ -13,7 +13,7 @@ import type {
   RenderSummary,
   SceneIndex,
 } from '../types/api'
-import { MOCK_PROJECTS } from './mockProjects'
+
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 

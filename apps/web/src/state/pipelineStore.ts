@@ -455,6 +455,8 @@ export function usePipelineActions() {
         project_id: projectId,
         name: projectId,
         display_name: projectId.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        status: 'empty',
+        updated_at: new Date().toISOString(),
       }
       await hydrateProject(dispatch, project)
     } catch (error) {

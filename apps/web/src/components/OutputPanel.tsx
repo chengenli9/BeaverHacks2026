@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Panel, Group, Separator } from 'react-resizable-panels'
 import { Eye, ScrollText } from 'lucide-react'
 import { usePipeline } from '../state/pipelineStore'
 import { CriticPanel } from './CriticPanel'
@@ -36,27 +37,34 @@ export function OutputPanel() {
         {tab === 'events' && <EventLog embedded />}
 
         {tab === 'output' && (
-          <>
-            <RenderPreview />
-            {renderJob && (
-              <div className="card" style={{ borderColor: 'var(--blue)' }}>
-                <div className="card-header">
-                  <span className="card-title" style={{ color: 'var(--blue)' }}>Rendering</span>
-                  <StatusBadge status={renderJob.status} />
+          <Group orientation="vertical" id="output-vertical" style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0 }}>
+            <Panel id="render-preview" defaultSize={40} minSize={20} maxSize={70} style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <RenderPreview />
+            </Panel>
+            
+            <Separator className="resize-handle-y" />
+            
+            <Panel id="output-details" defaultSize={60} minSize={20} maxSize={80} style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
+              {renderJob && (
+                <div className="card" style={{ borderColor: 'var(--blue)' }}>
+                  <div className="card-header">
+                    <span className="card-title" style={{ color: 'var(--blue)' }}>Rendering</span>
+                    <StatusBadge status={renderJob.status} />
+                  </div>
+                  {renderJob.message && <div className="card-body">{renderJob.message}</div>}
+                  <div style={{ marginTop: 6 }}><ProgressBar progress={renderJob.progress} /></div>
                 </div>
-                {renderJob.message && <div className="card-body">{renderJob.message}</div>}
-                <div style={{ marginTop: 6 }}><ProgressBar progress={renderJob.progress} /></div>
-              </div>
-            )}
-            <CriticPanel />
-            {!hasOutput && (
-              <div className="empty-state">
-                <Eye size={28} />
-                <h3>Output</h3>
-                <p>{projectId ? 'Run pipeline stages' : 'Open a project to begin'}</p>
-              </div>
-            )}
-          </>
+              )}
+              <CriticPanel />
+              {!hasOutput && (
+                <div className="empty-state">
+                  <Eye size={28} />
+                  <h3>Output</h3>
+                  <p>{projectId ? 'Run pipeline stages' : 'Open a project to begin'}</p>
+                </div>
+              )}
+            </Panel>
+          </Group>
         )}
       </div>
     </div>

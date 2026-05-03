@@ -3,12 +3,15 @@ import { useEffect, useState } from "react"
 interface Props {
   showLabel?: boolean
   durationMs?: number // optional override
+  progress?: number // external progress override (0-100)
 }
 
-export function ProgressBar({ showLabel = true, durationMs = 10000 }: Props) {
-  const [progress, setProgress] = useState(0)
+export function ProgressBar({ showLabel = true, durationMs = 10000, progress: externalProgress }: Props) {
+  const [internalProgress, setInternalProgress] = useState(0)
 
   useEffect(() => {
+    if (externalProgress !== undefined) return
+
     let start = performance.now()
 
     // irregular easing function (non-linear + jitter)
@@ -26,7 +29,7 @@ export function ProgressBar({ showLabel = true, durationMs = 10000 }: Props) {
 
       const next = Math.min(Math.max(base + jitter, 0), 1)
 
-      setProgress(next)
+      setInternalProgress(next)
 
       if (t < 1) {
         requestAnimationFrame(step)
@@ -36,9 +39,10 @@ export function ProgressBar({ showLabel = true, durationMs = 10000 }: Props) {
     const frame = requestAnimationFrame(step)
 
     return () => cancelAnimationFrame(frame)
-  }, [durationMs])
+  }, [durationMs, externalProgress])
 
-  const pct = Math.round(progress * 100)
+  const currentProgress = externalProgress !== undefined ? (externalProgress / 100) : internalProgress
+  const pct = Math.round(currentProgress * 100)
 
   return (
     <div>

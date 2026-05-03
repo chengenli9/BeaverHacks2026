@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Star, Play, AlertCircle, Circle, MoreVertical, Pencil, Trash2 } from 'lucide-react'
+import { Star, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import type { ProjectListItem } from '../types/api'
 import { navigate } from '../router'
 

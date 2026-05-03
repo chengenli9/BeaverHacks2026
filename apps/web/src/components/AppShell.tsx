@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Panel, Group, Separator } from 'react-resizable-panels'
 import { Clapperboard, ArrowLeft } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
 import { navigate } from '../router'
@@ -61,11 +62,26 @@ export function AppShell({ projectId: routeProjectId }: Props) {
 
       {/* Main area */}
       <div className="main-area">
-        <div className="panels">
-          <MediaBrowser />
-          <CenterPanel />
-          <OutputPanel />
-        </div>
+        <Group orientation="horizontal" className="panels" id="main-panel-group">
+          {/* Media Browser: fixed min/max widths so it never collapses */}
+          <Panel id="media" defaultSize={"240px"} minSize={"200px"} maxSize={"400px"}>
+            <MediaBrowser />
+          </Panel>
+          
+          <Separator className="resize-handle-x" />
+          
+          {/* Center Panel: takes up the rest of the space, small minSize so it doesn't push others */}
+          <Panel id="center" defaultSize={50} minSize={20}>
+            <CenterPanel />
+          </Panel>
+          
+          <Separator className="resize-handle-x" />
+          
+          {/* Output Panel: fixed min/max widths so it never collapses */}
+          <Panel id="output" defaultSize={"300px"} minSize={"200px"} maxSize={"450px"}>
+            <OutputPanel />
+          </Panel>
+        </Group>
       </div>
     </div>
   )
