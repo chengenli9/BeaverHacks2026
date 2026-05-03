@@ -25,8 +25,8 @@ export type PipelineJobKind =
   | 'generate-tts'
   | 'generate-assets'
   | 'build-manifest'
-  | 'precritique'
   | 'render'
+  | 'review-render'
 
 export type PatchJobKind = 'apply-approved-patches'
 export type JobKind = PipelineJobKind | PatchJobKind
@@ -95,6 +95,18 @@ export interface Beat {
   duration: number
   narration: string | null
   onscreen_text: string | null
+  style?: BeatStyle | null
+}
+
+export interface BeatStyle {
+  font_family?: string | null
+  font_variant?: string | null
+  text_color?: string | null
+  accent_color?: string | null
+  background_mode?: 'image' | 'color' | 'gradient' | 'image_tint' | null
+  background_color?: string | null
+  text_alignment?: 'left' | 'center' | 'right' | null
+  layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked' | null
 }
 
 export interface Plan {
@@ -118,10 +130,18 @@ export interface RenderSettings {
 export interface TitleBlock {
   block_id: string
   type: 'title'
-  background_asset: string
+  background_asset?: string | null
   text: string
   duration: number
   fontfile: string
+  font_family?: string | null
+  font_variant?: string | null
+  text_color?: string | null
+  accent_color?: string | null
+  background_mode?: 'image' | 'color' | 'gradient' | 'image_tint'
+  background_color?: string | null
+  text_alignment?: 'left' | 'center' | 'right'
+  layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked'
   rendered_path: string
 }
 
@@ -132,8 +152,8 @@ export interface SourceClipBlock {
   source_start: number
   source_end: number
   video_duration: number
-  tts_asset: string
-  tts_duration: number
+  tts_asset: string | null
+  tts_duration: number | null
   source_audio_volume: number
   tts_fade_seconds: number
   rendered_path: string
@@ -142,10 +162,18 @@ export interface SourceClipBlock {
 export interface EndCardBlock {
   block_id: string
   type: 'end_card'
-  background_asset: string
+  background_asset?: string | null
   text: string
   duration: number
   fontfile: string
+  font_family?: string | null
+  font_variant?: string | null
+  text_color?: string | null
+  accent_color?: string | null
+  background_mode?: 'image' | 'color' | 'gradient' | 'image_tint'
+  background_color?: string | null
+  text_alignment?: 'left' | 'center' | 'right'
+  layout_preset?: 'centered' | 'hero-left' | 'hero-right' | 'stacked'
   rendered_path: string
 }
 
@@ -174,12 +202,96 @@ export interface Suggestion {
   reason: string
   requires_approval: boolean
   replacement_text?: string
+  target_block_id?: string | null
+  source_audio_volume?: number | null
+  category?: string | null
+  severity?: 'low' | 'medium' | 'high' | null
+  confidence?: number | null
+  viewer_problem?: string | null
+  evidence: string[]
+  before_summary?: string | null
+  after_summary?: string | null
 }
 
 export interface CriticSuggestions {
   project_id: string
   critic_scope: string
   suggestions: Suggestion[]
+}
+
+export interface VideoStreamInfo {
+  codec: string
+  width: number
+  height: number
+  fps: number
+}
+
+export interface AudioStreamInfo {
+  codec: string
+  sample_rate: number
+  channels?: number | null
+}
+
+export interface MediaProbe {
+  project_id: string
+  source: string
+  duration_seconds: number
+  has_audio: boolean
+  video_stream: VideoStreamInfo
+  audio_stream?: AudioStreamInfo | null
+}
+
+export interface Shot {
+  shot_id: string
+  start: number
+  end: number
+  duration: number
+  start_frame_path: string
+  mid_frame_path: string
+  end_frame_path: string
+}
+
+export interface ShotIndex {
+  project_id: string
+  source: string
+  shots: Shot[]
+}
+
+export interface FrameCheck {
+  frame_path: string
+  timestamp_seconds: number
+  average_brightness: number
+  contrast: number
+  is_near_black: boolean
+  text_contrast_ratio?: number | null
+}
+
+export interface AudioCheck {
+  check_type: 'silence' | 'loudness'
+  details: string
+  value?: number | null
+}
+
+export interface QaIssue {
+  code: string
+  severity: 'low' | 'medium' | 'high'
+  message: string
+  evidence: string[]
+}
+
+export interface RenderQaSummary {
+  has_video: boolean
+  has_audio: boolean
+  duration_seconds: number
+}
+
+export interface RenderQa {
+  project_id: string
+  render_path: string
+  summary: RenderQaSummary
+  frame_checks: FrameCheck[]
+  audio_checks: AudioCheck[]
+  issues: QaIssue[]
 }
 
 export interface ApplyPatchesRequest {
@@ -194,6 +306,7 @@ export interface RenderSummary {
   url: string
   duration: number
   bytes: number
+  cache_key?: string
 }
 
 export interface EventLogEntry {

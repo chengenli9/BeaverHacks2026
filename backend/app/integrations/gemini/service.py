@@ -1,69 +1,57 @@
-"""High-level Gemini service functions for DirectorLoop.
+"""High-level Gemini service functions for DirectorLoop."""
 
-Each public function operates on a *project_path* (a Path to a directory with
-the standard project layout) and writes its output artifact(s) to the correct
-sub-directory within that project.  The renderer never needs to import this
-module; it only reads the files that are written here.
-
-Output artifacts
-----------------
-cache/scene_index.json         — analyze_scenes()
-manifests/plan.json            — generate_plan()
-assets/tts/tts_<N>.wav         — generate_tts_assets()
-assets/backgrounds/bg_<N>.png  — generate_background_assets()
-manifests/critic_suggestions.json — precritique_manifest()
-logs/gemini_calls.jsonl        — appended by every function above
-"""
+from __future__ import annotations
 
 import json
-import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from . import client as _client
-from .settings import GEMINI_IMAGE_MODEL, GEMINI_TEXT_MODEL, GEMINI_TTS_MODEL
+from .settings import GEMINI_IMAGE_MODEL
+from ...manifests.models import BlockManifest, CriticSuggestions, Plan, SceneIndex
+from ...manifests.service import _suggestion_is_actionable
+from ...media.models import MediaProbe, RenderQa, ShotIndex
+from ...media.service import build_render_qa, detect_shots, find_primary_video, inspect_source_media
 
-# ---------------------------------------------------------------------------
-# Prompt file loader
-# ---------------------------------------------------------------------------
 
 _PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
 
 
 def _load_prompt(name: str) -> str:
-    """Load a prompt from backend/app/prompts/<name>.md."""
-    path = _PROMPTS_DIR / f"{name}.md"
-    return path.read_text(encoding="utf-8")
+    return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
-def analyze_scenes(project_path: Path) -> dict:
-    """Analyse source footage with Gemini and write cache/scene_index.json.
-
-    If a source video file is found it is uploaded to the Files API.  If no
-    video is found the prompt is sent without a file attachment so development
-    can proceed without real footage.
-
-    Returns the parsed scene_index dict.
-    """
+def analyze_scenes(project_path: Path, progress_callback=None) -> dict:
     project_path = Path(project_path)
     project_id = project_path.name
+    video_file = find_primary_video(project_path)
 
-    source_dir = project_path / "source"
-    video_file = _find_video(source_dir)
+    if video_file:
+        if progress_callback:
+            progress_callback(0.1, "Inspecting source media")
+        media_probe = inspect_source_media(project_path)
+
+        if progress_callback:
+            progress_callback(0.35, "Detecting shots and sampling frames")
+        shot_index = detect_shots(project_path, media_probe)
+    else:
+        media_probe = _fallback_media_probe(project_path)
+        shot_index = _fallback_shot_index(project_path, media_probe)
 
     system_prompt = _load_prompt("scene_analysis")
     user_prompt = (
-        f"Project ID: {project_id}\n"
-        "Analyse the footage and return a scene_index JSON object matching the "
-        "API contract exactly.  Respond with JSON only."
+        f"Project ID: {project_id}\n\n"
+        "Source media probe:\n"
+        f"{media_probe.model_dump_json(indent=2)}\n\n"
+        "Detected shots:\n"
+        f"{shot_index.model_dump_json(indent=2)}\n\n"
+        "Label the footage into a scene_index response. Reuse the measured shot boundaries unless there is a very strong reason not to. "
+        "Do not invent file paths or durations beyond the measured source duration."
     )
+
+    if progress_callback:
+        progress_callback(0.65, "Generating scene index")
 
     if video_file:
         result, usage = _client.complete_json_with_file(
@@ -71,23 +59,22 @@ def analyze_scenes(project_path: Path) -> dict:
             video_file,
             mime_type="video/mp4",
             system=system_prompt,
+            schema=SceneIndex.model_json_schema(),
         )
     else:
         result, usage = _client.complete_json(
             user_prompt,
             system=system_prompt,
+            schema=SceneIndex.model_json_schema(),
         )
 
-    # Ensure the project_id field is set correctly
     result["project_id"] = project_id
-
-    # Stamp the correct source path — Gemini doesn't know the real filename
-    if video_file:
-        result["source"] = str(video_file.relative_to(project_path)).replace("\\", "/")
+    result["source"] = media_probe.source
+    scene_index = SceneIndex.model_validate(result)
 
     out_path = project_path / "cache" / "scene_index.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    out_path.write_text(scene_index.model_dump_json(indent=2), encoding="utf-8")
 
     _log_call(
         project_path=project_path,
@@ -99,45 +86,51 @@ def analyze_scenes(project_path: Path) -> dict:
         output_tokens=usage["output_token_count"],
         artifact_path=str(out_path.relative_to(project_path)),
     )
-    return result
+
+    if progress_callback:
+        progress_callback(1.0, "Scene analysis complete")
+    return scene_index.model_dump(mode="json")
 
 
 def generate_plan(project_path: Path) -> dict:
-    """Generate an edit plan from the scene index and write manifests/plan.json.
-
-    Returns the parsed plan dict.
-    """
     project_path = Path(project_path)
     project_id = project_path.name
-
-    scene_index_path = project_path / "cache" / "scene_index.json"
-    scene_index = json.loads(scene_index_path.read_text(encoding="utf-8"))
+    scene_index = SceneIndex.from_file(project_path / "cache" / "scene_index.json")
+    shot_index = _maybe_load(ShotIndex, project_path / "cache" / "shot_index.json")
+    media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
 
     system_prompt = _load_prompt("plan_generation")
     user_prompt = (
         f"Project ID: {project_id}\n\n"
         "Scene index:\n"
-        f"{json.dumps(scene_index, indent=2)}\n\n"
-        "Generate a plan.json matching the API contract.  "
-        "Narration must not exceed 2 words per second of allocated clip duration.  "
-        "Respond with JSON only."
+        f"{scene_index.model_dump_json(indent=2)}\n\n"
+        "Shot index:\n"
+        f"{shot_index.model_dump_json(indent=2) if shot_index else '{}'}\n\n"
+        "Media probe:\n"
+        f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
+        "Generate a plan response matching the API contract. "
+        "For title and end_card beats, provide a style object when it helps the demo feel more distinctive. "
+        "Narration should stay concise, but TTS precision is not the priority for this demo."
     )
 
-    result, usage = _client.complete_json(user_prompt, system=system_prompt)
+    result, usage = _client.complete_json(
+        user_prompt,
+        system=system_prompt,
+        schema=Plan.model_json_schema(),
+    )
     result["project_id"] = project_id
 
-    # Normalize beat types: Gemini may return stale types from old prompts
-    _TYPE_MAP = {"lower_third": "title", "title_card": "title"}
+    type_map = {"lower_third": "title", "title_card": "title"}
     for beat in result.get("beats", []):
-        if beat.get("type") in _TYPE_MAP:
-            beat["type"] = _TYPE_MAP[beat["type"]]
-        # Non-source beats must not carry a scene_id
+        if beat.get("type") in type_map:
+            beat["type"] = type_map[beat["type"]]
         if beat.get("type") != "source_clip" and beat.get("scene_id"):
             beat["scene_id"] = None
 
+    plan = Plan.model_validate(result)
     out_path = project_path / "manifests" / "plan.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    out_path.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
 
     _log_call(
         project_path=project_path,
@@ -149,63 +142,36 @@ def generate_plan(project_path: Path) -> dict:
         output_tokens=usage["output_token_count"],
         artifact_path=str(out_path.relative_to(project_path)),
     )
-    return result
+    return plan.model_dump(mode="json")
 
 
 def generate_tts_assets(project_path: Path) -> list[dict]:
-    """Generate TTS WAV files for every beat that has narration.
-
-    Reads manifests/plan.json.  Writes assets/tts/tts_<beat_id>.wav.
-
-    Returns a list of metadata dicts:
-        [{"beat_id": ..., "tts_asset": ..., "tts_duration": ...}, ...]
-    """
     project_path = Path(project_path)
-    project_id = project_path.name
-
-    plan_path = project_path / "manifests" / "plan.json"
-    plan = json.loads(plan_path.read_text(encoding="utf-8"))
-
+    plan = json.loads((project_path / "manifests" / "plan.json").read_text(encoding="utf-8"))
     tts_dir = project_path / "assets" / "tts"
     tts_dir.mkdir(parents=True, exist_ok=True)
 
-    narration_prompt_template = _load_prompt("narration")
     results = []
-
     for beat in plan.get("beats", []):
         narration = beat.get("narration")
         if not narration:
             continue
-
-        beat_id = beat["beat_id"]
-        duration = beat.get("duration", 0.0)
-
-        # Optionally refine narration through the narration prompt
-        if narration_prompt_template:
-            refined_text = _refine_narration(narration, duration, narration_prompt_template)
-        else:
-            refined_text = narration
-
-        wav_bytes, usage = _client.generate_audio(refined_text)
-
-        wav_filename = f"tts_{beat_id}.wav"
+        wav_bytes, usage = _client.generate_audio(narration)
+        wav_filename = f"tts_{beat['beat_id']}.wav"
         wav_path = tts_dir / wav_filename
         wav_path.write_bytes(wav_bytes)
-
         tts_duration = _client.measure_wav_duration(wav_path)
-
         relative_asset = f"assets/tts/{wav_filename}"
         results.append(
             {
-                "beat_id": beat_id,
+                "beat_id": beat["beat_id"],
                 "tts_asset": relative_asset,
                 "tts_duration": round(tts_duration, 3),
             }
         )
-
         _log_call(
             project_path=project_path,
-            project_id=project_id,
+            project_id=project_path.name,
             stage="tts_generation",
             model=usage["model"],
             elapsed_ms=usage["elapsed_ms"],
@@ -213,129 +179,139 @@ def generate_tts_assets(project_path: Path) -> list[dict]:
             output_tokens=usage["output_token_count"],
             artifact_path=relative_asset,
         )
-
     return results
 
 
 def generate_background_assets(project_path: Path) -> list[dict]:
-    """Generate textless background PNG images for every block that needs one.
-
-    Reads manifests/plan.json.  Writes assets/backgrounds/bg_<N>.png.
-
-    Returns a list of metadata dicts:
-        [{"beat_id": ..., "background_asset": ...}, ...]
-    """
     project_path = Path(project_path)
     project_id = project_path.name
-
-    plan_path = project_path / "manifests" / "plan.json"
-    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan = json.loads((project_path / "manifests" / "plan.json").read_text(encoding="utf-8"))
 
     bg_dir = project_path / "assets" / "backgrounds"
     bg_dir.mkdir(parents=True, exist_ok=True)
-
-    bg_prompt_template = _load_prompt("background_plate")
     results = []
 
     for idx, beat in enumerate(plan.get("beats", []), start=1):
-        beat_id = beat["beat_id"]
-        beat_type = beat.get("type", "")
-
-        # Generate backgrounds for title and end_card beats
-        if beat_type not in ("title", "end_card"):
+        if beat.get("type") not in ("title", "end_card"):
             continue
-
-        goal = beat.get("goal", "professional presentation background")
-        text = beat.get("onscreen_text", "")
-        image_prompt = bg_prompt_template.replace("{{goal}}", goal).replace(
-            "{{onscreen_text}}", text or "(none)"
-        )
-
-        png_bytes, usage = _client.generate_image(image_prompt)
-
+        style = beat.get("style") or {}
+        background_mode = style.get("background_mode") or "gradient"
         bg_filename = f"bg_{idx:03d}.png"
         bg_path = bg_dir / bg_filename
-        bg_path.write_bytes(png_bytes)
-
+        model_name = "local-pillow-background"
+        if background_mode in {"image", "image_tint"}:
+            prompt = _build_background_prompt(goal=beat.get("goal", ""), text=beat.get("onscreen_text", ""), style=style)
+            png_bytes, usage = _client.generate_image(prompt, model=GEMINI_IMAGE_MODEL)
+            bg_path.write_bytes(png_bytes)
+            model_name = usage.get("model", GEMINI_IMAGE_MODEL)
+        else:
+            _write_background_asset(
+                bg_path,
+                goal=beat.get("goal", ""),
+                text=beat.get("onscreen_text", ""),
+                style=style,
+            )
         relative_asset = f"assets/backgrounds/{bg_filename}"
-        results.append({"beat_id": beat_id, "background_asset": relative_asset})
+        results.append({"beat_id": beat["beat_id"], "background_asset": relative_asset})
 
         _log_call(
             project_path=project_path,
             project_id=project_id,
             stage="background_generation",
-            model=usage.get("model", GEMINI_IMAGE_MODEL),
-            elapsed_ms=usage["elapsed_ms"],
-            input_tokens=usage["input_token_count"],
-            output_tokens=usage["output_token_count"],
+            model=model_name,
+            elapsed_ms=0,
+            input_tokens=0,
+            output_tokens=0,
             artifact_path=relative_asset,
-            error=usage.get("error"),
         )
-
     return results
 
 
 def precritique_manifest(project_path: Path) -> dict:
-    """Run the blind manifest critic and write manifests/critic_suggestions.json.
+    project_path = Path(project_path)
+    project_id = project_path.name
+    empty = CriticSuggestions.model_validate(
+        {"project_id": project_id, "critic_scope": "blind_manifest_only", "suggestions": []}
+    )
+    out_path = project_path / "manifests" / "critic_suggestions.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(empty.model_dump_json(indent=2), encoding="utf-8")
+    return empty.model_dump(mode="json")
 
-    Inputs:
-        cache/scene_index.json
-        manifests/block_manifest.json
 
-    Returns the parsed critic_suggestions dict.
-    """
+def review_render(project_path: Path, progress_callback=None) -> dict:
     project_path = Path(project_path)
     project_id = project_path.name
 
-    scene_index = json.loads(
-        (project_path / "cache" / "scene_index.json").read_text(encoding="utf-8")
-    )
-    block_manifest = json.loads(
-        (project_path / "manifests" / "block_manifest.json").read_text(encoding="utf-8")
-    )
+    if progress_callback:
+        progress_callback(0.15, "Running deterministic render QA")
+    render_qa = build_render_qa(project_path)
+    media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
+    shot_index = _maybe_load(ShotIndex, project_path / "cache" / "shot_index.json")
+    render_path = project_path / "renders" / "final_render.mp4"
+    manifest = json.loads((project_path / "manifests" / "block_manifest.json").read_text(encoding="utf-8"))
+    block_manifest = BlockManifest.model_validate(manifest)
 
-    system_prompt = _load_prompt("blind_manifest_critic")
+    if progress_callback:
+        progress_callback(0.6, "Reviewing render with Gemini")
+    system_prompt = _load_prompt("render_review_critic")
     user_prompt = (
         f"Project ID: {project_id}\n\n"
-        "Scene index:\n"
-        f"{json.dumps(scene_index, indent=2)}\n\n"
         "Block manifest:\n"
-        f"{json.dumps(block_manifest, indent=2)}\n\n"
-        "Return a critic_suggestions JSON object matching the API contract.  "
-        "Respond with JSON only."
+        f"{json.dumps(manifest, indent=2)}\n\n"
+        "Media probe:\n"
+        f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
+        "Shot index:\n"
+        f"{shot_index.model_dump_json(indent=2) if shot_index else '{}'}\n\n"
+        "Render QA:\n"
+        f"{render_qa.model_dump_json(indent=2)}\n\n"
+        "Review the final rendered cut and produce actionable critique suggestions. "
+        "Prefer whole-second source-clip edits when the recommendation is coarse pacing work."
     )
 
-    result, usage = _client.complete_json(user_prompt, system=system_prompt)
+    result, usage = _client.complete_json_with_file(
+        user_prompt,
+        render_path,
+        mime_type="video/mp4",
+        system=system_prompt,
+        schema=CriticSuggestions.model_json_schema(),
+    )
     result["project_id"] = project_id
-    result.setdefault("critic_scope", "blind_manifest_only")
+    result["critic_scope"] = "render_review"
+    for suggestion in result.get("suggestions", []):
+        suggestion["requires_approval"] = True
+        suggestion.setdefault("suggestion_id", f"s{uuid.uuid4().hex[:6]}")
+        if suggestion.get("action") in {"trim_end", "extend_end"} and suggestion.get("amount_seconds", 0) > 0:
+            suggestion["amount_seconds"] = max(1.0, float(int(round(suggestion["amount_seconds"]))))
 
-    # Enforce: all suggestions must have requires_approval = true
-    for s in result.get("suggestions", []):
-        s["requires_approval"] = True
-        # Auto-assign IDs if missing
-        if not s.get("suggestion_id"):
-            s["suggestion_id"] = f"s{uuid.uuid4().hex[:6]}"
-
+    critique = CriticSuggestions.model_validate(result)
+    critique = critique.model_copy(
+        update={
+            "suggestions": [
+                suggestion
+                for suggestion in critique.suggestions
+                if _suggestion_is_actionable(block_manifest, suggestion)
+            ]
+        }
+    )
     out_path = project_path / "manifests" / "critic_suggestions.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    out_path.write_text(critique.model_dump_json(indent=2), encoding="utf-8")
 
     _log_call(
         project_path=project_path,
         project_id=project_id,
-        stage="blind_manifest_critic",
+        stage="render_review",
         model=usage["model"],
         elapsed_ms=usage["elapsed_ms"],
         input_tokens=usage["input_token_count"],
         output_tokens=usage["output_token_count"],
         artifact_path=str(out_path.relative_to(project_path)),
     )
-    return result
 
-
-# ---------------------------------------------------------------------------
-# Logging
-# ---------------------------------------------------------------------------
+    if progress_callback:
+        progress_callback(1.0, "Render review complete")
+    return critique.model_dump(mode="json")
 
 
 def _log_call(
@@ -350,10 +326,6 @@ def _log_call(
     artifact_path: str = "",
     error: str | None = None,
 ) -> None:
-    """Append a sanitised metadata record to logs/gemini_calls.jsonl.
-
-    The API key is never written.
-    """
     record = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "project_id": project_id,
@@ -365,49 +337,132 @@ def _log_call(
         "artifact_path": artifact_path,
         "error": error,
     }
-
     log_dir = project_path / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / "gemini_calls.jsonl"
-
-    with log_path.open("a", encoding="utf-8") as fh:
+    with (log_dir / "gemini_calls.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-
-def _find_video(source_dir: Path) -> Path | None:
-    """Return the first video file found in source_dir, or None."""
-    if not source_dir.exists():
+def _maybe_load(model_type, path: Path):
+    if not path.exists():
         return None
-    for ext in ("*.mp4", "*.MP4", "*.mov", "*.MOV", "*.avi", "*.mkv"):
-        matches = list(source_dir.glob(ext))
-        if matches:
-            return matches[0]
-    return None
+    return model_type.from_file(path)
 
 
-def _refine_narration(narration: str, duration: float, prompt_template: str) -> str:
-    """Use the narration prompt to optionally tighten narration to the duration.
-
-    If Gemini cannot be reached or returns something unexpected, return the
-    original narration unchanged.
-    """
-    if duration <= 0:
-        return narration
-
-    max_words = int(duration * 2)
-    user_prompt = (
-        prompt_template
-        + f"\n\nOriginal narration: {narration}\n"
-        f"Target clip duration: {duration} seconds (max {max_words} words).\n"
-        "Return a JSON object with a single key 'narration' containing the refined text."
+def _fallback_media_probe(project_path: Path) -> MediaProbe:
+    probe = MediaProbe.model_validate(
+        {
+            "project_id": project_path.name,
+            "source": "source/placeholder.mp4",
+            "duration_seconds": 30.0,
+            "has_audio": False,
+            "video_stream": {"codec": "unknown", "width": 1920, "height": 1080, "fps": 30.0},
+            "audio_stream": None,
+        }
     )
-    try:
-        result, _ = _client.complete_json(user_prompt)
-        return result.get("narration", narration)
-    except Exception:  # noqa: BLE001
-        return narration
+    out_path = project_path / "cache" / "media_probe.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(probe.model_dump_json(indent=2), encoding="utf-8")
+    return probe
+
+
+def _fallback_shot_index(project_path: Path, media_probe: MediaProbe) -> ShotIndex:
+    shot_index = ShotIndex.model_validate(
+        {
+            "project_id": project_path.name,
+            "source": media_probe.source,
+            "shots": [
+                {
+                    "shot_id": "shot_001",
+                    "start": 0.0,
+                    "end": media_probe.duration_seconds,
+                    "duration": media_probe.duration_seconds,
+                    "start_frame_path": "cache/frames/placeholder_start.jpg",
+                    "mid_frame_path": "cache/frames/placeholder_mid.jpg",
+                    "end_frame_path": "cache/frames/placeholder_end.jpg",
+                }
+            ],
+        }
+    )
+    out_path = project_path / "cache" / "shot_index.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(shot_index.model_dump_json(indent=2), encoding="utf-8")
+    return shot_index
+
+
+def _write_background_asset(path: Path, *, goal: str, text: str, style: dict) -> None:
+    from PIL import Image, ImageDraw, ImageFilter
+
+    width, height = 1920, 1080
+    background_color = style.get("background_color") or _default_background_color(goal)
+    accent_color = style.get("accent_color") or _default_accent_color(goal)
+    background_mode = style.get("background_mode") or "gradient"
+
+    image = Image.new("RGB", (width, height), _hex_to_rgb(background_color))
+    draw = ImageDraw.Draw(image)
+
+    if background_mode in {"gradient", "image_tint", "image"}:
+        for y in range(height):
+            ratio = y / max(height - 1, 1)
+            color = _blend_color(_hex_to_rgb(background_color), _hex_to_rgb(accent_color), ratio * 0.55)
+            draw.line((0, y, width, y), fill=color)
+
+    # Add a few deterministic soft accent shapes so cards feel less flat.
+    accent = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    accent_draw = ImageDraw.Draw(accent)
+    accent_rgb = _hex_to_rgb(accent_color)
+    accent_draw.ellipse((width * 0.58, height * 0.12, width * 1.05, height * 0.82), fill=accent_rgb + (110,))
+    accent_draw.rectangle((width * 0.08, height * 0.68, width * 0.42, height * 0.9), fill=accent_rgb + (50,))
+    accent = accent.filter(ImageFilter.GaussianBlur(80))
+    image = Image.alpha_composite(image.convert("RGBA"), accent).convert("RGB")
+
+    if len(text or "") > 22:
+        draw = ImageDraw.Draw(image)
+        draw.rounded_rectangle((120, 120, 980, 940), radius=36, outline=(255, 255, 255, 28), width=2)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path, "PNG")
+
+
+def _default_background_color(goal: str) -> str:
+    goal_lower = goal.lower()
+    if "result" in goal_lower or "launch" in goal_lower:
+        return "#132238"
+    if "problem" in goal_lower:
+        return "#20141F"
+    return "#111827"
+
+
+def _default_accent_color(goal: str) -> str:
+    goal_lower = goal.lower()
+    if "result" in goal_lower or "launch" in goal_lower:
+        return "#3CCB7F"
+    if "problem" in goal_lower:
+        return "#FF6B6B"
+    return "#5B8CFF"
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    cleaned = value.lstrip("#")
+    if len(cleaned) != 6:
+        return (17, 24, 39)
+    return tuple(int(cleaned[index:index + 2], 16) for index in (0, 2, 4))
+
+
+def _blend_color(a: tuple[int, int, int], b: tuple[int, int, int], ratio: float) -> tuple[int, int, int]:
+    clamped = max(0.0, min(1.0, ratio))
+    return tuple(int(a[idx] + (b[idx] - a[idx]) * clamped) for idx in range(3))
+
+
+def _build_background_prompt(*, goal: str, text: str, style: dict) -> str:
+    accent = style.get("accent_color") or _default_accent_color(goal)
+    background = style.get("background_color") or _default_background_color(goal)
+    layout = style.get("layout_preset") or "centered"
+    return (
+        "Create a cinematic, text-free 16:9 background plate for a product demo video. "
+        f"Goal: {goal or 'support the scene'}. "
+        f"On-screen text theme: {text or 'none provided'}. "
+        f"Use a composition that supports a {layout} text layout, with strong negative space. "
+        f"Base palette around {background} with accent notes around {accent}. "
+        "No words, no logos, no UI screenshots, no watermarks."
+    )

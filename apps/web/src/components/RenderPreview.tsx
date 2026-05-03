@@ -7,6 +7,9 @@ export function RenderPreview() {
   if (!renderSummary) return null
 
   const sizeMB = (renderSummary.bytes / (1024 * 1024)).toFixed(1)
+  const videoUrl = renderSummary.cache_key
+    ? `${renderSummary.url}?v=${encodeURIComponent(renderSummary.cache_key)}`
+    : renderSummary.url
 
   return (
     <div id="render-preview-section" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -15,7 +18,8 @@ export function RenderPreview() {
       </div>
       <div className="video-preview">
         <video
-          src={renderSummary.url}
+          key={videoUrl}
+          src={videoUrl}
           controls
           preload="metadata"
           id="final-video"

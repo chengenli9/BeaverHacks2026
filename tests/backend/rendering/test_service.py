@@ -26,9 +26,9 @@ def test_write_concat_file_has_one_line_per_block(tmp_path):
 
     assert lines == [
         "file 'blocks/001_title.mp4'",
-        "file 'blocks/002_problem.mp4'",
-        "file 'blocks/003_pipeline.mp4'",
-        "file 'blocks/004_approval.mp4'",
+        "file 'blocks/002_beat_002.mp4'",
+        "file 'blocks/003_beat_003.mp4'",
+        "file 'blocks/004_beat_004.mp4'",
         "file 'blocks/005_end.mp4'",
     ]
 

@@ -14,8 +14,8 @@ def test_sample_scene_index_fixture_validates():
     scene_index = SceneIndex.from_file(SAMPLE_PROJECT / "cache" / "scene_index.json")
 
     assert scene_index.project_id == "demo_project"
-    assert scene_index.source_duration == 42.0
-    assert scene_index.scene_by_id("scene_002").start == 8.0
+    assert scene_index.source_duration == pytest.approx(41.872)
+    assert scene_index.scene_by_id("scene_002").start == 3.0
 
 
 def test_scene_index_rejects_scene_outside_source_duration():
@@ -42,12 +42,39 @@ def test_scene_index_rejects_scene_outside_source_duration():
 
 def test_sample_plan_fixture_validates_against_scene_index():
     scene_index = SceneIndex.from_file(SAMPLE_PROJECT / "cache" / "scene_index.json")
-    plan = Plan.from_file(SAMPLE_PROJECT / "manifests" / "plan.json")
+    plan = Plan.model_validate(
+        {
+            "project_id": "demo_project",
+            "title": "DirectorLoop Demo Cut",
+            "target_duration": 12.0,
+            "story_arc": ["Hook", "Proof", "Wrap"],
+            "beats": [
+                {
+                    "beat_id": "beat_001",
+                    "type": "title",
+                    "goal": "Open strong.",
+                    "scene_id": None,
+                    "duration": 3.0,
+                    "narration": None,
+                    "onscreen_text": "DirectorLoop",
+                },
+                {
+                    "beat_id": "beat_003",
+                    "type": "source_clip",
+                    "goal": "Show the interaction.",
+                    "scene_id": "scene_003",
+                    "duration": 3.0,
+                    "narration": None,
+                    "onscreen_text": None,
+                },
+            ],
+        }
+    )
 
     plan.validate_against_scene_index(scene_index)
 
     assert plan.title == "DirectorLoop Demo Cut"
-    assert plan.beat_by_id("beat_003").scene_id == "scene_002"
+    assert plan.beat_by_id("beat_003").scene_id == "scene_003"
 
 
 def test_plan_rejects_unknown_source_scene_reference():

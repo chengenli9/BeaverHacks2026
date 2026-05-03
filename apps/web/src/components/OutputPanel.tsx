@@ -11,14 +11,14 @@ import { StatusBadge } from './StatusBadge'
 type RightTab = 'events' | 'output'
 
 export function OutputPanel() {
-  const { activeJobs, criticSuggestions, projectId, renderSummary } = usePipeline()
+  const { activeJobs, criticSuggestions, mediaProbe, projectId, renderQa, renderSummary } = usePipeline()
   const [tab, setTab] = useState<RightTab>('events')
 
   const renderJob = Object.values(activeJobs).find(
     (job) => job.stage === 'render' && (job.status === 'queued' || job.status === 'running'),
   )
 
-  const hasOutput = Boolean(criticSuggestions || renderSummary || renderJob)
+  const hasOutput = Boolean(criticSuggestions || renderSummary || renderJob || mediaProbe || renderQa)
 
   return (
     <div className="panel" id="output-panel">
@@ -58,6 +58,39 @@ export function OutputPanel() {
                   </div>
                   {renderJob.message && <div className="card-body">{renderJob.message}</div>}
                   <div style={{ marginTop: 6 }}><ProgressBar progress={renderJob.progress} /></div>
+                </div>
+              )}
+              {(mediaProbe || renderQa) && (
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title">Media QA</span>
+                  </div>
+                  <div className="card-meta">
+                    {mediaProbe && (
+                      <>
+                        <span className="card-meta-item">
+                          {mediaProbe.video_stream.width}x{mediaProbe.video_stream.height}
+                        </span>
+                        <span className="card-meta-item">{mediaProbe.video_stream.fps.toFixed(1)}fps</span>
+                        <span className="card-meta-item">{mediaProbe.has_audio ? 'Source audio' : 'No source audio'}</span>
+                      </>
+                    )}
+                    {renderQa && (
+                      <>
+                        <span className="card-meta-item">{renderQa.summary.duration_seconds.toFixed(1)}s review</span>
+                        <span className="card-meta-item">{renderQa.issues.length} issues</span>
+                      </>
+                    )}
+                  </div>
+                  {renderQa && renderQa.issues.length > 0 && (
+                    <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                      {renderQa.issues.slice(0, 3).map((issue) => (
+                        <div key={`${issue.code}-${issue.message}`} className="card-meta-item">
+                          {issue.severity}: {issue.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               <CriticPanel />

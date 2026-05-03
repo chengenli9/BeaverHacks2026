@@ -45,6 +45,7 @@ def complete_json(
     *,
     system: str | None = None,
     model: str | None = None,
+    schema: dict | None = None,
 ) -> tuple[Any, dict]:
     """Call Gemini for structured JSON output.
 
@@ -67,13 +68,17 @@ def complete_json(
     full_prompt = f"{system}\n\n{prompt}".strip() if system else prompt
 
     t0 = time.monotonic()
+    config_kwargs = {
+        "response_mime_type": "application/json",
+        "max_output_tokens": GEMINI_MAX_OUTPUT_TOKENS,
+    }
+    if schema is not None:
+        config_kwargs["response_json_schema"] = schema
+
     response = client.models.generate_content(
         model=target_model,
         contents=full_prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            max_output_tokens=GEMINI_MAX_OUTPUT_TOKENS,
-        ),
+        config=types.GenerateContentConfig(**config_kwargs),
     )
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
@@ -89,6 +94,7 @@ def complete_json_with_file(
     mime_type: str | None = None,
     system: str | None = None,
     model: str | None = None,
+    schema: dict | None = None,
 ) -> tuple[Any, dict]:
     """Call Gemini with an uploaded file plus a text prompt for structured JSON.
 
@@ -133,13 +139,17 @@ def complete_json_with_file(
         )
     ]
 
+    config_kwargs = {
+        "response_mime_type": "application/json",
+        "max_output_tokens": GEMINI_MAX_OUTPUT_TOKENS,
+    }
+    if schema is not None:
+        config_kwargs["response_json_schema"] = schema
+
     response = client.models.generate_content(
         model=target_model,
         contents=contents,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            max_output_tokens=GEMINI_MAX_OUTPUT_TOKENS,
-        ),
+        config=types.GenerateContentConfig(**config_kwargs),
     )
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 

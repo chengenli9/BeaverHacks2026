@@ -40,10 +40,13 @@ def open_demo_project():
         "display_name": "Demo Project",
         "source_path": str(BASE / "source"),
         "artifacts": {
+            "media_probe": (BASE / "cache/media_probe.json").exists(),
+            "shot_index": (BASE / "cache/shot_index.json").exists(),
             "scene_index": (BASE / "cache/scene_index.json").exists(),
             "plan": (BASE / "manifests/plan.json").exists(),
             "manifest": (BASE / "manifests/block_manifest.json").exists(),
             "critic": (BASE / "manifests/critic_suggestions.json").exists(),
+            "render_qa": (BASE / "cache/render_qa.json").exists(),
             "render": (BASE / "renders/final_render.mp4").exists(),
         },
     }
@@ -215,10 +218,13 @@ def _project_summary(project_id: str) -> dict:
         "updated_at": metadata.get("updated_at", ""),
         "source_path": str(project_path / "source"),
         "artifacts": {
+            "media_probe": (project_path / "cache/media_probe.json").exists(),
+            "shot_index": (project_path / "cache/shot_index.json").exists(),
             "scene_index": (project_path / "cache/scene_index.json").exists(),
             "plan": (project_path / "manifests/plan.json").exists(),
             "manifest": has_manifest,
             "critic": (project_path / "manifests/critic_suggestions.json").exists(),
+            "render_qa": (project_path / "cache/render_qa.json").exists(),
             "render": has_render,
         },
     }

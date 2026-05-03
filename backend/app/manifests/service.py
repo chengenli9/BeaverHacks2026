@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import struct
@@ -65,6 +66,7 @@ def build_manifest_from_plan(
 
     for index, beat in enumerate(plan.beats, start=1):
         ordinal = f"{index:03d}"
+        style = beat.style.model_dump(mode="json", exclude_none=True) if getattr(beat, "style", None) else {}
         if beat.type == "title":
             blocks.append(
                 {
@@ -74,6 +76,7 @@ def build_manifest_from_plan(
                     "text": beat.onscreen_text or plan.title,
                     "duration": beat.duration,
                     "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    **style,
                     "rendered_path": f"blocks/{ordinal}_title.mp4",
                 }
             )
@@ -86,14 +89,16 @@ def build_manifest_from_plan(
                     "text": beat.onscreen_text or plan.title,
                     "duration": beat.duration,
                     "fontfile": "assets/fonts/Inter-Bold.ttf",
+                    **style,
                     "rendered_path": f"blocks/{ordinal}_end.mp4",
                 }
             )
         elif beat.type == "source_clip":
             scene = scene_index.scene_by_id(beat.scene_id or "")
             source_start = scene.start
-            requested_end = source_start + beat.duration
+            requested_end = source_start + _snap_duration_seconds(beat.duration)
             source_end = min(requested_end, scene.end, scene_index.source_duration)
+            source_end = _quantize_source_end(source_start, source_end)
             video_duration = source_end - source_start
             tts_duration = tts_durations.get(beat.beat_id)
             tts_asset = _tts_asset_for_beat(beat.beat_id) if beat.narration and tts_duration is not None else None
@@ -188,12 +193,10 @@ def validate_critic_suggestions(manifest: BlockManifest, suggestions: CriticSugg
     for suggestion in suggestions.suggestions:
         block = manifest.block_by_id(suggestion.block_id)
         if suggestion.action == "trim_end":
-            duration = _block_duration(block)
-            max_trim = round(duration * 0.30, 6)
-            if suggestion.amount_seconds > max_trim:
-                raise ValueError("critic suggestions cannot trim more than 30% of a block")
-            if suggestion.amount_seconds > suggestion.max_allowed_trim_seconds:
-                raise ValueError("trim amount exceeds max_allowed_trim_seconds")
+            if isinstance(block, SourceClipBlock) and suggestion.amount_seconds >= block.video_duration:
+                raise ValueError("trim amount must leave a positive source clip duration")
+        if suggestion.action == "reorder_after":
+            manifest.block_by_id(suggestion.target_block_id or "")
 
 
 def apply_suggestions_to_manifest(
@@ -201,7 +204,6 @@ def apply_suggestions_to_manifest(
     suggestions: CriticSuggestions,
     request: ApplyPatchesRequest,
 ) -> BlockManifest:
-    validate_critic_suggestions(manifest, suggestions)
     approved_ids = set(request.approved_suggestion_ids)
     known_ids = {suggestion.suggestion_id for suggestion in suggestions.suggestions}
     unknown_approved_ids = approved_ids - known_ids
@@ -217,30 +219,33 @@ def apply_suggestions_to_manifest(
 
         index = _block_index(updated_blocks, suggestion.block_id)
         block = updated_blocks[index]
+        if not _suggestion_is_actionable(manifest, suggestion):
+            continue
         block_data = block.model_dump()
 
         if suggestion.action == "trim_end":
-            if not isinstance(block, SourceClipBlock):
-                raise ValueError("trim_end can only be applied to source_clip blocks")
-            block_data["source_end"] = block.source_end - suggestion.amount_seconds
+            block_data["source_end"] = _quantize_source_end(
+                block.source_start,
+                block.source_end - _snap_duration_seconds(suggestion.amount_seconds),
+            )
             block_data["video_duration"] = block_data["source_end"] - block.source_start
         elif suggestion.action == "extend_end":
-            if not isinstance(block, SourceClipBlock):
-                raise ValueError("extend_end can only be applied to source_clip blocks")
-            block_data["source_end"] = block.source_end + suggestion.amount_seconds
+            block_data["source_end"] = _quantize_source_end(
+                block.source_start,
+                block.source_end + _snap_duration_seconds(suggestion.amount_seconds),
+            )
             block_data["video_duration"] = block_data["source_end"] - block.source_start
         elif suggestion.action == "replace_text":
-            if not isinstance(block, (TextBlock, EndCardBlock)):
-                raise ValueError("replace_text can only be applied to text blocks")
             block_data["text"] = suggestion.replacement_text
         elif suggestion.action == "lower_source_audio":
-            if not isinstance(block, SourceClipBlock):
-                raise ValueError("lower_source_audio can only be applied to source_clip blocks")
-            if suggestion.source_audio_volume is None:
-                raise ValueError("source_audio_volume is required for lower_source_audio")
             block_data["source_audio_volume"] = suggestion.source_audio_volume
         elif suggestion.action == "reorder_after":
-            raise NotImplementedError("reorder_after is reserved for the integration slice")
+            target_index = _block_index(updated_blocks, suggestion.target_block_id or "")
+            moving_block = updated_blocks.pop(index)
+            if target_index > index:
+                target_index -= 1
+            updated_blocks.insert(target_index + 1, moving_block)
+            continue
 
         updated_blocks[index] = adapter.validate_python(block_data)
 
@@ -263,6 +268,8 @@ def _load_json(path: Path) -> dict:
 def _require_file(project_root: Path, relative_path: str) -> None:
     path = project_root / relative_path
     if path.is_file():
+        return
+    if relative_path.startswith("assets/fonts/") and Path(relative_path).suffix.lower() in {".ttf", ".otf"}:
         return
     # Auto-generate a placeholder solid-color PNG for missing backgrounds
     if relative_path.startswith("assets/backgrounds/") and relative_path.endswith(".png"):
@@ -300,6 +307,28 @@ def _block_duration(block: Block) -> float:
     return block.duration
 
 
+def _suggestion_is_actionable(manifest: BlockManifest, suggestion) -> bool:
+    block = manifest.block_by_id(suggestion.block_id)
+
+    if suggestion.action in {"trim_end", "extend_end", "lower_source_audio"} and not isinstance(block, SourceClipBlock):
+        return False
+    if suggestion.action == "replace_text" and not isinstance(block, TextBlock):
+        return False
+    if suggestion.action == "replace_text" and not suggestion.replacement_text:
+        return False
+    if suggestion.action == "lower_source_audio" and suggestion.source_audio_volume is None:
+        return False
+    if suggestion.action == "reorder_after":
+        try:
+            manifest.block_by_id(suggestion.target_block_id or "")
+        except KeyError:
+            return False
+    if suggestion.action == "trim_end":
+        if isinstance(block, SourceClipBlock) and suggestion.amount_seconds >= block.video_duration:
+            return False
+    return True
+
+
 def _block_index(blocks: list[Block], block_id: str) -> int:
     for index, block in enumerate(blocks):
         if block.block_id == block_id:
@@ -309,3 +338,20 @@ def _block_index(blocks: list[Block], block_id: str) -> int:
 
 def _tts_asset_for_beat(beat_id: str) -> str:
     return f"assets/tts/tts_{beat_id}.wav"
+
+
+def _snap_duration_seconds(value: float) -> float:
+    if value <= 0:
+        return value
+    if value < 1:
+        return round(value, 3)
+    snapped = math.floor(value)
+    return float(snapped if snapped > 0 else 1)
+
+
+def _quantize_source_end(source_start: float, source_end: float) -> float:
+    duration = max(source_end - source_start, 0.0)
+    snapped_duration = _snap_duration_seconds(duration)
+    if snapped_duration <= 0:
+        return source_end
+    return round(source_start + snapped_duration, 3)

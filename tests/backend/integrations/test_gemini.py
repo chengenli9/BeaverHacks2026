@@ -156,6 +156,25 @@ class TestCompleteJson:
         with pytest.raises(ValueError, match="Pro model"):
             complete_json("test", model="gemini-2.5-pro")
 
+    @patch("backend.app.integrations.gemini.client.get_client")
+    def test_passes_response_json_schema_when_provided(self, mock_get_client):
+        payload = {"foo": "bar"}
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = _make_mock_text_response(payload)
+        mock_get_client.return_value = mock_client
+
+        from backend.app.integrations.gemini.client import complete_json
+
+        schema = {
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+            "required": ["foo"],
+        }
+        complete_json("test prompt", schema=schema)
+
+        config = mock_client.models.generate_content.call_args.kwargs["config"]
+        assert getattr(config, "response_json_schema", None) == schema
+
 
 # ---------------------------------------------------------------------------
 # client.py — generate_audio / WAV helpers

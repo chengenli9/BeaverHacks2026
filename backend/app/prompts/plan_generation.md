@@ -26,7 +26,17 @@ Return a single JSON object with this structure:
       "scene_id": "<scene_id or null for generated beats>",
       "duration": <duration in seconds>,
       "narration": "<narration text or null>",
-      "onscreen_text": "<text overlay or null>"
+      "onscreen_text": "<text overlay or null>",
+      "style": {
+        "font_family": "<display-sans | display-serif | mono-tech | null>",
+        "font_variant": "<bold | regular | null>",
+        "text_color": "<hex color or null>",
+        "accent_color": "<hex color or null>",
+        "background_mode": "<image | color | gradient | image_tint | null>",
+        "background_color": "<hex color or null>",
+        "text_alignment": "<left | center | right | null>",
+        "layout_preset": "<centered | hero-left | hero-right | stacked | null>"
+      }
     }
   ]
 }
@@ -37,6 +47,13 @@ Return a single JSON object with this structure:
 - `title` — branded intro card. Use `onscreen_text`, no `scene_id`.
 - `source_clip` — a clip from the source footage. Must reference a valid `scene_id`.
 - `end_card` — closing card with credits or call to action. Use `onscreen_text`, no `scene_id`.
+
+## Styling guidance
+
+- For `title` and `end_card` beats, provide a `style` object when it helps the demo feel more exciting.
+- Use bold, legible typography choices and confident color direction.
+- Prefer image-free `background_mode` values like `color` or `gradient` when a clean, high-contrast title card would work well.
+- Leave `style` as `null` for `source_clip` beats unless a simple overlay treatment is clearly helpful.
 
 ## Hard rules
 

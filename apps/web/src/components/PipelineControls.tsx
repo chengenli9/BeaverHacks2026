@@ -17,8 +17,8 @@ const STAGES: StageConfig[] = [
   { kind: 'generate-plan', label: 'Plan', icon: <FileText size={13} />, prereq: 'analyze-scenes' },
   { kind: 'generate-assets', label: 'Assets', icon: <Image size={13} />, prereq: 'generate-plan' },
   { kind: 'build-manifest', label: 'Manifest', icon: <Boxes size={13} />, prereq: 'generate-plan' },
-  { kind: 'precritique', label: 'Critique', icon: <ShieldCheck size={13} />, prereq: 'build-manifest' },
   { kind: 'render', label: 'Render', icon: <Film size={13} />, prereq: 'build-manifest' },
+  { kind: 'review-render', label: 'Review', icon: <ShieldCheck size={13} />, prereq: 'render' },
 ]
 
 export function PipelineControls() {

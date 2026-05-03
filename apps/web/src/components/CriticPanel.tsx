@@ -15,7 +15,7 @@ export function CriticPanel() {
   return (
     <div id="critic-section">
       <div className="section-header">
-        <ShieldCheck size={12} /> Critic Suggestions ({criticSuggestions.suggestions.length})
+        <ShieldCheck size={12} /> Review Suggestions ({criticSuggestions.suggestions.length})
       </div>
 
       {criticSuggestions.suggestions.map((suggestion) => {
@@ -33,9 +33,19 @@ export function CriticPanel() {
               <span className={`type-badge ${suggestion.action}`}>{suggestion.action.replace('_', ' ')}</span>
             </div>
 
-            <div className="card-body">{suggestion.reason}</div>
+            <div className="card-body">
+              <div>{suggestion.reason}</div>
+              {suggestion.viewer_problem && (
+                <div style={{ marginTop: 6, color: 'var(--text-muted)' }}>{suggestion.viewer_problem}</div>
+              )}
+            </div>
 
             <div className="card-meta">
+              {suggestion.category && <span className="card-meta-item">{suggestion.category}</span>}
+              {suggestion.severity && <span className="card-meta-item">{suggestion.severity}</span>}
+              {typeof suggestion.confidence === 'number' && (
+                <span className="card-meta-item">{Math.round(suggestion.confidence * 100)}% confidence</span>
+              )}
               {suggestion.amount_seconds > 0 && (
                 <span className="card-meta-item">{suggestion.amount_seconds.toFixed(1)}s</span>
               )}
@@ -45,6 +55,23 @@ export function CriticPanel() {
                 </span>
               )}
             </div>
+
+            {(suggestion.before_summary || suggestion.after_summary) && (
+              <div className="card-meta" style={{ marginTop: 4 }}>
+                {suggestion.before_summary && <span className="card-meta-item">Before: {suggestion.before_summary}</span>}
+                {suggestion.after_summary && <span className="card-meta-item">After: {suggestion.after_summary}</span>}
+              </div>
+            )}
+
+            {suggestion.evidence.length > 0 && (
+              <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {suggestion.evidence.map((item) => (
+                  <span key={item} className="card-meta-item">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="approval-controls">
               <button

@@ -9,6 +9,9 @@ vi.mock('../api/directorloopApi', () => ({
   startJob: vi.fn(),
   getJob: vi.fn(),
   getProjectMedia: vi.fn(),
+  getMediaProbe: vi.fn(),
+  getShotIndex: vi.fn(),
+  getRenderQa: vi.fn(),
   getProjectFileUrl: vi.fn((projectId: string, path: string) => `http://localhost:8000/projects/${projectId}/media/file?path=${encodeURIComponent(path)}`),
   importProjectMedia: vi.fn(),
   getSceneIndex: vi.fn(),
@@ -24,10 +27,10 @@ import * as api from '../api/directorloopApi'
 
 const mockCritic = {
   project_id: 'demo_project',
-  critic_scope: 'blind_manifest_only',
+  critic_scope: 'render_review',
   suggestions: [
-    { suggestion_id: 's001', block_id: '001_title', action: 'trim_end' as const, amount_seconds: 1, max_allowed_trim_seconds: 2, reason: 'Tighten pacing.', requires_approval: true },
-    { suggestion_id: 's002', block_id: '001_title', action: 'replace_text' as const, amount_seconds: 0, max_allowed_trim_seconds: 0.9, reason: 'Better text.', requires_approval: true, replacement_text: 'New Text' },
+    { suggestion_id: 's001', block_id: '001_title', action: 'trim_end' as const, amount_seconds: 1, max_allowed_trim_seconds: 2, reason: 'Tighten pacing.', requires_approval: true, category: 'pacing', severity: 'medium', confidence: 0.78, viewer_problem: 'The intro lingers after the hook lands.', evidence: ['render_qa: no technical issue', 'shot_index: repeated frames'], before_summary: '3.0s title', after_summary: '2.0s title' },
+    { suggestion_id: 's002', block_id: '001_title', action: 'replace_text' as const, amount_seconds: 0, max_allowed_trim_seconds: 0.9, reason: 'Better text.', requires_approval: true, replacement_text: 'New Text', category: 'clarity', severity: 'low', confidence: 0.66, viewer_problem: 'The title undersells the product outcome.', evidence: ['manifest: generic title copy'], before_summary: 'DirectorLoop', after_summary: 'New Text' },
   ],
 }
 
@@ -132,6 +135,24 @@ const mockMedia = {
   ],
 }
 
+const mockMediaProbe = {
+  project_id: 'demo_project',
+  source: 'source/demo_footage.mp4',
+  duration_seconds: 42,
+  has_audio: true,
+  video_stream: { codec: 'h264', width: 1920, height: 1080, fps: 30 },
+  audio_stream: { codec: 'aac', sample_rate: 48000 },
+}
+
+const mockRenderQa = {
+  project_id: 'demo_project',
+  render_path: 'renders/final.mp4',
+  summary: { has_video: true, has_audio: true, duration_seconds: 29.7 },
+  frame_checks: [],
+  audio_checks: [],
+  issues: [],
+}
+
 function mockApi() {
   const m = api as unknown as Record<string, ReturnType<typeof vi.fn>>
   return m
@@ -145,6 +166,9 @@ beforeEach(() => {
   // Re-mock listProjects after resetAllMocks
   const m = mockApi()
   m.listProjects.mockResolvedValue([])
+  m.getMediaProbe.mockRejectedValue(new Error('no'))
+  m.getShotIndex.mockRejectedValue(new Error('no'))
+  m.getRenderQa.mockRejectedValue(new Error('no'))
 })
 
 afterEach(() => {
@@ -217,8 +241,7 @@ describe('Dashboard', () => {
     await screen.findByText('Demo')
     await user.click(screen.getByRole('button', { name: /Analyze/i }))
 
-    expect(await screen.findByText('Analyzing scene 2 of 5')).toBeInTheDocument()
-    expect(screen.getByText('42%')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Analyze/i })).toHaveClass('running')
   }, 7000)
 
   it('renders failed job retry state', async () => {
@@ -256,6 +279,8 @@ describe('Dashboard', () => {
     const user = userEvent.setup()
     const m = mockApi()
     m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getMediaProbe.mockResolvedValue(mockMediaProbe)
+    m.getRenderQa.mockResolvedValue(mockRenderQa)
     m.getSceneIndex.mockRejectedValue(new Error('no'))
     m.getPlan.mockRejectedValue(new Error('no'))
     m.getManifest.mockRejectedValue(new Error('no'))
@@ -273,6 +298,8 @@ describe('Dashboard', () => {
     const rejectButtons = screen.getAllByText('Reject')
     expect(approveButtons.length).toBe(2)
     expect(rejectButtons.length).toBe(2)
+    expect(screen.getByText('The intro lingers after the hook lands.')).toBeInTheDocument()
+    expect(screen.getByText(/repeated frames/i)).toBeInTheDocument()
   })
 
   it('submits approved and rejected critic suggestion ids', async () => {
@@ -418,5 +445,23 @@ describe('Dashboard', () => {
 
     await user.click(within(centerPanel).getByRole('button', { name: /Manifest/i }))
     expect(within(centerPanel).getByTestId('timeline')).toBeInTheDocument()
+  })
+
+  it('renders the review stage after render', async () => {
+    const user = userEvent.setup()
+    const m = mockApi()
+    m.openDemoProject.mockResolvedValue({ project_id: 'demo_project', name: 'Demo', source_path: '' })
+    m.getProjectMedia.mockResolvedValue(mockMedia)
+    m.getSceneIndex.mockRejectedValue(new Error('no'))
+    m.getPlan.mockRejectedValue(new Error('no'))
+    m.getManifest.mockRejectedValue(new Error('no'))
+    m.getCriticSuggestions.mockRejectedValue(new Error('no'))
+    m.getRender.mockRejectedValue(new Error('no'))
+
+    render(<App />)
+    await user.click(screen.getByText('Open Demo Project'))
+    await screen.findByText('Demo')
+
+    expect(screen.getByRole('button', { name: /^Review$/i })).toBeInTheDocument()
   })
 })

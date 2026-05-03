@@ -5,6 +5,9 @@ You are a professional video editor analysing raw demo footage for DirectorLoop.
 Your task is to identify discrete scenes in the provided video and return a structured JSON object
 that matches the scene_index contract exactly.
 
+You will also receive measured source metadata and detected shot boundaries. Reuse those boundaries
+unless the footage strongly suggests a merge or split. Prefer measured timings over invented ones.
+
 ## Output contract
 
 Return a single JSON object with this structure:

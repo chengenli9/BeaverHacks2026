@@ -135,6 +135,11 @@ def precritique(project_id: str, bg: BackgroundTasks):
     return _enqueue(bg, project_id, "precritique", svc.precritique_manifest)
 
 
+@router.post("/jobs/review-render")
+def review_render(project_id: str, bg: BackgroundTasks):
+    return _enqueue(bg, project_id, "review_render", svc.review_render)
+
+
 @router.post("/jobs/apply-approved-patches")
 def apply(request: ApplyPatchesRequest, bg: BackgroundTasks):
     return _enqueue(bg, request.project_id, "apply_patches", svc.apply_approved_patches, request)
@@ -175,6 +180,16 @@ def get_scene_index(project_id: str):
     return _json_or_404(_project_path_or_404(project_id) / "cache/scene_index.json")
 
 
+@router.get("/projects/{project_id}/media-probe")
+def get_media_probe(project_id: str):
+    return _json_or_404(_project_path_or_404(project_id) / "cache/media_probe.json")
+
+
+@router.get("/projects/{project_id}/shot-index")
+def get_shot_index(project_id: str):
+    return _json_or_404(_project_path_or_404(project_id) / "cache/shot_index.json")
+
+
 @router.get("/projects/{project_id}/plan")
 def get_plan(project_id: str):
     return _json_or_404(_project_path_or_404(project_id) / "manifests/plan.json")
@@ -188,6 +203,11 @@ def get_manifest(project_id: str):
 @router.get("/projects/{project_id}/critic-suggestions")
 def get_critic(project_id: str):
     return _json_or_404(_project_path_or_404(project_id) / "manifests/critic_suggestions.json")
+
+
+@router.get("/projects/{project_id}/render-qa")
+def get_render_qa(project_id: str):
+    return _json_or_404(_project_path_or_404(project_id) / "cache/render_qa.json")
 
 
 @router.get("/projects/{project_id}/render")
@@ -205,6 +225,7 @@ def get_render(project_id: str):
         "url": f"http://localhost:8000/projects/{project_id}/render/file",
         "duration": summary["duration"],
         "bytes": summary["bytes"],
+        "cache_key": str(path.stat().st_mtime_ns),
     }
 
 

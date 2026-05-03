@@ -13,14 +13,17 @@ import type {
   EventLogEntry,
   JobKind,
   JobStatus,
+  MediaProbe,
   MediaNode,
   MediaTree,
   PipelineJobKind,
   PipelineStageKey,
   Plan,
   ProjectSummary,
+  RenderQa,
   RenderSummary,
   SceneIndex,
+  ShotIndex,
 } from '../types/api'
 
 type StageRunStatus = 'idle' | 'running' | 'succeeded' | 'failed'
@@ -31,10 +34,13 @@ export interface PipelineState {
   projectName: string | null
   activeJobs: Record<string, JobStatus>
   sceneIndex: SceneIndex | null
+  mediaProbe: MediaProbe | null
+  shotIndex: ShotIndex | null
   plan: Plan | null
   manifest: BlockManifest | null
   criticSuggestions: CriticSuggestions | null
   renderSummary: RenderSummary | null
+  renderQa: RenderQa | null
   mediaTree: MediaTree | null
   selectedMedia: MediaNode | null
   eventLog: EventLogEntry[]
@@ -47,10 +53,13 @@ export type PipelineAction =
   | { type: 'SET_JOB'; payload: JobStatus }
   | { type: 'REMOVE_JOB'; payload: string }
   | { type: 'SET_SCENE_INDEX'; payload: SceneIndex }
+  | { type: 'SET_MEDIA_PROBE'; payload: MediaProbe }
+  | { type: 'SET_SHOT_INDEX'; payload: ShotIndex }
   | { type: 'SET_PLAN'; payload: Plan }
   | { type: 'SET_MANIFEST'; payload: BlockManifest }
   | { type: 'SET_CRITIC_SUGGESTIONS'; payload: CriticSuggestions }
   | { type: 'SET_RENDER_SUMMARY'; payload: RenderSummary }
+  | { type: 'SET_RENDER_QA'; payload: RenderQa }
   | { type: 'SET_MEDIA_TREE'; payload: MediaTree }
   | { type: 'SET_SELECTED_MEDIA'; payload: MediaNode | null }
   | { type: 'ADD_EVENT'; payload: EventLogEntry }
@@ -63,10 +72,13 @@ export const initialState: PipelineState = {
   projectName: null,
   activeJobs: {},
   sceneIndex: null,
+  mediaProbe: null,
+  shotIndex: null,
   plan: null,
   manifest: null,
   criticSuggestions: null,
   renderSummary: null,
+  renderQa: null,
   mediaTree: null,
   selectedMedia: null,
   eventLog: [],
@@ -77,8 +89,8 @@ export const initialState: PipelineState = {
     'generate-tts': 'idle',
     'generate-assets': 'idle',
     'build-manifest': 'idle',
-    precritique: 'idle',
     render: 'idle',
+    'review-render': 'idle',
     'apply-approved-patches': 'idle',
   },
 }
@@ -105,6 +117,10 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
     }
     case 'SET_SCENE_INDEX':
       return { ...state, sceneIndex: action.payload }
+    case 'SET_MEDIA_PROBE':
+      return { ...state, mediaProbe: action.payload }
+    case 'SET_SHOT_INDEX':
+      return { ...state, shotIndex: action.payload }
     case 'SET_PLAN':
       return { ...state, plan: action.payload }
     case 'SET_MANIFEST':
@@ -118,6 +134,8 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
     }
     case 'SET_RENDER_SUMMARY':
       return { ...state, renderSummary: action.payload }
+    case 'SET_RENDER_QA':
+      return { ...state, renderQa: action.payload }
     case 'SET_MEDIA_TREE':
       return { ...state, mediaTree: action.payload }
     case 'SET_SELECTED_MEDIA':
@@ -175,8 +193,8 @@ const BACKEND_STAGE_TO_FRONTEND: Record<string, PipelineStageKey> = {
   generating_tts: 'generate-tts',
   generating_assets: 'generate-assets',
   building_manifest: 'build-manifest',
-  precritique: 'precritique',
   rendering: 'render',
+  review_render: 'review-render',
   apply_patches: 'apply-approved-patches',
 }
 
@@ -206,9 +224,19 @@ async function fetchArtifact(
 ) {
   try {
     if (stage === 'analyze-scenes') {
-      const data = await api.getSceneIndex(projectId)
-      dispatch({ type: 'SET_SCENE_INDEX', payload: data })
-      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Scene index: ${data.scenes.length} scenes`) })
+      const [sceneIndex, mediaProbe, shotIndex] = await Promise.all([
+        api.getSceneIndex(projectId),
+        api.getMediaProbe(projectId).catch(() => null),
+        api.getShotIndex(projectId).catch(() => null),
+      ])
+      dispatch({ type: 'SET_SCENE_INDEX', payload: sceneIndex })
+      if (mediaProbe) {
+        dispatch({ type: 'SET_MEDIA_PROBE', payload: mediaProbe })
+      }
+      if (shotIndex) {
+        dispatch({ type: 'SET_SHOT_INDEX', payload: shotIndex })
+      }
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Scene index: ${sceneIndex.scenes.length} scenes`) })
     } else if (stage === 'generate-plan') {
       const data = await api.getPlan(projectId)
       dispatch({ type: 'SET_PLAN', payload: data })
@@ -217,14 +245,20 @@ async function fetchArtifact(
       const data = await api.getManifest(projectId)
       dispatch({ type: 'SET_MANIFEST', payload: data })
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Manifest: ${data.blocks.length} blocks`) })
-    } else if (stage === 'precritique') {
-      const data = await api.getCriticSuggestions(projectId)
-      dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
-      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Critic: ${data.suggestions.length} suggestions`) })
     } else if (stage === 'render') {
       const data = await api.getRender(projectId)
       dispatch({ type: 'SET_RENDER_SUMMARY', payload: data })
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Render: ${data.duration.toFixed(1)}s`) })
+    } else if (stage === 'review-render') {
+      const [critic, renderQa] = await Promise.all([
+        api.getCriticSuggestions(projectId),
+        api.getRenderQa(projectId).catch(() => null),
+      ])
+      dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: critic })
+      if (renderQa) {
+        dispatch({ type: 'SET_RENDER_QA', payload: renderQa })
+      }
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Review: ${critic.suggestions.length} suggestions`) })
     } else if (stage === 'apply-approved-patches') {
       const data = await api.getManifest(projectId)
       dispatch({ type: 'SET_MANIFEST', payload: data })
@@ -262,6 +296,14 @@ async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: Proje
     dispatch({ type: 'SET_STAGE', payload: { stage: 'analyze-scenes', status: 'succeeded' } })
   })
   await loadIfAvailable(async () => {
+    const data = await api.getMediaProbe(projectId)
+    dispatch({ type: 'SET_MEDIA_PROBE', payload: data })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getShotIndex(projectId)
+    dispatch({ type: 'SET_SHOT_INDEX', payload: data })
+  })
+  await loadIfAvailable(async () => {
     const data = await api.getPlan(projectId)
     dispatch({ type: 'SET_PLAN', payload: data })
     dispatch({ type: 'SET_STAGE', payload: { stage: 'generate-plan', status: 'succeeded' } })
@@ -272,14 +314,19 @@ async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: Proje
     dispatch({ type: 'SET_STAGE', payload: { stage: 'build-manifest', status: 'succeeded' } })
   })
   await loadIfAvailable(async () => {
-    const data = await api.getCriticSuggestions(projectId)
-    dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
-    dispatch({ type: 'SET_STAGE', payload: { stage: 'precritique', status: 'succeeded' } })
-  })
-  await loadIfAvailable(async () => {
     const data = await api.getRender(projectId)
     dispatch({ type: 'SET_RENDER_SUMMARY', payload: data })
     dispatch({ type: 'SET_STAGE', payload: { stage: 'render', status: 'succeeded' } })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getRenderQa(projectId)
+    dispatch({ type: 'SET_RENDER_QA', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'review-render', status: 'succeeded' } })
+  })
+  await loadIfAvailable(async () => {
+    const data = await api.getCriticSuggestions(projectId)
+    dispatch({ type: 'SET_CRITIC_SUGGESTIONS', payload: data })
+    dispatch({ type: 'SET_STAGE', payload: { stage: 'review-render', status: 'succeeded' } })
   })
 }
 
@@ -321,6 +368,15 @@ export function useJobPoller() {
               dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', 'Auto-rendering preview...') })
             } catch {
               // Render can still be triggered manually
+            }
+          } else if (frontendStage === 'render') {
+            try {
+              const { job_id: reviewJobId } = await api.startJob('review-render', projectId)
+              dispatch({ type: 'SET_JOB', payload: makeQueuedJob(reviewJobId, projectId, 'review-render') })
+              startPolling(reviewJobId, 'review-render', projectId)
+              dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', 'Reviewing final render...') })
+            } catch {
+              // Review can still be triggered manually
             }
           }
         } else if (job.status === 'failed') {
