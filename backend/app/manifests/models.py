@@ -158,7 +158,7 @@ class SourceClipBlock(BaseBlock):
     video_duration: float = Field(gt=0)
     tts_asset: str | None = None
     tts_duration: float | None = Field(default=None, ge=0)
-    source_audio_volume: float = Field(default=0.15, ge=0, le=1)
+    source_audio_volume: float = Field(default=1.0, ge=0, le=1)
     tts_fade_seconds: float = Field(default=0.5, ge=0)
 
     @field_validator("source", "tts_asset")
