@@ -81,6 +81,10 @@ def analyze_scenes(project_path: Path) -> dict:
     # Ensure the project_id field is set correctly
     result["project_id"] = project_id
 
+    # Stamp the correct source path — Gemini doesn't know the real filename
+    if video_file:
+        result["source"] = str(video_file.relative_to(project_path)).replace("\\", "/")
+
     out_path = project_path / "cache" / "scene_index.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -379,7 +383,7 @@ def _find_video(source_dir: Path) -> Path | None:
     """Return the first video file found in source_dir, or None."""
     if not source_dir.exists():
         return None
-    for ext in ("*.mp4", "*.mov", "*.avi", "*.mkv"):
+    for ext in ("*.mp4", "*.MP4", "*.mov", "*.MOV", "*.avi", "*.mkv"):
         matches = list(source_dir.glob(ext))
         if matches:
             return matches[0]
