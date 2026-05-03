@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { ImagePlus, Plus, X } from 'lucide-react'
 import type { CreateBeatRequest } from '../types/api'
 
@@ -39,13 +39,13 @@ export function BeatFormModal({ insertAfter, submitting, onClose, onSubmit }: Pr
 
   const canSubmit = tab === 'scene_card' ? text.trim().length > 0 : imagePrompt.trim().length > 0
 
-  const handleOverlayClick = (event: React.MouseEvent) => {
+  const handleOverlayClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === overlayRef.current && !submitting) {
       onClose()
     }
   }
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!canSubmit || submitting) return
     if (tab === 'scene_card') {

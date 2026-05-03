@@ -188,8 +188,13 @@ def build_image_card_command(project_path: str | Path, block: ImageCardBlock, se
     ]
 
 
-def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> list[str]:
+def build_concat_command(
+    project_path: str | Path,
+    manifest: BlockManifest,
+    output_path: str | Path | None = None,
+) -> list[str]:
     root = Path(project_path)
+    target = Path(output_path) if output_path is not None else root / "renders" / "final_render.mp4"
     return [
         "ffmpeg",
         "-y",
@@ -201,7 +206,7 @@ def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> l
         str(root / "concat.txt"),
         "-c",
         "copy",
-        str(root / "renders" / "final_render.mp4"),
+        str(target),
     ]
 
 

@@ -185,15 +185,14 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
 
     # C) Stream-copy concat (no re-encode)
     write_concat_file(root, manifest)
-    command = build_concat_command(root, manifest)
+    concat_output = (root / "renders" / "concat_raw.mp4") if manifest.audio_tracks else (root / "renders" / "final_render.mp4")
+    command = build_concat_command(root, manifest, concat_output)
     _run(command, root / "logs" / "ffmpeg.log")
 
     # D) Audio overlay — if the manifest has music tracks, mix them onto the concat output
     if manifest.audio_tracks:
         if progress_callback:
             progress_callback(0.95, "Mixing audio tracks")
-        concat_output = root / "renders" / "concat_raw.mp4"
-        (root / "renders" / "final_render.mp4").rename(concat_output)
         music_dir = Path(__file__).resolve().parents[2] / "assets" / "music"
         overlay_cmd = build_audio_overlay_command(
             root, concat_output, manifest.audio_tracks, music_dir, manifest.render_settings,

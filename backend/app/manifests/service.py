@@ -86,8 +86,7 @@ def reorder_plan_beats(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(reordered)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    # Purely structural -- no Gemini calls needed
-    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
+    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
     return updated
 
 
@@ -107,8 +106,7 @@ def delete_plan_beat(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(remaining)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    # Purely structural -- no Gemini calls needed
-    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
+    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
     return updated
 
 
@@ -152,8 +150,15 @@ def build_manifest_from_plan(
     for index, beat in enumerate(plan.beats, start=1):
         ordinal = f"{index:03d}"
         style = beat.style.model_dump(mode="json", exclude_none=True) if getattr(beat, "style", None) else {}
-        is_text_block = beat.type in {"title", "end_card", "scene_card"}
-        motion_asset = _motion_asset_for_block(project_path, f"{ordinal}_end" if beat.type == "end_card" else f"{ordinal}_{beat.type}") if is_text_block else None
+        if beat.type == "title":
+            motion_block_id = f"{ordinal}_title"
+        elif beat.type == "end_card":
+            motion_block_id = f"{ordinal}_end"
+        elif beat.type == "scene_card":
+            motion_block_id = f"{ordinal}_{beat.beat_id}"
+        else:
+            motion_block_id = None
+        motion_asset = _motion_asset_for_block(project_path, motion_block_id) if motion_block_id else None
         if beat.type == "title":
             blocks.append(
                 {

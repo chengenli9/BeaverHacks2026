@@ -141,3 +141,11 @@ def test_concat_command_targets_final_render():
 
     assert command[:4] == ["ffmpeg", "-y", "-f", "concat"]
     assert str(SAMPLE_PROJECT / "renders" / "final_render.mp4") == command[-1]
+
+
+def test_concat_command_supports_custom_output_path():
+    manifest = BlockManifest.from_file(SAMPLE_PROJECT / "manifests" / "block_manifest.json")
+
+    command = build_concat_command(SAMPLE_PROJECT, manifest, SAMPLE_PROJECT / "renders" / "concat_raw.mp4")
+
+    assert str(SAMPLE_PROJECT / "renders" / "concat_raw.mp4") == command[-1]

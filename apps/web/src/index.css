@@ -1291,6 +1291,25 @@ body,
   font-size: 9px;
 }
 
+.tl-clip-music {
+  --clip-color: #a855f7;
+  height: 28px;
+  font-size: 9px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(59, 130, 246, 0.25));
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  position: relative;
+}
+.tl-clip-music::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.8), rgba(59, 130, 246, 0.6));
+  border-radius: 0 0 4px 4px;
+}
+
 /* Clip resize handles */
 .tl-clip-handle {
   position: absolute;

@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
-  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon
+  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon, Music
 } from 'lucide-react'
 import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
-import type { Block } from '../types/api'
+import type { AudioTrack, Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
   title: '#8b5cf6',
@@ -37,6 +37,7 @@ function getTtsDuration(block: Block): number {
 
 export function Timeline() {
   const { manifest, highlightedBlockId, selectedBlockId, plan, undoStack, redoStack } = usePipeline()
+  const audioTracks: AudioTrack[] = plan?.audio_tracks ?? manifest?.audio_tracks ?? []
   const { reorderPlanBeats, deleteBeat, selectBlock, undo, redo } = usePipelineActions()
   const videoRef = useVideoRef()
   const [zoom, setZoom] = useState(1)
@@ -101,7 +102,7 @@ export function Timeline() {
     setPlayheadPos(video.currentTime)
   }, [totalDuration, videoRef])
 
-  const handleTimelineClick = useCallback((e: React.MouseEvent) => {
+  const handleTimelineClick = useCallback((e: MouseEvent) => {
     if (!timelineRef.current || totalDuration === 0) return
     const rect = timelineRef.current.getBoundingClientRect()
     const scrollLeft = timelineRef.current.scrollLeft
@@ -110,7 +111,7 @@ export function Timeline() {
     seekTo(time)
   }, [pixelsPerSecond, totalDuration, seekTo])
 
-  const handleClipClick = useCallback((e: React.MouseEvent, blockId: string) => {
+  const handleClipClick = useCallback((e: MouseEvent, blockId: string) => {
     e.stopPropagation()
     selectBlock(selectedBlockId === blockId ? null : blockId)
   }, [selectBlock, selectedBlockId])
@@ -158,7 +159,7 @@ export function Timeline() {
 
   // Drag handlers
   const handleDragStart = (blockId: string) => { setDraggingBlock(blockId) }
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
+  const handleDragOver = (e: DragEvent, idx: number) => {
     e.preventDefault(); setDragOverIndex(idx)
   }
   const handleDragEnd = () => { setDraggingBlock(null); setDragOverIndex(null) }
@@ -261,7 +262,7 @@ export function Timeline() {
                     <div
                       key={block.block_id}
                       className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''} ${isHighlighted || isSelected ? 'tl-clip-highlight' : ''}`}
-                      style={{ width: w, '--clip-color': color } as React.CSSProperties}
+                      style={{ width: w, '--clip-color': color } as CSSProperties}
                       draggable
                       onClick={(e) => handleClipClick(e, block.block_id)}
                       onDragStart={() => handleDragStart(block.block_id)}
@@ -307,6 +308,31 @@ export function Timeline() {
                 })}
               </div>
             </div>
+
+            {/* Music track */}
+            {audioTracks.length > 0 && (
+              <div className="tl-track">
+                <div className="tl-track-label"><Music size={11} /> Music</div>
+                <div className="tl-track-clips" style={{ width: totalDuration * pixelsPerSecond }}>
+                  {audioTracks.map((track) => {
+                    const w = track.duration * pixelsPerSecond
+                    const left = track.start_offset * pixelsPerSecond
+                    return (
+                      <div
+                        key={track.track_id}
+                        className="tl-clip tl-clip-music"
+                        style={{ width: w, marginLeft: left }}
+                        title={`${track.music_file} (${track.duration.toFixed(1)}s) vol=${Math.round(track.volume * 100)}%`}
+                      >
+                        <Music size={10} />
+                        <span className="tl-clip-label">{track.music_file.replace(/\.mp3$/i, '')}</span>
+                        <span className="tl-clip-dur">{track.duration.toFixed(1)}s</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Playhead */}
             {totalDuration > 0 && (

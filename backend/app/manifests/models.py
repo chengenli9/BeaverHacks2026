@@ -189,7 +189,7 @@ class AudioTrack(BaseModel):
     music_file: str
     start_offset: float = Field(ge=0, description="Seconds from video start")
     duration: float = Field(gt=0, description="How long to play (may be shorter than the track)")
-    volume: float = Field(default=0.15, ge=0, le=1)
+    volume: float = Field(default=0.08, ge=0, le=1)
     fade_in: float = Field(default=0.5, ge=0, description="Fade-in duration in seconds")
     fade_out: float = Field(default=0.5, ge=0, description="Fade-out duration in seconds")
 

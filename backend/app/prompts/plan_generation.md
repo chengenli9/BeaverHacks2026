@@ -50,7 +50,7 @@ Return a single JSON object with this structure:
       "music_file": "<filename from music library>",
       "start_offset": <seconds from video start>,
       "duration": <how long to play>,
-      "volume": 0.15,
+      "volume": 0.08,
       "fade_in": 0.5,
       "fade_out": 0.5
     }
@@ -90,7 +90,7 @@ Rules for audio tracks:
 - Use `music_file` to reference a filename from the music library above.
 - `start_offset` is seconds from the start of the final video.
 - `duration` controls how long the music plays (trim with fade_out).
-- Default `volume` is 0.15 — low enough to sit behind narration without competing.
+- Default `volume` is 0.08 — low enough to sit behind narration without competing.
 - Use `fade_in` and `fade_out` (default 0.5s) for smooth transitions.
 - One track can cover an entire section of the video (e.g. intro through first demo).
 - Avoid overlapping tracks unless they are complementary moods.

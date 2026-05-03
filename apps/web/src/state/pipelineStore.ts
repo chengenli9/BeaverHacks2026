@@ -418,12 +418,6 @@ async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: Proje
   dispatch({ type: 'SET_PROJECT', payload: project })
   dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Project: ${project.display_name ?? project.name ?? projectId}`) })
 
-  // Load music library (global, not project-scoped)
-  await loadIfAvailable(async () => {
-    const tracks = await api.getMusicLibrary()
-    dispatch({ type: 'SET_MUSIC_LIBRARY', payload: tracks })
-  })
-
   await loadIfAvailable(async () => {
     const data = await api.getProjectMedia(projectId)
     dispatch({ type: 'SET_MEDIA_TREE', payload: data })

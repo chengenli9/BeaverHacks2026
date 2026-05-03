@@ -337,7 +337,12 @@ def generate_background_assets(project_path: Path) -> list[dict]:
         if beat.get("type") not in ("title", "end_card", "scene_card"):
             continue
         btype = beat.get("type")
-        block_id = f"{idx:03d}_end" if btype == "end_card" else f"{idx:03d}_{btype}"
+        if btype == "end_card":
+            block_id = f"{idx:03d}_end"
+        elif btype == "scene_card":
+            block_id = f"{idx:03d}_{beat.get('beat_id')}"
+        else:
+            block_id = f"{idx:03d}_{btype}"
         style = beat.get("style") or {}
         background_mode = style.get("background_mode") or "color"
         bg_filename = f"bg_{idx:03d}.png"
