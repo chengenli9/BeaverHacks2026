@@ -283,6 +283,11 @@ body,
   color: var(--text-primary);
 }
 
+.media-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .file-tree {
   display: flex;
   flex-direction: column;

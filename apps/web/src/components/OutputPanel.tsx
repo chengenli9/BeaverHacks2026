@@ -27,7 +27,12 @@ export function OutputPanel() {
           <button className={`media-tab ${tab === 'events' ? 'active' : ''}`} onClick={() => setTab('events')}>
             <ScrollText size={11} /> Events
           </button>
-          <button className={`media-tab ${tab === 'output' ? 'active' : ''}`} onClick={() => setTab('output')}>
+          <button 
+            className={`media-tab ${tab === 'output' ? 'active' : ''}`} 
+            onClick={() => setTab('output')}
+            disabled={!hasOutput}
+            title={!hasOutput ? "Run the pipeline to generate output" : undefined}
+          >
             <Eye size={11} /> Output
           </button>
         </div>
