@@ -275,6 +275,15 @@ def generate_background_assets(project_path: Path) -> list[dict]:
             image_prompt = beat.get("image_prompt") or beat.get("goal") or "cinematic product illustration"
             relative_asset = _image_asset_for_prompt(image_prompt)
             image_path = project_path / relative_asset
+            # Skip if image already exists on disk (prompt-based filename is deterministic)
+            if image_path.exists():
+                results.append(
+                    {
+                        "beat_id": beat["beat_id"],
+                        "image_asset": relative_asset,
+                    }
+                )
+                continue
             png_bytes, usage = _client.generate_image(image_prompt, model=GEMINI_IMAGE_MODEL)
             image_path.parent.mkdir(parents=True, exist_ok=True)
             image_path.write_bytes(png_bytes)

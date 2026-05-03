@@ -67,7 +67,7 @@ def _seed_project(tmp_path: Path) -> Path:
 
 def test_reorder_plan_beats_updates_sequence_and_renumbers(tmp_path, monkeypatch):
     project = _seed_project(tmp_path)
-    monkeypatch.setattr("backend.app.manifests.service._regenerate_after_plan_mutation", lambda *args, **kwargs: None)
+    monkeypatch.setattr("backend.app.manifests.service._rebuild_manifest_and_render", lambda *args, **kwargs: None)
 
     updated = reorder_plan_beats(project, PlanReorderRequest.model_validate({"beat_order": ["beat_003", "beat_001", "beat_002"]}))
 
@@ -77,7 +77,7 @@ def test_reorder_plan_beats_updates_sequence_and_renumbers(tmp_path, monkeypatch
 
 def test_delete_plan_beat_removes_target_and_renumbers(tmp_path, monkeypatch):
     project = _seed_project(tmp_path)
-    monkeypatch.setattr("backend.app.manifests.service._regenerate_after_plan_mutation", lambda *args, **kwargs: None)
+    monkeypatch.setattr("backend.app.manifests.service._rebuild_manifest_and_render", lambda *args, **kwargs: None)
 
     updated = delete_plan_beat(project, "beat_002")
 
@@ -126,3 +126,51 @@ def test_insert_plan_beat_adds_image_card(tmp_path, monkeypatch):
     assert updated.beats[-1].type == "image_card"
     assert updated.beats[-1].image_prompt == "A cinematic launch visual with polished reflections"
     assert updated.beats[-1].ken_burns is True
+
+
+def test_reorder_does_not_call_gemini(tmp_path, monkeypatch):
+    """Reorder is purely structural -- must never trigger Gemini asset generation."""
+    project = _seed_project(tmp_path)
+
+    gemini_called = False
+
+    def _trap_generate(*args, **kwargs):
+        nonlocal gemini_called
+        gemini_called = True
+
+    monkeypatch.setattr(
+        "backend.app.manifests.service._regenerate_after_plan_mutation",
+        _trap_generate,
+    )
+    monkeypatch.setattr(
+        "backend.app.manifests.service._rebuild_manifest_and_render",
+        lambda *args, **kwargs: None,
+    )
+
+    reorder_plan_beats(project, PlanReorderRequest.model_validate({"beat_order": ["beat_002", "beat_001", "beat_003"]}))
+
+    assert not gemini_called, "reorder_plan_beats must NOT call the full Gemini regeneration path"
+
+
+def test_delete_does_not_call_gemini(tmp_path, monkeypatch):
+    """Delete is purely structural -- must never trigger Gemini asset generation."""
+    project = _seed_project(tmp_path)
+
+    gemini_called = False
+
+    def _trap_generate(*args, **kwargs):
+        nonlocal gemini_called
+        gemini_called = True
+
+    monkeypatch.setattr(
+        "backend.app.manifests.service._regenerate_after_plan_mutation",
+        _trap_generate,
+    )
+    monkeypatch.setattr(
+        "backend.app.manifests.service._rebuild_manifest_and_render",
+        lambda *args, **kwargs: None,
+    )
+
+    delete_plan_beat(project, "beat_002")
+
+    assert not gemini_called, "delete_plan_beat must NOT call the full Gemini regeneration path"

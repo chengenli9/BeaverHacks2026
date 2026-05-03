@@ -86,7 +86,8 @@ def reorder_plan_beats(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(reordered)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    # Purely structural -- no Gemini calls needed
+    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
     return updated
 
 
@@ -106,7 +107,8 @@ def delete_plan_beat(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(remaining)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    # Purely structural -- no Gemini calls needed
+    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
     return updated
 
 
@@ -542,6 +544,8 @@ def _build_plan_beat_for_insert(request: CreateBeatRequest) -> dict:
 
 
 def _regenerate_after_plan_mutation(project_path: Path, *, progress_callback=None) -> None:
+    """Full pipeline: Gemini asset gen + manifest rebuild + render.
+    Used for insert/edit where new content needs AI generation."""
     from ..integrations.gemini.service import generate_background_assets
     from ..rendering.service import render_project
 
@@ -554,6 +558,19 @@ def _regenerate_after_plan_mutation(project_path: Path, *, progress_callback=Non
     if progress_callback:
         progress_callback(0.7, "Rendering updated cut")
     render_project(project_path, progress_callback=None if progress_callback is None else _nested_progress(progress_callback, 0.7, 1.0))
+
+
+def _rebuild_manifest_and_render(project_path: Path, *, progress_callback=None) -> None:
+    """Lightweight path: deterministic manifest rebuild + render only.
+    Used for reorder/delete where no new assets are needed."""
+    from ..rendering.service import render_project
+
+    if progress_callback:
+        progress_callback(0.3, "Rebuilding manifest")
+    build_manifest(project_path)
+    if progress_callback:
+        progress_callback(0.6, "Rendering updated cut")
+    render_project(project_path, progress_callback=None if progress_callback is None else _nested_progress(progress_callback, 0.6, 1.0))
 
 
 def _nested_progress(progress_callback, start: float, end: float):
