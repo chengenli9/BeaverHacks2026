@@ -103,10 +103,18 @@ export function applyApprovedPatches(body: ApplyPatchesRequest): Promise<JobStar
 }
 
 export async function listProjects(): Promise<ProjectListItem[]> {
-  try {
-    return await request<ProjectListItem[]>('/projects')
-  } catch {
-    // Backend has no list endpoint yet — return mock data for demo
-    return MOCK_PROJECTS
-  }
+  return request<ProjectListItem[]>('/projects')
+}
+
+export function updateProject(projectId: string, name: string, description: string, starred?: boolean): Promise<ProjectSummary> {
+  return request<ProjectSummary>(`/projects/${projectId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, description, starred }),
+  })
+}
+
+export function deleteProject(projectId: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/projects/${projectId}`, {
+    method: 'DELETE',
+  })
 }

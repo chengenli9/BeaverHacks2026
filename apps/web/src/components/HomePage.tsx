@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, LayoutGrid, List, Plus } from 'lucide-react'
 import type { ProjectListItem } from '../types/api'
-import { listProjects } from '../api/directorloopApi'
+import { listProjects, updateProject, deleteProject } from '../api/directorloopApi'
 import { navigate } from '../router'
 import { HomeHeader } from './HomeHeader'
 import { HomeSidebar } from './HomeSidebar'
@@ -9,7 +9,7 @@ import { ProjectCard, NewProjectCard } from './ProjectCard'
 import { ProjectModal, type ModalMode } from './ProjectModal'
 import { usePipelineActions } from '../state/pipelineStore'
 
-const FILTER_CHIPS = ['All', 'Video', 'Draft', 'Active', 'Shared'] as const
+const FILTER_CHIPS = ['All', 'Starred', 'Draft', 'Exported'] as const
 
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -80,23 +80,56 @@ export function HomePage() {
     navigate(`/project/${projectId}`)
   }, [closeModal, createNewProject])
 
-  const handleEdit = useCallback((projectId: string, name: string, description: string) => {
+  const handleEdit = useCallback(async (projectId: string, name: string, description: string) => {
     closeModal()
-    // Update the project in the local list
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.project_id === projectId
-          ? { ...p, name, display_name: name, description }
-          : p
+    try {
+      const updatedProject = await updateProject(projectId, name, description)
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.project_id === projectId
+            ? updatedProject
+            : p
+        )
       )
-    )
+    } catch (err) {
+      console.error('Failed to update project', err)
+    }
   }, [closeModal])
 
-  const handleDelete = useCallback((projectId: string) => {
+  const handleDelete = useCallback(async (projectId: string) => {
     closeModal()
-    // Remove from local list
-    setProjects((prev) => prev.filter((p) => p.project_id !== projectId))
+    try {
+      await deleteProject(projectId)
+      setProjects((prev) => prev.filter((p) => p.project_id !== projectId))
+    } catch (err) {
+      console.error('Failed to delete project', err)
+    }
   }, [closeModal])
+
+  const handleToggleStar = useCallback(async (project: ProjectListItem) => {
+    try {
+      const newStarred = !project.starred
+      // Optimistic update
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.project_id === project.project_id
+            ? { ...p, starred: newStarred }
+            : p
+        )
+      )
+      await updateProject(project.project_id, project.name, project.description ?? '', newStarred)
+    } catch (err) {
+      console.error('Failed to toggle star', err)
+      // Revert on error
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.project_id === project.project_id
+            ? { ...p, starred: project.starred }
+            : p
+        )
+      )
+    }
+  }, [])
 
   // ── Filtering ───────────────────────────────────
 
@@ -110,8 +143,9 @@ export function HomePage() {
       if (!match) return false
     }
 
-    if (activeChip === 'Draft' && p.status !== 'draft') return false
-    if (activeChip === 'Active' && p.status !== 'active') return false
+    if (activeChip === 'Draft' && p.status !== 'draft' && p.status !== 'empty') return false
+    if (activeChip === 'Exported' && p.progress !== 100) return false
+    if (activeChip === 'Starred' && !p.starred) return false
 
     if (sidebarFilter === 'starred' && !p.starred) return false
 
@@ -211,6 +245,7 @@ export function HomePage() {
                   project={project}
                   onEdit={openEditModal}
                   onDelete={openDeleteModal}
+                  onToggleStar={handleToggleStar}
                 />
               ))}
               <NewProjectCard onClick={openCreateModal} />
