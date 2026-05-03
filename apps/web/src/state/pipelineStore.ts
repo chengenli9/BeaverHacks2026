@@ -292,6 +292,7 @@ async function fetchArtifact(
       }
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Review: ${critic.suggestions.length} suggestions`) })
     } else if (stage === 'apply-approved-patches') {
+      dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
       const data = await api.getManifest(projectId)
       dispatch({ type: 'SET_MANIFEST', payload: data })
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', 'Manifest updated') })
@@ -547,6 +548,13 @@ export function usePipelineActions() {
     for (const [id, value] of Object.entries(state.approvalState)) {
       if (value === 'approved') approved.push(id)
       else if (value === 'rejected') rejected.push(id)
+    }
+
+    // All rejected (or all pending) — nothing to apply, just dismiss suggestions
+    if (approved.length === 0) {
+      dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+      dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', `Dismissed ${rejected.length} suggestion${rejected.length === 1 ? '' : 's'}`) })
+      return
     }
 
     try {

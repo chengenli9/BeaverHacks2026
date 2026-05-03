@@ -190,7 +190,6 @@ def build_image_card_command(project_path: str | Path, block: ImageCardBlock, se
 
 def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> list[str]:
     root = Path(project_path)
-    s = manifest.render_settings
     return [
         "ffmpeg",
         "-y",
@@ -200,14 +199,8 @@ def build_concat_command(project_path: str | Path, manifest: BlockManifest) -> l
         "0",
         "-i",
         str(root / "concat.txt"),
-        "-c:v",
-        s.video_codec,
-        "-c:a",
-        s.audio_codec,
-        "-ar",
-        str(s.sample_rate),
-        "-pix_fmt",
-        s.pixel_format,
+        "-c",
+        "copy",
         str(root / "renders" / "final_render.mp4"),
     ]
 

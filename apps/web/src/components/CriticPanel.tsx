@@ -120,7 +120,11 @@ export function CriticPanel() {
         id="apply-patches-btn"
       >
         <Send size={14} />
-        Apply {approvedCount} Approved{rejectedCount > 0 ? `, ${rejectedCount} Rejected` : ''}
+        {approvedCount > 0
+          ? `Apply ${approvedCount} Approved${rejectedCount > 0 ? `, ${rejectedCount} Rejected` : ''}`
+          : rejectedCount > 0
+            ? `Dismiss ${rejectedCount} Suggestion${rejectedCount === 1 ? '' : 's'}`
+            : 'Submit'}
         {skippedCount > 0 ? ` (${skippedCount} skipped)` : ''}
       </button>
     </div>

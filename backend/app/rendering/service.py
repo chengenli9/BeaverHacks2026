@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import shutil
 import subprocess
 from pathlib import Path
@@ -19,9 +21,99 @@ from .remotion_bridge import (
     render_generated_remotion_scene,
 )
 
+logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[float, str], None]
 
+
+# ---------------------------------------------------------------------------
+# NVENC auto-detection (cached for the process lifetime)
+# ---------------------------------------------------------------------------
+
+_nvenc_checked: bool | None = None
+
+
+def _nvenc_available() -> bool:
+    global _nvenc_checked
+    if _nvenc_checked is not None:
+        return _nvenc_checked
+    try:
+        probe = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if "h264_nvenc" not in probe.stdout:
+            _nvenc_checked = False
+            return False
+        gpu = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=5,
+        )
+        _nvenc_checked = gpu.returncode == 0 and bool(gpu.stdout.strip())
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        _nvenc_checked = False
+    return _nvenc_checked
+
+
+def _effective_codec(requested: str) -> str:
+    """Return *h264_nvenc* when an NVIDIA GPU is present; otherwise the
+    requested codec (typically *libx264*).  Falls back silently."""
+    if requested == "libx264" and _nvenc_available():
+        logger.info("h264_nvenc available — using GPU-accelerated encoding")
+        return "h264_nvenc"
+    return requested
+
+
+# ---------------------------------------------------------------------------
+# Content-addressed render cache
+# ---------------------------------------------------------------------------
+# Blocks whose content hash + settings are unchanged between renders are
+# restored from cache (a simple file copy) instead of being re-encoded.
+
+_CACHE_DIR = "cache/renders"
+
+
+def _block_content_hash(block: Block, settings) -> str:
+    data = block.model_dump(mode="json", exclude={"rendered_path"})
+    data["_settings"] = {
+        "video_codec": settings.video_codec,
+        "width": settings.width,
+        "height": settings.height,
+        "fps": settings.fps,
+        "pixel_format": settings.pixel_format,
+    }
+    raw = json.dumps(data, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _cache_path(root: Path, content_hash: str) -> Path:
+    return root / _CACHE_DIR / f"{content_hash}.mp4"
+
+
+def _try_restore_from_cache(root: Path, block: Block, settings) -> bool:
+    content_hash = _block_content_hash(block, settings)
+    cached = _cache_path(root, content_hash)
+    if not cached.exists():
+        return False
+    output = root / block.rendered_path
+    output.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(cached, output)
+    logger.debug("Cache hit for %s (hash=%s)", block.block_id, content_hash)
+    return True
+
+
+def _save_to_cache(root: Path, block: Block, settings) -> None:
+    content_hash = _block_content_hash(block, settings)
+    cached = _cache_path(root, content_hash)
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    source = root / block.rendered_path
+    if source.exists() and not cached.exists():
+        shutil.copy2(source, cached)
+
+
+# ---------------------------------------------------------------------------
+# Core rendering helpers
+# ---------------------------------------------------------------------------
 
 def check_ffmpeg_available() -> None:
     missing = [tool for tool in ("ffmpeg", "ffprobe") if shutil.which(tool) is None]
@@ -38,8 +130,7 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
             try:
                 return render_generated_remotion_scene(root, block, settings)
             except Exception as exc:
-                import logging
-                logging.getLogger(__name__).warning(
+                logger.warning(
                     "Generated Remotion render failed, falling back to Pillow+FFmpeg: %s", exc
                 )
         # Fallback: static Pillow + FFmpeg
@@ -64,16 +155,34 @@ def render_project(project_path: str | Path, progress_callback: ProgressCallback
     check_ffmpeg_available()
     manifest = load_manifest(root)
     validate_project_assets(root, manifest)
+
+    # A) Override video codec to NVENC if GPU is available
+    effective_codec = _effective_codec(manifest.render_settings.video_codec)
+    if effective_codec != manifest.render_settings.video_codec:
+        manifest = manifest.model_copy(
+            update={"render_settings": manifest.render_settings.model_copy(update={"video_codec": effective_codec})}
+        )
+
+    # B) Render each block (skipping cached blocks)
     total = len(manifest.blocks)
+    cached_count = 0
 
     for index, block in enumerate(manifest.blocks, start=1):
         if progress_callback:
             progress_callback((index - 1) / total, f"Rendering block {index} of {total}")
+        if _try_restore_from_cache(root, block, manifest.render_settings):
+            cached_count += 1
+            continue
         try:
             render_block(root, block, manifest.render_settings)
+            _save_to_cache(root, block, manifest.render_settings)
         except Exception as exc:
             raise RuntimeError(f"Failed to render block {block.block_id}: {exc}") from exc
 
+    if cached_count and logger.isEnabledFor(logging.INFO):
+        logger.info("Restored %d/%d blocks from render cache", cached_count, total)
+
+    # C) Stream-copy concat (no re-encode)
     write_concat_file(root, manifest)
     command = build_concat_command(root, manifest)
     _run(command, root / "logs" / "ffmpeg.log")
