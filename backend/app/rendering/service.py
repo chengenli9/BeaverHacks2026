@@ -13,6 +13,11 @@ from .commands import (
     build_source_clip_command,
     build_title_block_command,
 )
+from .remotion_bridge import (
+    RemotionNotAvailableError,
+    is_remotion_available,
+    render_remotion_card,
+)
 
 
 ProgressCallback = Callable[[float, str], None]
@@ -29,6 +34,16 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
     output = root / block.rendered_path
     output.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(block, TextBlock):
+        # Try Remotion first for animated title/end-card blocks
+        if is_remotion_available():
+            try:
+                return render_remotion_card(root, block, settings)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Remotion render failed, falling back to Pillow+FFmpeg: %s", exc
+                )
+        # Fallback: static Pillow + FFmpeg
         command = build_title_block_command(root, block, settings)
     elif isinstance(block, SourceClipBlock):
         command = build_source_clip_command(
