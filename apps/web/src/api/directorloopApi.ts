@@ -8,6 +8,7 @@ import type {
   JobStatus,
   MediaProbe,
   MediaTree,
+  MusicTrackRef,
   PipelineJobKind,
   Plan,
   ProjectSummary,
@@ -159,4 +160,8 @@ export function deleteProject(projectId: string): Promise<{ status: string }> {
   return request<{ status: string }>(`/projects/${projectId}`, {
     method: 'DELETE',
   })
+}
+
+export function getMusicLibrary(): Promise<MusicTrackRef[]> {
+  return request<MusicTrackRef[]>('/music-library')
 }

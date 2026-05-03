@@ -17,6 +17,7 @@ import type {
   MediaProbe,
   MediaNode,
   MediaTree,
+  MusicTrackRef,
   PipelineJobKind,
   PipelineStageKey,
   Plan,
@@ -29,6 +30,13 @@ import type {
 
 type StageRunStatus = 'idle' | 'running' | 'succeeded' | 'failed'
 type ApprovalValue = 'approved' | 'rejected' | 'pending'
+
+interface UndoSnapshot {
+  plan: Plan | null
+  manifest: BlockManifest | null
+}
+
+const MAX_UNDO = 30
 
 export interface PipelineState {
   projectId: string | null
@@ -48,6 +56,10 @@ export interface PipelineState {
   approvalState: Record<string, ApprovalValue>
   pipelineStages: Record<PipelineStageKey, StageRunStatus>
   highlightedBlockId: string | null
+  selectedBlockId: string | null
+  musicLibrary: MusicTrackRef[]
+  undoStack: UndoSnapshot[]
+  redoStack: UndoSnapshot[]
 }
 
 export type PipelineAction =
@@ -68,7 +80,12 @@ export type PipelineAction =
   | { type: 'SET_APPROVAL'; payload: { id: string; value: ApprovalValue } }
   | { type: 'SET_STAGE'; payload: { stage: PipelineStageKey; status: StageRunStatus } }
   | { type: 'SET_HIGHLIGHTED_BLOCK'; payload: string | null }
+  | { type: 'SET_SELECTED_BLOCK'; payload: string | null }
+  | { type: 'SET_MUSIC_LIBRARY'; payload: MusicTrackRef[] }
   | { type: 'CLEAR_REVIEW_ARTIFACTS' }
+  | { type: 'SNAPSHOT_UNDO' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' }
   | { type: 'RESET' }
 
 export const initialState: PipelineState = {
@@ -102,11 +119,23 @@ export const initialState: PipelineState = {
     'create-beat': 'idle',
   },
   highlightedBlockId: null,
+  selectedBlockId: null,
+  musicLibrary: [],
+  undoStack: [],
+  redoStack: [],
 }
 
 export const PipelineContext = createContext<PipelineState>(initialState)
 export const DispatchContext = createContext<Dispatch<PipelineAction>>(() => undefined)
 export const VideoRefContext = createContext<React.RefObject<HTMLVideoElement | null>>({ current: null })
+
+function pushUndo(state: PipelineState): Pick<PipelineState, 'undoStack' | 'redoStack'> {
+  const snapshot: UndoSnapshot = { plan: state.plan, manifest: state.manifest }
+  return {
+    undoStack: [...state.undoStack.slice(-(MAX_UNDO - 1)), snapshot],
+    redoStack: [],
+  }
+}
 
 export function reducer(state: PipelineState, action: PipelineAction): PipelineState {
   switch (action.type) {
@@ -115,7 +144,6 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
         ...initialState,
         projectId: action.payload.project_id,
         projectName: action.payload.display_name ?? action.payload.name ?? action.payload.project_id,
-        // Preserve event log? No, start fresh for a new project
       }
     case 'SET_JOB':
       return { ...state, activeJobs: { ...state.activeJobs, [action.payload.job_id]: action.payload } }
@@ -163,8 +191,67 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
       }
     case 'SET_HIGHLIGHTED_BLOCK':
       return { ...state, highlightedBlockId: action.payload }
+    case 'SET_SELECTED_BLOCK':
+      return { ...state, selectedBlockId: action.payload }
+    case 'SET_MUSIC_LIBRARY':
+      return { ...state, musicLibrary: action.payload }
     case 'CLEAR_REVIEW_ARTIFACTS':
-      return { ...state, criticSuggestions: null, renderQa: null, approvalState: {} }
+      return {
+        ...state,
+        criticSuggestions: null,
+        renderQa: null,
+        renderSummary: null,
+        approvalState: {},
+        pipelineStages: {
+          ...state.pipelineStages,
+          render: 'idle',
+          'review-render': 'idle',
+        },
+      }
+    case 'SNAPSHOT_UNDO':
+      return { ...state, ...pushUndo(state) }
+    case 'UNDO': {
+      if (state.undoStack.length === 0) return state
+      const prev = state.undoStack[state.undoStack.length - 1]
+      const current: UndoSnapshot = { plan: state.plan, manifest: state.manifest }
+      return {
+        ...state,
+        plan: prev.plan,
+        manifest: prev.manifest,
+        undoStack: state.undoStack.slice(0, -1),
+        redoStack: [...state.redoStack, current],
+        renderSummary: null,
+        renderQa: null,
+        criticSuggestions: null,
+        approvalState: {},
+        pipelineStages: {
+          ...state.pipelineStages,
+          render: 'idle',
+          'review-render': 'idle',
+        },
+      }
+    }
+    case 'REDO': {
+      if (state.redoStack.length === 0) return state
+      const next = state.redoStack[state.redoStack.length - 1]
+      const current: UndoSnapshot = { plan: state.plan, manifest: state.manifest }
+      return {
+        ...state,
+        plan: next.plan,
+        manifest: next.manifest,
+        undoStack: [...state.undoStack, current],
+        redoStack: state.redoStack.slice(0, -1),
+        renderSummary: null,
+        renderQa: null,
+        criticSuggestions: null,
+        approvalState: {},
+        pipelineStages: {
+          ...state.pipelineStages,
+          render: 'idle',
+          'review-render': 'idle',
+        },
+      }
+    }
     case 'RESET':
       return initialState
     default:
@@ -330,6 +417,12 @@ async function hydrateProject(dispatch: Dispatch<PipelineAction>, project: Proje
   const artifacts = project.artifacts ?? {}
   dispatch({ type: 'SET_PROJECT', payload: project })
   dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Project: ${project.display_name ?? project.name ?? projectId}`) })
+
+  // Load music library (global, not project-scoped)
+  await loadIfAvailable(async () => {
+    const tracks = await api.getMusicLibrary()
+    dispatch({ type: 'SET_MUSIC_LIBRARY', payload: tracks })
+  })
 
   await loadIfAvailable(async () => {
     const data = await api.getProjectMedia(projectId)
@@ -582,6 +675,13 @@ export function usePipelineActions() {
     dispatch({ type: 'SET_HIGHLIGHTED_BLOCK', payload: blockId })
   }, [dispatch])
 
+  const selectBlock = useCallback((blockId: string | null) => {
+    dispatch({ type: 'SET_SELECTED_BLOCK', payload: blockId })
+  }, [dispatch])
+
+  const undo = useCallback(() => { dispatch({ type: 'UNDO' }) }, [dispatch])
+  const redo = useCallback(() => { dispatch({ type: 'REDO' }) }, [dispatch])
+
   const reorderPlanBeats = useCallback(async (beatOrder: string[]) => {
     if (!state.projectId || !state.plan) return
 
@@ -589,6 +689,7 @@ export function usePipelineActions() {
       .map((beatId) => state.plan?.beats.find((beat) => beat.beat_id === beatId))
       .filter(Boolean) as Plan['beats']
     if (reorderedBeats.length === state.plan.beats.length) {
+      dispatch({ type: 'SNAPSHOT_UNDO' })
       dispatch({ type: 'SET_PLAN', payload: { ...state.plan, beats: reorderedBeats } })
       const optimisticManifest = optimisticManifestReorder(state.plan, state.manifest, beatOrder)
       if (optimisticManifest) {
@@ -612,6 +713,7 @@ export function usePipelineActions() {
   const deleteBeat = useCallback(async (beatId: string) => {
     if (!state.projectId || !state.plan) return
 
+    dispatch({ type: 'SNAPSHOT_UNDO' })
     dispatch({ type: 'SET_PLAN', payload: { ...state.plan, beats: state.plan.beats.filter((beat) => beat.beat_id !== beatId) } })
     const optimisticManifest = optimisticManifestDelete(state.plan, state.manifest, beatId)
     if (optimisticManifest) {
@@ -693,6 +795,9 @@ export function usePipelineActions() {
     selectMedia,
     importMedia,
     highlightBlock,
+    selectBlock,
+    undo,
+    redo,
     reorderPlanBeats,
     deleteBeat,
     editPlanPrompt,

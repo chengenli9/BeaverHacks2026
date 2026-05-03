@@ -18,10 +18,36 @@ from ...rendering.remotion_bridge import render_remotion_preview
 
 
 _PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
+_REMOTION_SKILL_DIR = Path(__file__).resolve().parents[4] / "apps" / "remotion" / "info"
 
 
 def _load_prompt(name: str) -> str:
-    return (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
+    raw = (_PROMPTS_DIR / f"{name}.md").read_text(encoding="utf-8")
+    # Replace {{MUSIC_LIBRARY}} placeholder with actual library content
+    from ...audio.service import music_library_for_prompt
+    music_block = music_library_for_prompt()
+    return raw.replace("{{MUSIC_LIBRARY}}", music_block)
+
+
+def _remotion_capabilities_context() -> str:
+    """Build a compact summary of Remotion capabilities for plan prompts."""
+    skill_path = _REMOTION_SKILL_DIR / "SKILL.md"
+    if not skill_path.exists():
+        return ""
+    skill_text = skill_path.read_text(encoding="utf-8")
+    # Extract just the animation/component guidance (skip setup sections)
+    lines = skill_text.split("\n")
+    capture = False
+    captured: list[str] = []
+    for line in lines:
+        if "## Designing a video" in line:
+            capture = True
+            continue
+        if capture and line.startswith("## Starting preview"):
+            break
+        if capture:
+            captured.append(line)
+    return "\n".join(captured).strip()
 
 
 def analyze_scenes(project_path: Path, progress_callback=None) -> dict:
@@ -173,6 +199,9 @@ def generate_plan(project_path: Path) -> dict:
     media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
 
     system_prompt = _load_prompt("plan_generation")
+    # Build optional Remotion context section
+    remotion_ctx = _remotion_capabilities_context()
+    remotion_section = f"\n\nRemotion capabilities (use these when designing scene_card / title / end_card beats):\n{remotion_ctx}\n" if remotion_ctx else ""
     user_prompt = (
         f"Project ID: {project_id}\n\n"
         "Scene index:\n"
@@ -181,6 +210,7 @@ def generate_plan(project_path: Path) -> dict:
         f"{shot_index.model_dump_json(indent=2) if shot_index else '{}'}\n\n"
         "Media probe:\n"
         f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
+        f"{remotion_section}"
         "Generate a plan response matching the API contract. "
         "For title, scene_card, and end_card beats, provide a style object when it helps the demo feel more distinctive. "
         "Narration should stay concise, but TTS precision is not the priority for this demo."
@@ -475,6 +505,9 @@ def edit_plan_with_prompt(project_path: Path, prompt: str, progress_callback=Non
     if progress_callback:
         progress_callback(0.15, "Preparing plan edit request")
     system_prompt = _load_prompt("plan_edit")
+    # Build optional Remotion context section
+    remotion_ctx = _remotion_capabilities_context()
+    remotion_section = f"\n\nRemotion capabilities (use these when designing scene_card / title / end_card beats):\n{remotion_ctx}\n" if remotion_ctx else ""
     user_prompt = (
         f"Project ID: {project_id}\n\n"
         "Current plan:\n"
@@ -483,6 +516,7 @@ def edit_plan_with_prompt(project_path: Path, prompt: str, progress_callback=Non
         f"{scene_index.model_dump_json(indent=2)}\n\n"
         "Media probe:\n"
         f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
+        f"{remotion_section}"
         "User instruction:\n"
         f"{prompt}\n"
     )

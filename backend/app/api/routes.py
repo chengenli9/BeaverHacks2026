@@ -231,6 +231,13 @@ def get_render_qa(project_id: str):
     return _json_or_404(_project_path_or_404(project_id) / "cache/render_qa.json")
 
 
+@router.get("/music-library")
+def get_music_library():
+    """Return the global music library as a JSON array."""
+    from ..audio.service import load_music_library
+    return [track.model_dump() for track in load_music_library()]
+
+
 @router.get("/projects/{project_id}/render")
 def get_render(project_id: str):
     path = _project_path_or_404(project_id) / "renders/final_render.mp4"

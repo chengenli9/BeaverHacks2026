@@ -8,8 +8,8 @@ interface Props {
 }
 
 export function BlockCard({ block }: Props) {
-  const { highlightedBlockId, projectId } = usePipeline()
-  const isHighlighted = highlightedBlockId === block.block_id
+  const { highlightedBlockId, selectedBlockId, projectId } = usePipeline()
+  const isHighlighted = highlightedBlockId === block.block_id || selectedBlockId === block.block_id
   const isClip = block.type === 'source_clip'
   const ttsDuration = isClip && Number.isFinite(block.tts_duration) ? block.tts_duration : null
   const textBlock = block.type === 'title' || block.type === 'end_card' || block.type === 'scene_card' ? block : null

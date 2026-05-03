@@ -241,6 +241,7 @@ def build_manifest_from_plan(
             "version": 1,
             "render_settings": {},
             "blocks": blocks,
+            "audio_tracks": [t.model_dump(mode="json") for t in plan.audio_tracks],
         }
     )
     reconciled = reconcile_durations(manifest, source_duration_by_path=scene_index.source_duration_map())
