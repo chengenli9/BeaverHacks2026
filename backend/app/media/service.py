@@ -117,9 +117,14 @@ def detect_shots(project_path: str | Path, media_probe: MediaProbe | None = None
             start_frame = frames_dir / f"{shot_id}_start.jpg"
             mid_frame = frames_dir / f"{shot_id}_mid.jpg"
             end_frame = frames_dir / f"{shot_id}_end.jpg"
-            _extract_frame(source_path, start, start_frame)
-            _extract_frame(source_path, mid, mid_frame)
-            _extract_frame(source_path, max(end - 0.05, start), end_frame)
+            _extract_frame(source_path, start, start_frame, source_duration_seconds=source.duration_seconds)
+            _extract_frame(source_path, mid, mid_frame, source_duration_seconds=source.duration_seconds)
+            _extract_frame(
+                source_path,
+                max(end - 0.05, start),
+                end_frame,
+                source_duration_seconds=source.duration_seconds,
+            )
             normalized_shots.append(
                 Shot.model_validate(
                     {
@@ -259,22 +264,55 @@ def _scenedetect_shots(source_path: Path) -> list[tuple[float, float]]:
     ]
 
 
-def _extract_frame(video_path: Path, timestamp_seconds: float, output_path: Path) -> None:
+def _extract_frame(
+    video_path: Path,
+    timestamp_seconds: float,
+    output_path: Path,
+    *,
+    source_duration_seconds: float | None = None,
+) -> None:
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is required for frame extraction")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        "ffmpeg",
-        "-y",
-        "-ss",
-        f"{max(timestamp_seconds, 0):.3f}",
-        "-i",
-        str(video_path),
-        "-frames:v",
-        "1",
-        str(output_path),
-    ]
-    subprocess.run(command, capture_output=True, text=True, check=True)
+    for candidate in _frame_timestamp_candidates(timestamp_seconds, source_duration_seconds):
+        command = [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{candidate:.3f}",
+            "-i",
+            str(video_path),
+            "-frames:v",
+            "1",
+            str(output_path),
+        ]
+        completed = subprocess.run(command, capture_output=True, text=True)
+        if completed.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+            return
+    raise subprocess.CalledProcessError(
+        completed.returncode,
+        command,
+        output=completed.stdout,
+        stderr=completed.stderr,
+    )
+
+
+def _frame_timestamp_candidates(
+    timestamp_seconds: float,
+    source_duration_seconds: float | None,
+) -> list[float]:
+    base = max(timestamp_seconds, 0.0)
+    if source_duration_seconds is None or source_duration_seconds <= 0:
+        return [round(base, 3)]
+
+    max_valid = max(source_duration_seconds - 0.25, 0.0)
+    clamped = min(base, max_valid)
+    candidates = [clamped]
+    for step in (0.05, 0.1, 0.25, 0.5, 1.0):
+        candidate = min(max(base - step, 0.0), max_valid)
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return [round(candidate, 3) for candidate in candidates]
 
 
 def _review_timestamps(duration_seconds: float) -> list[float]:

@@ -196,6 +196,11 @@ def get_plan(project_id: str):
     return _json_or_404(_project_path_or_404(project_id) / "manifests/plan.json")
 
 
+@router.get("/projects/{project_id}/proposed-plan")
+def get_proposed_plan(project_id: str):
+    return _json_or_404(_project_path_or_404(project_id) / "manifests/proposed_plan.json")
+
+
 @router.put("/projects/{project_id}/plan/reorder")
 def reorder_plan(project_id: str, request: PlanReorderRequest, bg: BackgroundTasks):
     return _enqueue(bg, project_id, "reordering_plan", svc.reorder_plan_beats, request)
@@ -207,8 +212,15 @@ def delete_plan_beat(project_id: str, beat_id: str, bg: BackgroundTasks):
 
 
 @router.post("/projects/{project_id}/plan/edit-prompt")
-def edit_plan_prompt(project_id: str, request: PlanEditPromptRequest, bg: BackgroundTasks):
+def edit_plan_prompt(project_id: str, request: PlanEditPromptRequest, bg: BackgroundTasks, preview: bool = Query(False)):
+    if preview:
+        return _enqueue(bg, project_id, "editing_plan", svc.edit_plan_preview, request.prompt, request.history)
     return _enqueue(bg, project_id, "editing_plan", svc.edit_plan_with_prompt, request.prompt, request.history)
+
+
+@router.post("/projects/{project_id}/plan/apply-proposed")
+def apply_proposed_plan(project_id: str, bg: BackgroundTasks):
+    return _enqueue(bg, project_id, "editing_plan", svc.apply_proposed_plan)
 
 
 @router.post("/projects/{project_id}/plan/beats")
@@ -264,13 +276,20 @@ def get_render(project_id: str):
 
 @router.get("/projects/{project_id}/render/file")
 def get_render_file(project_id: str, request: Request):
+    if getattr(request.app.state, "is_shutting_down", False):
+        raise HTTPException(503, "Server is shutting down")
+
     path = _project_path_or_404(project_id) / "renders/final_render.mp4"
     if not path.exists():
         raise HTTPException(404, "Render not available")
     file_size = path.stat().st_size
     range_header = request.headers.get("range")
+    common_headers = {
+        "Accept-Ranges": "bytes",
+        "Connection": "close",
+    }
     if not range_header:
-        return FileResponse(path, headers={"Accept-Ranges": "bytes"})
+        return FileResponse(path, headers=common_headers)
 
     parsed_range = _parse_byte_range(range_header, file_size)
     if parsed_range is None:
@@ -278,7 +297,7 @@ def get_render_file(project_id: str, request: Request):
             _iter_file_bytes(path),
             media_type="video/mp4",
             headers={
-                "Accept-Ranges": "bytes",
+                **common_headers,
                 "Content-Length": str(file_size),
             },
         )
@@ -290,7 +309,7 @@ def get_render_file(project_id: str, request: Request):
         status_code=206,
         media_type="video/mp4",
         headers={
-            "Accept-Ranges": "bytes",
+            **common_headers,
             "Content-Length": str(content_length),
             "Content-Range": f"bytes {start}-{end}/{file_size}",
         },
@@ -332,16 +351,19 @@ def _parse_byte_range(range_header: str, file_size: int) -> tuple[int, int] | No
 
 
 def _iter_file_bytes(path: Path, *, start: int = 0, end: int | None = None, chunk_size: int = 64 * 1024):
-    with path.open("rb") as handle:
-        handle.seek(start)
-        remaining = None if end is None else (end - start + 1)
-        while True:
-            if remaining is not None and remaining <= 0:
-                break
-            read_size = chunk_size if remaining is None else min(chunk_size, remaining)
-            chunk = handle.read(read_size)
-            if not chunk:
-                break
-            yield chunk
-            if remaining is not None:
-                remaining -= len(chunk)
+    try:
+        with path.open("rb") as handle:
+            handle.seek(start)
+            remaining = None if end is None else (end - start + 1)
+            while True:
+                if remaining is not None and remaining <= 0:
+                    break
+                read_size = chunk_size if remaining is None else min(chunk_size, remaining)
+                chunk = handle.read(read_size)
+                if not chunk:
+                    break
+                yield chunk
+                if remaining is not None:
+                    remaining -= len(chunk)
+    except OSError:
+        return

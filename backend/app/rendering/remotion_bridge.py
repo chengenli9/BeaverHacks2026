@@ -74,6 +74,7 @@ def render_generated_remotion_scene(
         fps=settings.fps,
         width=settings.width,
         height=settings.height,
+        video_codec=settings.video_codec,
         log_dir=root / "logs",
         mode="video",
     )
@@ -113,6 +114,7 @@ def render_remotion_preview(
         fps=_setting_value(settings, "fps", 30),
         width=_setting_value(settings, "width", 1920),
         height=_setting_value(settings, "height", 1080),
+        video_codec="libx264",
         log_dir=project_root / "logs",
         mode="still",
     )
@@ -169,7 +171,7 @@ def render_remotion_card(
         "textColor": block.text_color or "#F9FAFB",
         "textAlignment": block.text_alignment,
         "layoutPreset": block.layout_preset,
-        "animationPreset": "fade_slide_up",  # default animation
+        "animationPreset": block.animation_preset or "fade_slide_up",
     }
 
     # Resolve background image path (absolute) if present
@@ -187,6 +189,7 @@ def render_remotion_card(
         fps=settings.fps,
         width=settings.width,
         height=settings.height,
+        video_codec=settings.video_codec,
         log_dir=root / "logs",
     )
 
@@ -214,6 +217,7 @@ def _run_render_card(
     fps: int,
     width: int,
     height: int,
+    video_codec: str,
     log_dir: Path,
 ) -> None:
     """Invoke the Node.js render-card.ts script."""
@@ -229,6 +233,7 @@ def _run_render_card(
         "--fps", str(fps),
         "--width", str(width),
         "--height", str(height),
+        "--video-codec", video_codec,
     ]
 
     completed = subprocess.run(
@@ -265,6 +270,7 @@ def _run_generated_scene(
     fps: int,
     width: int,
     height: int,
+    video_codec: str,
     log_dir: Path,
     mode: str,
 ) -> None:
@@ -288,6 +294,8 @@ def _run_generated_scene(
         str(width),
         "--height",
         str(height),
+        "--video-codec",
+        video_codec,
         "--mode",
         mode,
     ]

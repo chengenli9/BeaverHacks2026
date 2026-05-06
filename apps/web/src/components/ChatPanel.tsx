@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Sparkles, Bot, User, Loader2 } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { Send, Sparkles, Bot, User, Loader2, PlusSquare } from 'lucide-react'
 import { usePipeline, usePipelineActions } from '../state/pipelineStore'
+import { DiffReviewBar } from './DiffReviewBar'
+import { computePlanDiff } from '../utils/planDiff'
 
 interface ChatMessage {
   id: string
@@ -19,15 +21,58 @@ const SUGGESTIONS = [
   'Make it shorter overall',
 ]
 
+function chatStorageKey(projectId: string): string {
+  return `directorloop:chat:${projectId}`
+}
+
+function loadChatHistory(projectId: string): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(chatStorageKey(projectId))
+    if (!raw) return []
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+function saveChatHistory(projectId: string, messages: ChatMessage[]) {
+  try {
+    const persistable = messages.filter((m) => m.status !== 'pending')
+    localStorage.setItem(chatStorageKey(projectId), JSON.stringify(persistable))
+  } catch {
+    // localStorage full or unavailable; skip persistence
+  }
+}
+
 export function ChatPanel() {
-  const { projectId, plan, manifest, pipelineStages } = usePipeline()
-  const { editPlanPrompt } = usePipelineActions()
+  const { projectId, plan, manifest, pipelineStages, proposedPlan } = usePipeline()
+  const { editPlanPreview, acceptProposedPlan, rejectProposedPlan } = usePipelineActions()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const isProjectLoading = useRef(false)
 
   const isEditing = pipelineStages['edit-plan'] === 'running'
+
+  useEffect(() => {
+    if (projectId) {
+      isProjectLoading.current = true
+      setMessages(loadChatHistory(projectId))
+    } else {
+      setMessages([])
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    if (isProjectLoading.current) {
+      isProjectLoading.current = false
+      return
+    }
+    if (projectId) {
+      saveChatHistory(projectId, messages)
+    }
+  }, [messages, projectId])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -38,18 +83,18 @@ export function ChatPanel() {
       setMessages((prev) => {
         const last = prev[prev.length - 1]
         if (last?.role === 'assistant' && last.status === 'pending') {
-          const beatCount = plan?.beats?.length ?? 0
-          const summary = plan
-            ? `Done! Plan updated — now ${beatCount} beat${beatCount === 1 ? '' : 's'}. Check the timeline to see changes.`
-            : 'Done! The plan has been updated.'
+          const proposedBeatCount = proposedPlan?.beats?.length ?? 0
+          const summary = proposedPlan
+            ? `I drafted an updated plan with ${proposedBeatCount} beat${proposedBeatCount === 1 ? '' : 's'}. Review it below.`
+            : 'No draft changes were produced.'
           return prev.map((m) =>
-            m.id === last.id ? { ...m, status: 'done' as const, content: summary } : m
+            m.id === last.id ? { ...m, status: 'done' as const, content: summary } : m,
           )
         }
         return prev
       })
     }
-  }, [isEditing, plan])
+  }, [isEditing, proposedPlan])
 
   const buildHistory = (currentMessages: ChatMessage[]): { role: 'user' | 'assistant'; content: string }[] => {
     return currentMessages
@@ -57,7 +102,7 @@ export function ChatPanel() {
       .map((m) => ({ role: m.role, content: m.content }))
   }
 
-  const handleSend = async (text?: string) => {
+  const handleSend = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim()
     if (!msg || !projectId || !plan) return
 
@@ -70,7 +115,7 @@ export function ChatPanel() {
     const assistantMsg: ChatMessage = {
       id: `msg_${Date.now()}_a`,
       role: 'assistant',
-      content: 'Working on it...',
+      content: 'Previewing plan changes...',
       timestamp: new Date().toISOString(),
       status: 'pending',
     }
@@ -81,15 +126,22 @@ export function ChatPanel() {
     if (inputRef.current) inputRef.current.style.height = 'auto'
 
     try {
-      await editPlanPrompt(msg, history)
+      await editPlanPreview(msg, history)
     } catch {
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantMsg.id ? { ...m, status: 'error' as const, content: 'Something went wrong. Try again.' } : m
-        )
+          m.id === assistantMsg.id ? { ...m, status: 'error' as const, content: 'Something went wrong. Try again.' } : m,
+        ),
       )
     }
-  }
+  }, [input, projectId, plan, messages, editPlanPreview])
+
+  const handleNewChat = useCallback(() => {
+    if (projectId) {
+      localStorage.removeItem(chatStorageKey(projectId))
+    }
+    setMessages([])
+  }, [projectId])
 
   const autoResize = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto'
@@ -99,12 +151,24 @@ export function ChatPanel() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      void handleSend()
     }
   }
 
-  const disabled = !projectId || !plan || isEditing
+  const diff = useMemo(
+    () => (plan && proposedPlan ? computePlanDiff(plan, proposedPlan) : null),
+    [plan, proposedPlan],
+  )
+  const currentDuration = useMemo(
+    () => plan?.beats.reduce((s, b) => s + b.duration, 0) ?? 0,
+    [plan],
+  )
+  const proposedDuration = useMemo(
+    () => proposedPlan?.beats.reduce((s, b) => s + b.duration, 0) ?? currentDuration,
+    [proposedPlan, currentDuration],
+  )
 
+  const disabled = !projectId || !plan || isEditing
   const contextLine = plan
     ? `${plan.beats.length} beats · ${manifest?.blocks?.length ?? 0} blocks`
     : null
@@ -113,7 +177,10 @@ export function ChatPanel() {
     <div className="chat-panel">
       {contextLine && (
         <div className="chat-context-bar">
-          Current: {plan?.title ?? 'Untitled'} — {contextLine}
+          <span>Current: {plan?.title ?? 'Untitled'} - {contextLine}</span>
+          <button className="chat-new-btn" onClick={handleNewChat} title="Start new chat">
+            <PlusSquare size={12} /> New
+          </button>
         </div>
       )}
 
@@ -122,14 +189,14 @@ export function ChatPanel() {
           <div className="chat-empty">
             <Sparkles size={24} className="chat-empty-icon" />
             <h4>Edit with AI</h4>
-            <p>Describe changes to your video plan in natural language. The AI remembers your conversation.</p>
+            <p>Describe changes to your video plan. Chat will draft them first so you can review before applying.</p>
             {plan && (
               <div className="chat-suggestions">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
                     className="chat-suggestion-chip"
-                    onClick={() => handleSend(s)}
+                    onClick={() => void handleSend(s)}
                     disabled={disabled}
                   >
                     {s}
@@ -158,6 +225,20 @@ export function ChatPanel() {
         ))}
       </div>
 
+      {proposedPlan && diff && (
+        <DiffReviewBar
+          diff={diff}
+          currentDuration={currentDuration}
+          proposedDuration={proposedDuration}
+          onAccept={() => void acceptProposedPlan()}
+          onReject={rejectProposedPlan}
+          onEditPrompt={() => {
+            rejectProposedPlan()
+            inputRef.current?.focus()
+          }}
+        />
+      )}
+
       <div className="chat-input-area">
         <textarea
           ref={inputRef}
@@ -174,7 +255,7 @@ export function ChatPanel() {
         />
         <button
           className="chat-send-btn"
-          onClick={() => handleSend()}
+          onClick={() => void handleSend()}
           disabled={disabled || !input.trim()}
           aria-label="Send"
         >

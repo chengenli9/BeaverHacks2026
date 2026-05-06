@@ -60,6 +60,7 @@ export interface PipelineState {
   musicLibrary: MusicTrackRef[]
   undoStack: UndoSnapshot[]
   redoStack: UndoSnapshot[]
+  proposedPlan: Plan | null
 }
 
 export type PipelineAction =
@@ -83,6 +84,8 @@ export type PipelineAction =
   | { type: 'SET_SELECTED_BLOCK'; payload: string | null }
   | { type: 'SET_MUSIC_LIBRARY'; payload: MusicTrackRef[] }
   | { type: 'CLEAR_REVIEW_ARTIFACTS' }
+  | { type: 'SET_PROPOSED_PLAN'; payload: Plan }
+  | { type: 'CLEAR_PROPOSED_PLAN' }
   | { type: 'SNAPSHOT_UNDO' }
   | { type: 'UNDO' }
   | { type: 'REDO' }
@@ -123,6 +126,7 @@ export const initialState: PipelineState = {
   musicLibrary: [],
   undoStack: [],
   redoStack: [],
+  proposedPlan: null,
 }
 
 export const PipelineContext = createContext<PipelineState>(initialState)
@@ -200,7 +204,6 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
         ...state,
         criticSuggestions: null,
         renderQa: null,
-        renderSummary: null,
         approvalState: {},
         pipelineStages: {
           ...state.pipelineStages,
@@ -208,6 +211,10 @@ export function reducer(state: PipelineState, action: PipelineAction): PipelineS
           'review-render': 'idle',
         },
       }
+    case 'SET_PROPOSED_PLAN':
+      return { ...state, proposedPlan: action.payload }
+    case 'CLEAR_PROPOSED_PLAN':
+      return { ...state, proposedPlan: null }
     case 'SNAPSHOT_UNDO':
       return { ...state, ...pushUndo(state) }
     case 'UNDO': {
@@ -384,16 +391,23 @@ async function fetchArtifact(
       dispatch({ type: 'SET_MANIFEST', payload: data })
       dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', 'Manifest updated') })
     } else if (stage === 'reorder-plan' || stage === 'delete-beat' || stage === 'edit-plan' || stage === 'create-beat') {
-      const [plan, manifest, render] = await Promise.all([
-        api.getPlan(projectId),
-        api.getManifest(projectId),
-        api.getRender(projectId),
-      ])
-      dispatch({ type: 'SET_PLAN', payload: plan })
-      dispatch({ type: 'SET_MANIFEST', payload: manifest })
-      dispatch({ type: 'SET_RENDER_SUMMARY', payload: render })
-      dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
-      dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Plan updated: ${plan.beats.length} beats`) })
+      // Check if this was a preview edit (proposed plan exists)
+      const proposedPlan = await api.getProposedPlan(projectId).catch(() => null)
+      if (proposedPlan && stage === 'edit-plan') {
+        dispatch({ type: 'SET_PROPOSED_PLAN', payload: proposedPlan })
+        dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Plan preview ready: ${proposedPlan.beats.length} beats — review diff`) })
+      } else {
+        const [plan, manifest, render] = await Promise.all([
+          api.getPlan(projectId),
+          api.getManifest(projectId),
+          api.getRender(projectId).catch(() => null),
+        ])
+        dispatch({ type: 'SET_PLAN', payload: plan })
+        dispatch({ type: 'SET_MANIFEST', payload: manifest })
+        if (render) dispatch({ type: 'SET_RENDER_SUMMARY', payload: render })
+        dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+        dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Plan updated: ${plan.beats.length} beats`) })
+      }
     }
   } catch (error) {
     dispatch({
@@ -507,8 +521,11 @@ export function useJobPoller() {
           dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Completed: ${frontendStage}`, { jobId }) })
           await fetchArtifact(dispatch, frontendStage, projectId)
 
-          // Auto-render preview after manifest is built, patches applied, or plan edited
-          if (frontendStage === 'build-manifest' || frontendStage === 'apply-approved-patches' || frontendStage === 'edit-plan' || frontendStage === 'reorder-plan' || frontendStage === 'delete-beat' || frontendStage === 'create-beat') {
+          // Auto-render only for flows that explicitly produce a fresh manifest preview.
+          const shouldAutoRender =
+            frontendStage === 'build-manifest'
+            || frontendStage === 'apply-approved-patches'
+          if (shouldAutoRender) {
             try {
               const { job_id: renderJobId } = await api.startJob('render', projectId)
               dispatch({ type: 'SET_JOB', payload: makeQueuedJob(renderJobId, projectId, 'render') })
@@ -753,6 +770,44 @@ export function usePipelineActions() {
     }
   }, [dispatch, startPolling, state.projectId])
 
+  const editPlanPreview = useCallback(async (prompt: string, history?: { role: 'user' | 'assistant'; content: string }[]) => {
+    if (!state.projectId || !prompt.trim()) return
+    dispatch({ type: 'CLEAR_PROPOSED_PLAN' })
+    try {
+      const { job_id } = await api.editPlanWithPrompt(state.projectId, prompt.trim(), history, true)
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'edit-plan') })
+      startPolling(job_id, 'edit-plan', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Plan preview failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch, startPolling, state.projectId])
+
+  const acceptProposedPlan = useCallback(async () => {
+    if (!state.projectId || !state.proposedPlan) return
+    dispatch({ type: 'SNAPSHOT_UNDO' })
+    dispatch({ type: 'SET_PLAN', payload: state.proposedPlan })
+    dispatch({ type: 'CLEAR_PROPOSED_PLAN' })
+    dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
+    try {
+      const { job_id } = await api.applyProposedPlan(state.projectId)
+      dispatch({ type: 'SET_JOB', payload: makeQueuedJob(job_id, state.projectId, 'edit-plan') })
+      startPolling(job_id, 'edit-plan', state.projectId)
+    } catch (error) {
+      dispatch({
+        type: 'ADD_EVENT',
+        payload: makeEvent('error', `Apply proposed plan failed: ${error instanceof Error ? error.message : 'Unknown'}`),
+      })
+    }
+  }, [dispatch, startPolling, state.projectId, state.proposedPlan])
+
+  const rejectProposedPlan = useCallback(() => {
+    dispatch({ type: 'CLEAR_PROPOSED_PLAN' })
+    dispatch({ type: 'ADD_EVENT', payload: makeEvent('info', 'Proposed plan rejected') })
+  }, [dispatch])
+
   const createBeat = useCallback(async (payload: CreateBeatRequest) => {
     if (!state.projectId) return
     dispatch({ type: 'CLEAR_REVIEW_ARTIFACTS' })
@@ -822,6 +877,9 @@ export function usePipelineActions() {
     reorderPlanBeats,
     deleteBeat,
     editPlanPrompt,
+    editPlanPreview,
+    acceptProposedPlan,
+    rejectProposedPlan,
     createBeat,
     updateBeat,
   }

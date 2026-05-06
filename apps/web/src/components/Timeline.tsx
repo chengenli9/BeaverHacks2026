@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type MouseEvent } from 'react'
 import {
   Scissors, Undo2, Redo2, Trash2, ZoomIn, ZoomOut,
-  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon, Music
+  Play, Pause, SkipBack, SkipForward, Mic, Film, Type, Image as ImageIcon, Music,
+  Plus, Copy
 } from 'lucide-react'
 import { usePipeline, usePipelineActions, useVideoRef } from '../state/pipelineStore'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import type { AudioTrack, Block } from '../types/api'
 
 const TRACK_COLORS: Record<string, string> = {
@@ -36,7 +38,7 @@ function getTtsDuration(block: Block): number {
 }
 
 export function Timeline() {
-  const { manifest, highlightedBlockId, selectedBlockId, plan, undoStack, redoStack } = usePipeline()
+  const { manifest, highlightedBlockId, selectedBlockId, plan, undoStack, redoStack, proposedPlan } = usePipeline()
   const audioTracks: AudioTrack[] = manifest?.audio_tracks ?? plan?.audio_tracks ?? []
   const { reorderPlanBeats, deleteBeat, selectBlock, undo, redo } = usePipelineActions()
   const videoRef = useVideoRef()
@@ -45,11 +47,25 @@ export function Timeline() {
   const [playing, setPlaying] = useState(false)
   const [draggingBlock, setDraggingBlock] = useState<string | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; blockId: string; blockIdx: number } | null>(null)
   const timelineRef = useRef<HTMLDivElement>(null)
 
   const blocks = manifest?.blocks ?? []
   const totalDuration = blocks.reduce((sum, b) => sum + getBlockDuration(b), 0)
   const pixelsPerSecond = 60 * zoom
+
+  // Diff: determine which block indices are removed/added in the proposed plan
+  const removedBlockIds = useMemo(() => {
+    if (!proposedPlan || !plan) return new Set<string>()
+    const proposedBeatIds = new Set(proposedPlan.beats.map(b => b.beat_id))
+    const removed = new Set<string>()
+    plan.beats.forEach((beat, idx) => {
+      if (!proposedBeatIds.has(beat.beat_id) && blocks[idx]) {
+        removed.add(blocks[idx].block_id)
+      }
+    })
+    return removed
+  }, [proposedPlan, plan, blocks])
 
   // Sync playhead from the render video element at 60fps via rAF
   // Uses getElementById so it naturally returns null when render video is unmounted
@@ -71,6 +87,19 @@ export function Timeline() {
 
     return () => cancelAnimationFrame(rafId)
   }, [videoRef])
+
+  // Auto-scroll timeline to keep playhead visible during playback
+  useEffect(() => {
+    if (!playing || !timelineRef.current) return
+    const px = playheadPos * pixelsPerSecond + 40
+    const container = timelineRef.current
+    const viewLeft = container.scrollLeft
+    const viewRight = viewLeft + container.clientWidth
+    // If playhead is outside the visible area, scroll to center it
+    if (px < viewLeft + 40 || px > viewRight - 40) {
+      container.scrollLeft = px - container.clientWidth / 2
+    }
+  }, [playheadPos, playing, pixelsPerSecond])
 
   const playVideo = useCallback((video: HTMLVideoElement) => {
     const playback = video.play()
@@ -130,6 +159,44 @@ export function Timeline() {
       void deleteBeat(beatId)
     }
   }, [selectedBlockId, beatIdForBlock, selectBlock, deleteBeat])
+
+  const handleClipContext = useCallback((e: MouseEvent, blockId: string, blockIdx: number) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY, blockId, blockIdx })
+  }, [])
+
+  const handleTrackContext = useCallback((e: MouseEvent) => {
+    e.preventDefault()
+    if (!blocks.length || !plan) return
+    // Determine which block index the click falls at based on x position
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = e.clientX - rect.left
+    let accumulated = 0
+    let targetIdx = blocks.length - 1
+    for (let i = 0; i < blocks.length; i++) {
+      const blockWidth = getBlockDuration(blocks[i]) * pixelsPerSecond
+      if (x < accumulated + blockWidth) {
+        targetIdx = i
+        break
+      }
+      accumulated += blockWidth
+    }
+    setCtxMenu({ x: e.clientX, y: e.clientY, blockId: blocks[targetIdx].block_id, blockIdx: targetIdx })
+  }, [blocks, plan, pixelsPerSecond])
+
+  const getCtxMenuItems = useCallback((): ContextMenuItem[] => {
+    if (!ctxMenu || !plan) return []
+    const { blockId, blockIdx } = ctxMenu
+    const beatId = beatIdForBlock(blockId)
+    const prevBeatId = blockIdx > 0 && plan.beats[blockIdx - 1] ? plan.beats[blockIdx - 1].beat_id : null
+    return [
+      { label: 'Insert scene card before', icon: <Plus size={12} />, onClick: () => { if (prevBeatId !== null) window.dispatchEvent(new CustomEvent('dl:insert-beat', { detail: prevBeatId })) } },
+      { label: 'Insert scene card after', icon: <Plus size={12} />, onClick: () => { if (beatId) window.dispatchEvent(new CustomEvent('dl:insert-beat', { detail: beatId })) } },
+      { label: 'Duplicate', icon: <Copy size={12} />, disabled: true, onClick: () => {} },
+      { label: 'Delete', icon: <Trash2 size={12} />, danger: true, onClick: () => { if (beatId) { selectBlock(null); void deleteBeat(beatId) } } },
+    ]
+  }, [ctxMenu, plan, beatIdForBlock, selectBlock, deleteBeat])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -247,7 +314,7 @@ export function Timeline() {
             {/* Video track */}
             <div className="tl-track">
               <div className="tl-track-label"><Film size={11} /> Video</div>
-              <div className="tl-track-clips" style={{ width: totalDuration * pixelsPerSecond }}>
+              <div className="tl-track-clips" style={{ width: totalDuration * pixelsPerSecond }} onContextMenu={handleTrackContext}>
                 {blocks.map((block, idx) => {
                   const dur = getBlockDuration(block)
                   const w = dur * pixelsPerSecond
@@ -257,14 +324,16 @@ export function Timeline() {
                   const isOver = dragOverIndex === idx
                   const isHighlighted = highlightedBlockId === block.block_id
                   const isSelected = selectedBlockId === block.block_id
+                  const isRemoved = removedBlockIds.has(block.block_id)
 
                   return (
                     <div
                       key={block.block_id}
-                      className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''} ${isHighlighted || isSelected ? 'tl-clip-highlight' : ''}`}
+                      className={`tl-clip ${isDragging ? 'dragging' : ''} ${isOver ? 'drag-over' : ''} ${isHighlighted || isSelected ? 'tl-clip-highlight' : ''} ${isRemoved ? 'diff-clip-removed' : ''}`}
                       style={{ width: w, '--clip-color': color } as CSSProperties}
                       draggable
                       onClick={(e) => handleClipClick(e, block.block_id)}
+                      onContextMenu={(e) => handleClipContext(e, block.block_id, idx)}
                       onDragStart={() => handleDragStart(block.block_id)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDrop={(e) => { e.preventDefault(); void handleDrop(idx) }}
@@ -347,6 +416,15 @@ export function Timeline() {
           </>
         )}
       </div>
+
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={getCtxMenuItems()}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
     </div>
   )
 }

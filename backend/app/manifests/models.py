@@ -301,6 +301,7 @@ class TextBlock(BaseBlock):
     background_color: str | None = None
     text_alignment: Literal["left", "center", "right"] = "center"
     layout_preset: Literal["centered", "hero-left", "hero-right", "stacked"] = "centered"
+    animation_preset: str | None = None
 
     @field_validator("background_asset", "fontfile")
     @classmethod

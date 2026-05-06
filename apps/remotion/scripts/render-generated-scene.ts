@@ -1,9 +1,13 @@
 import { bundle } from "@remotion/bundler";
 import { getCompositions, renderMedia, renderStill } from "@remotion/renderer";
+import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { FfmpegOverrideFn } from "@remotion/renderer";
+
+type HardwareAccelerationOption = "disable" | "if-possible" | "required";
 
 type SceneSpec = {
   duration_seconds: number;
@@ -19,6 +23,61 @@ const resolveFromWorkspace = (workspaceRoot: string, input: string) => {
   return isAbsolute(input) ? input : resolve(workspaceRoot, input);
 };
 
+const resolveSystemBinary = (binary: "ffmpeg" | "ffprobe"): string | null => {
+  const command = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(command, [binary], { encoding: "utf-8" });
+  if (result.status !== 0) {
+    return null;
+  }
+
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) ?? null;
+};
+
+const prepareBinariesDirectory = (remotionRoot: string, tempDir: string, videoCodec: string): string | null => {
+  if (videoCodec !== "h264_nvenc" && !process.env.REMOTION_FFMPEG_DIR) {
+    return null;
+  }
+
+  const ffmpegPath = process.env.REMOTION_FFMPEG_PATH ?? resolveSystemBinary("ffmpeg");
+  const ffprobePath = process.env.REMOTION_FFPROBE_PATH ?? resolveSystemBinary("ffprobe");
+  const compositorDir = resolve(remotionRoot, "node_modules", "@remotion", "compositor-win32-x64-msvc");
+  const remotionExe = join(compositorDir, process.platform === "win32" ? "remotion.exe" : "remotion");
+
+  if (!ffmpegPath || !ffprobePath || !existsSync(remotionExe)) {
+    return null;
+  }
+
+  const shimDir = join(tempDir, "binaries");
+  mkdirSync(shimDir, { recursive: true });
+  copyFileSync(remotionExe, join(shimDir, basename(remotionExe)));
+  copyFileSync(ffmpegPath, join(shimDir, basename(ffmpegPath)));
+  copyFileSync(ffprobePath, join(shimDir, basename(ffprobePath)));
+  return shimDir;
+};
+
+const resolveRenderOverrides = (videoCodec: string): {
+  hardwareAcceleration: HardwareAccelerationOption;
+  ffmpegOverride?: FfmpegOverrideFn;
+} => {
+  if (videoCodec === "h264_nvenc") {
+    return {
+      hardwareAcceleration: "if-possible",
+      ffmpegOverride: ({ args }) =>
+        args.map((arg, index, allArgs) => {
+          if (arg === "libx264" && index > 0 && allArgs[index - 1] === "-c:v") {
+            return "h264_nvenc";
+          }
+          return arg;
+        }),
+    };
+  }
+
+  return { hardwareAcceleration: "disable" };
+};
+
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -30,6 +89,7 @@ async function main() {
       fps: { type: "string", default: "30" },
       width: { type: "string", default: "1920" },
       height: { type: "string", default: "1080" },
+      "video-codec": { type: "string", default: "libx264" },
       mode: { type: "string", default: "video" },
     },
     strict: true,
@@ -49,11 +109,14 @@ async function main() {
   const fps = Number.parseInt(String(values.fps), 10);
   const width = Number.parseInt(String(values.width), 10);
   const height = Number.parseInt(String(values.height), 10);
+  const videoCodec = String(values["video-codec"]);
   const mode = String(values.mode);
+  const { hardwareAcceleration, ffmpegOverride } = resolveRenderOverrides(videoCodec);
 
   mkdirSync(dirname(outputPath), { recursive: true });
 
   const tempDir = mkdtempSync(join(tmpdir(), `scenerio-remotion-${blockId}-`));
+  const binariesDirectory = prepareBinariesDirectory(remotionRoot, tempDir, videoCodec);
   const publicDir = resolve(remotionRoot, "public");
   mkdirSync(publicDir, { recursive: true });
 
@@ -115,7 +178,9 @@ async function main() {
     entryPoint: join(tempDir, "index.ts"),
     publicDir,
   });
-  const compositions = await getCompositions(bundleLocation);
+  const compositions = await getCompositions(bundleLocation, {
+    binariesDirectory,
+  });
   const composition = compositions.find((c) => c.id === "GeneratedTextScene");
   if (!composition) {
     throw new Error("GeneratedTextScene composition not found.");
@@ -136,6 +201,7 @@ async function main() {
         output: outputPath,
         frame,
         imageFormat: "png",
+        binariesDirectory,
       });
     } else {
       await renderMedia({
@@ -150,6 +216,9 @@ async function main() {
         codec: "h264",
         outputLocation: outputPath,
         inputProps: {},
+        hardwareAcceleration,
+        ffmpegOverride,
+        binariesDirectory,
       });
     }
   } finally {

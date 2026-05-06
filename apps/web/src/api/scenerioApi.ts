@@ -87,6 +87,10 @@ export function getPlan(projectId: string): Promise<Plan> {
   return request<Plan>(`/projects/${projectId}/plan`)
 }
 
+export function getProposedPlan(projectId: string): Promise<Plan> {
+  return request<Plan>(`/projects/${projectId}/proposed-plan`)
+}
+
 export function getMediaProbe(projectId: string): Promise<MediaProbe> {
   return request<MediaProbe>(`/projects/${projectId}/media-probe`)
 }
@@ -135,10 +139,18 @@ export function editPlanWithPrompt(
   projectId: string,
   prompt: string,
   history?: { role: 'user' | 'assistant'; content: string }[],
+  preview?: boolean,
 ): Promise<JobStartResponse> {
-  return request<JobStartResponse>(`/projects/${projectId}/plan/edit-prompt`, {
+  const params = preview ? '?preview=true' : ''
+  return request<JobStartResponse>(`/projects/${projectId}/plan/edit-prompt${params}`, {
     method: 'POST',
     body: JSON.stringify({ prompt, history: history ?? [] }),
+  })
+}
+
+export function applyProposedPlan(projectId: string): Promise<JobStartResponse> {
+  return request<JobStartResponse>(`/projects/${projectId}/plan/apply-proposed`, {
+    method: 'POST',
   })
 }
 

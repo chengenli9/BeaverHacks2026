@@ -134,7 +134,7 @@ def render_block(project_path: str | Path, block: Block, settings) -> Path:
                 logger.warning(
                     "Generated Remotion render failed, falling back to Pillow+FFmpeg: %s", exc
                 )
-        # Fallback: static Pillow + FFmpeg
+        # Static Pillow + FFmpeg render for title/end cards
         command = build_title_block_command(root, block, settings)
     elif isinstance(block, ImageCardBlock):
         command = build_image_card_command(root, block, settings)

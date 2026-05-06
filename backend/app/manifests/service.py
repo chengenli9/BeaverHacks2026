@@ -86,7 +86,7 @@ def reorder_plan_beats(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(reordered)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    _rebuild_manifest_only(root, progress_callback=progress_callback)
     return updated
 
 
@@ -106,7 +106,7 @@ def delete_plan_beat(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(remaining)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _regenerate_after_plan_mutation(root, progress_callback=progress_callback)
+    _rebuild_manifest_only(root, progress_callback=progress_callback)
     return updated
 
 
@@ -132,7 +132,7 @@ def insert_plan_beat(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(beats)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
+    _rebuild_manifest_only(root, progress_callback=progress_callback)
     return updated
 
 
@@ -153,7 +153,7 @@ def update_plan_beat(
     updated = plan.model_copy(update={"beats": _renumber_plan_beats(beats)})
     updated = Plan.model_validate(updated.model_dump(mode="json"))
     write_plan(root, updated)
-    _rebuild_manifest_and_render(root, progress_callback=progress_callback)
+    _rebuild_manifest_only(root, progress_callback=progress_callback)
     return updated
 
 
@@ -585,6 +585,16 @@ def _regenerate_after_plan_mutation(project_path: Path, *, progress_callback=Non
     if progress_callback:
         progress_callback(0.7, "Rendering updated cut")
     render_project(project_path, progress_callback=None if progress_callback is None else _nested_progress(progress_callback, 0.7, 1.0))
+
+
+def _rebuild_manifest_only(project_path: Path, *, progress_callback=None) -> None:
+    """Plan-only path: refresh manifest ordering/data without regenerating media."""
+    (project_path / "manifests" / "proposed_plan.json").unlink(missing_ok=True)
+    if progress_callback:
+        progress_callback(0.35, "Rebuilding manifest")
+    build_manifest(project_path)
+    if progress_callback:
+        progress_callback(1.0, "Plan updated")
 
 
 def _rebuild_manifest_and_render(project_path: Path, *, progress_callback=None) -> None:

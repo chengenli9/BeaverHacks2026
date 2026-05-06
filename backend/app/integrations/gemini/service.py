@@ -565,6 +565,8 @@ def edit_plan_with_prompt(project_path: Path, prompt: str, history=None, progres
     from ...manifests.service import _nested_progress, _regenerate_after_plan_mutation, write_plan
 
     write_plan(project_path, edited)
+    # Clean up any stale proposed plan from a previous preview
+    (project_path / "manifests" / "proposed_plan.json").unlink(missing_ok=True)
     if progress_callback:
         progress_callback(0.6, "Regenerating assets and preview")
     _regenerate_after_plan_mutation(project_path, progress_callback=_nested_progress(progress_callback, 0.6, 1.0) if progress_callback else None)
@@ -579,6 +581,112 @@ def edit_plan_with_prompt(project_path: Path, prompt: str, history=None, progres
         output_tokens=usage["output_token_count"],
         artifact_path="manifests/plan.json",
     )
+    return edited.model_dump(mode="json")
+
+
+def edit_plan_preview(project_path: Path, prompt: str, history=None, progress_callback=None) -> dict:
+    """Same as edit_plan_with_prompt but does NOT apply the plan. Returns both current and proposed."""
+    project_path = Path(project_path)
+    project_id = project_path.name
+    current_plan = Plan.from_file(project_path / "manifests" / "plan.json")
+    scene_index = SceneIndex.from_file(project_path / "cache" / "scene_index.json")
+    media_probe = _maybe_load(MediaProbe, project_path / "cache" / "media_probe.json")
+    manifest = _maybe_load(BlockManifest, project_path / "manifests" / "block_manifest.json")
+
+    if progress_callback:
+        progress_callback(0.15, "Preparing plan preview request")
+    system_prompt = _load_prompt("plan_edit")
+    remotion_ctx = _remotion_capabilities_context()
+    remotion_section = f"\n\nRemotion capabilities (use these when designing scene_card / title / end_card beats):\n{remotion_ctx}\n" if remotion_ctx else ""
+
+    history_section = ""
+    if history:
+        history_lines = []
+        for msg in history:
+            role = msg.role if hasattr(msg, "role") else msg.get("role", "user")
+            content = msg.content if hasattr(msg, "content") else msg.get("content", "")
+            history_lines.append(f"[{role}]: {content}")
+        if history_lines:
+            history_section = "Conversation history (previous edits in this session):\n" + "\n".join(history_lines) + "\n\n"
+
+    user_prompt = (
+        f"Project ID: {project_id}\n\n"
+        "Current plan:\n"
+        f"{current_plan.model_dump_json(indent=2)}\n\n"
+        f"{'Current manifest:\n' + manifest.model_dump_json(indent=2) + chr(10) + chr(10) if manifest else ''}"
+        "Scene index:\n"
+        f"{scene_index.model_dump_json(indent=2)}\n\n"
+        "Media probe:\n"
+        f"{media_probe.model_dump_json(indent=2) if media_probe else '{}'}\n\n"
+        f"{remotion_section}"
+        f"{history_section}"
+        "User instruction:\n"
+        f"{prompt}\n"
+    )
+
+    if progress_callback:
+        progress_callback(0.4, "Generating plan preview with Gemini")
+    result, usage = _client.complete_json(
+        user_prompt,
+        system=system_prompt,
+        schema=Plan.model_json_schema(),
+    )
+    result["project_id"] = current_plan.project_id
+    result.setdefault("title", current_plan.title)
+    result.setdefault("target_duration", current_plan.target_duration)
+    result.setdefault("story_arc", current_plan.story_arc)
+    result["beats"] = _renumber_plan_result(result.get("beats", []))
+
+    edited = Plan.model_validate(result)
+    edited.validate_against_scene_index(scene_index)
+
+    # Save proposed plan to a temp file (not overwriting current)
+    proposed_path = project_path / "manifests" / "proposed_plan.json"
+    proposed_path.parent.mkdir(parents=True, exist_ok=True)
+    proposed_path.write_text(edited.model_dump_json(indent=2), encoding="utf-8")
+
+    _log_call(
+        project_path=project_path,
+        project_id=project_id,
+        stage="plan_edit_preview",
+        model=usage["model"],
+        elapsed_ms=usage["elapsed_ms"],
+        input_tokens=usage["input_token_count"],
+        output_tokens=usage["output_token_count"],
+        artifact_path="manifests/proposed_plan.json",
+    )
+
+    if progress_callback:
+        progress_callback(1.0, "Preview ready")
+    return {
+        "current_plan": current_plan.model_dump(mode="json"),
+        "proposed_plan": edited.model_dump(mode="json"),
+    }
+
+
+def apply_proposed_plan(project_path: Path, progress_callback=None) -> dict:
+    """Apply the proposed plan that was saved by edit_plan_preview."""
+    project_path = Path(project_path)
+    proposed_path = project_path / "manifests" / "proposed_plan.json"
+    if not proposed_path.exists():
+        raise FileNotFoundError("No proposed plan to apply. Run preview first.")
+
+    scene_index = SceneIndex.from_file(project_path / "cache" / "scene_index.json")
+    edited = Plan.from_file(proposed_path)
+    edited.validate_against_scene_index(scene_index)
+
+    from ...manifests.service import _rebuild_manifest_only, write_plan
+
+    write_plan(project_path, edited)
+    if progress_callback:
+        progress_callback(0.3, "Updating plan and manifest")
+    _rebuild_manifest_only(project_path, progress_callback=progress_callback)
+
+    # Clean up proposed plan file
+    proposed_path.unlink(missing_ok=True)
+
+    if progress_callback:
+        progress_callback(1.0, "Proposed plan applied")
     return edited.model_dump(mode="json")
 
 
