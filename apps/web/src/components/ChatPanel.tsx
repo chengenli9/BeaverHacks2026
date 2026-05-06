@@ -83,10 +83,15 @@ export function ChatPanel() {
       setMessages((prev) => {
         const last = prev[prev.length - 1]
         if (last?.role === 'assistant' && last.status === 'pending') {
-          const proposedBeatCount = proposedPlan?.beats?.length ?? 0
-          const summary = proposedPlan
-            ? `I drafted an updated plan with ${proposedBeatCount} beat${proposedBeatCount === 1 ? '' : 's'}. Review it below.`
-            : 'No draft changes were produced.'
+          // If proposedPlan is null at this point, this is the accept flow
+          // (proposedPlan was cleared by acceptProposedPlan before the job ran).
+          if (!proposedPlan) {
+            return prev.map((m) =>
+              m.id === last.id ? { ...m, status: 'done' as const, content: 'Changes applied. Rebuilding manifest...' } : m,
+            )
+          }
+          const proposedBeatCount = proposedPlan.beats.length
+          const summary = `I drafted an updated plan with ${proposedBeatCount} beat${proposedBeatCount === 1 ? '' : 's'}. Review it below.`
           return prev.map((m) =>
             m.id === last.id ? { ...m, status: 'done' as const, content: summary } : m,
           )

@@ -347,7 +347,7 @@ async function fetchArtifact(
   dispatch: Dispatch<PipelineAction>,
   stage: PipelineStageKey,
   projectId: string,
-) {
+): Promise<{ wasPreview: boolean }> {
   try {
     if (stage === 'analyze-scenes') {
       const [sceneIndex, mediaProbe, shotIndex] = await Promise.all([
@@ -396,6 +396,7 @@ async function fetchArtifact(
       if (proposedPlan && stage === 'edit-plan') {
         dispatch({ type: 'SET_PROPOSED_PLAN', payload: proposedPlan })
         dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Plan preview ready: ${proposedPlan.beats.length} beats — review diff`) })
+        return { wasPreview: true }
       } else {
         const [plan, manifest, render] = await Promise.all([
           api.getPlan(projectId),
@@ -415,6 +416,7 @@ async function fetchArtifact(
       payload: makeEvent('warning', `Artifact not ready for ${stage}: ${error instanceof Error ? error.message : 'Unknown'}`),
     })
   }
+  return { wasPreview: false }
 }
 
 async function loadIfAvailable(load: () => Promise<void>) {
@@ -517,14 +519,19 @@ export function useJobPoller() {
 
         if (job.status === 'succeeded') {
           stopPolling(jobId)
-          dispatch({ type: 'SET_STAGE', payload: { stage: frontendStage, status: 'succeeded' } })
           dispatch({ type: 'ADD_EVENT', payload: makeEvent('success', `Completed: ${frontendStage}`, { jobId }) })
-          await fetchArtifact(dispatch, frontendStage, projectId)
+          const { wasPreview } = await fetchArtifact(dispatch, frontendStage, projectId)
+          // Dispatch SET_STAGE after fetchArtifact so the ChatPanel effect sees
+          // proposedPlan (if any) before isEditing flips to false.
+          dispatch({ type: 'SET_STAGE', payload: { stage: frontendStage, status: 'succeeded' } })
 
-          // Auto-render only for flows that explicitly produce a fresh manifest preview.
-          const shouldAutoRender =
+          // Auto-render only for flows that produce a fresh manifest.
+          // Skip auto-render for preview edits (user must accept first).
+          const shouldAutoRender = !wasPreview && (
             frontendStage === 'build-manifest'
             || frontendStage === 'apply-approved-patches'
+            || frontendStage === 'edit-plan'   // applyProposedPlan rebuilds manifest
+          )
           if (shouldAutoRender) {
             try {
               const { job_id: renderJobId } = await api.startJob('render', projectId)
