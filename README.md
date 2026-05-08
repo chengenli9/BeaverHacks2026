@@ -1,3 +1,5 @@
+# 🏆 Won 1st Place in the Google Best Use of Gemini Track @ BeaverHacks 2026!
+
 # Scenerio
 
 Scenerio is a local-first demo-video editor for turning hackathon footage into a structured rough cut. The current app includes a FastAPI backend, a React/Vite dashboard, Gemini-powered planning and asset steps, deterministic manifest validation, FFmpeg rendering, and Remotion-generated motion/text scenes.
