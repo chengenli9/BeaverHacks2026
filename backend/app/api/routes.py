@@ -256,7 +256,7 @@ def get_music_library():
 
 
 @router.get("/projects/{project_id}/render")
-def get_render(project_id: str):
+def get_render(project_id: str, request: Request):
     path = _project_path_or_404(project_id) / "renders/final_render.mp4"
     if not path.exists():
         raise HTTPException(404, "Render not available")
@@ -267,7 +267,7 @@ def get_render(project_id: str):
     return {
         "project_id": project_id,
         "render_path": "renders/final_render.mp4",
-        "url": f"http://localhost:8000/projects/{project_id}/render/file",
+        "url": str(request.url_for("get_render_file", project_id=project_id)),
         "duration": summary["duration"],
         "bytes": summary["bytes"],
         "cache_key": str(path.stat().st_mtime_ns),
